@@ -4746,16 +4746,18 @@ function hashSeed(str) {
   for (var i = 0; i < String(str).length; i++) { h ^= String(str).charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
-// 파스텔·저채도. 남국 리조트 톤으로 가지 않는다. 텍스처는 쓰지 않고
-// 색과 조명만으로 질감을 만든다.
+// 클레이 디오라마. 차분함은 채도를 빼서가 아니라 톤을 통일하고
+// 그림자를 제대로 잡아서 만든다. 색은 따뜻하고 선명하게 간다.
+// 텍스처는 쓰지 않고 색과 조명만으로 질감을 만든다.
 var ISLE = {
-  grassLow:  [0.60, 0.70, 0.55],
-  grassHigh: [0.70, 0.77, 0.63],
-  sand:      [0.87, 0.83, 0.72],
-  cliff:     [0.56, 0.62, 0.61],
-  wood:      0xc2ad92,
-  seaDeep:   0x7fa8bb,
-  seaShallow:0xa8cbd6
+  grassLow:  [0.44, 0.62, 0.27],   // 노란기 있는 선명한 잔디
+  grassHigh: [0.61, 0.75, 0.36],   // 볕 드는 능선
+  sand:      [0.91, 0.80, 0.56],   // 따뜻한 모래
+  cliff:     [0.50, 0.41, 0.31],   // 진한 흙벽
+  foam:      [0.70, 0.89, 0.89],   // 물가 파도선. 순백이 아니라 물색이 섞인 옅은 청록
+  wood:      0x8a6742,
+  seaDeep:   0x3ba3bb,             // 보통 날 기준값. buildSea(r, tone)이 밝기·채도를 조절한다
+  seaShallow:0x63c3cc
 };
 function lerp3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 // 정점 색은 Color.set을 거치지 않으므로 ColorManagement가 변환해주지 않는다.
@@ -4929,28 +4931,83 @@ function buildIsland(seedStr, opts) {
     }
   }
   grp.add(dock);
+
+  // 물가 파도선 — 해안선이 불규칙하므로 실제 수면선(높이 0이 되는 지점)을
+  // 각도마다 이분법으로 찾아 그 위를 따라 밝은 띠를 두른다.
+  function waterT(th) {
+    var lo = 0.55, hi = 1.0;
+    for (var k = 0; k < 16; k++) {
+      var mid = (lo + hi) * 0.5, rr = coast(th) * mid;
+      if (height(mid, th, Math.cos(th) * rr, Math.sin(th) * rr) > 0) lo = mid; else hi = mid;
+    }
+    return (lo + hi) * 0.5;
+  }
+  var fPos = [], fIdx = [];
+  for (var fj = 0; fj < segs; fj++) {
+    var fth = fj / segs * 6.283185307;
+    var fr = coast(fth) * waterT(fth);
+    var w = 0.085 + 0.045 * Math.sin(fth * 5 + p2) + 0.025 * Math.sin(fth * 9 + p1);
+    fPos.push(Math.cos(fth) * (fr - 0.02), 0.03, Math.sin(fth) * (fr - 0.02));
+    fPos.push(Math.cos(fth) * (fr + w), 0.03, Math.sin(fth) * (fr + w));
+  }
+  for (var fk = 0; fk < segs; fk++) {
+    var i0 = fk * 2, i1 = fk * 2 + 1;
+    var i2 = ((fk + 1) % segs) * 2, i3 = ((fk + 1) % segs) * 2 + 1;
+    fIdx.push(i0, i2, i1, i1, i2, i3);
+  }
+  var fg = new THREE.BufferGeometry();
+  fg.setAttribute("position", new THREE.Float32BufferAttribute(fPos, 3));
+  fg.setIndex(fIdx);
+  fg.computeVertexNormals();
+  var foam = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({
+    // Color(r,g,b)는 sRGB 변환을 거치지 않으므로 직접 선형으로 바꿔 넣는다.
+    color: new THREE.Color().fromArray(s2l(ISLE.foam)),
+    roughness: 0.9, metalness: 0, transparent: true, opacity: 0.68
+  }));
+  foam.renderOrder = 1;
+  grp.add(foam);
+
   grp.userData.coast = coast;
   grp.userData.height = height;
   grp.userData.dockTh = dockTh;
   return grp;
 }
+// 바다 색조. ④ 학급 온도계가 이 값 하나만 바꾼다.
+// 0 = 무거운 날(짙고 차분), 0.5 = 보통, 1 = 맑은 날(밝고 투명한 청록).
+// DESIGN.md §6대로 색상(hue)은 건드리지 않고 밝기와 채도만 움직인다.
+// 빨강/파랑 온도계를 쓰지 않는 이유도 거기 적혀 있다.
+function seaToned(hex, tone) {
+  // HSL은 반드시 sRGB 공간에서 계산한다. Color(hex)는 선형으로 변환된
+  // 상태라 그대로 getHSL하면 채도가 튀어 색이 망가진다.
+  var c = new THREE.Color(hex);
+  c.convertLinearToSRGB();
+  var hsl = {};
+  c.getHSL(hsl);
+  var l = Math.max(0.06, Math.min(0.92, hsl.l * (0.55 + 0.90 * tone)));
+  var sa = Math.max(0.08, Math.min(0.95, hsl.s * (0.85 + 0.30 * tone)));
+  c.setHSL(hsl.h, sa, l);
+  c.convertSRGBToLinear();
+  return c;
+}
 // 바다. 깊은 바다 위에 얕은 바다를 얹어 물가의 투명감을 낸다.
-function buildSea(radius) {
+function buildSea(radius, tone) {
+  var t = tone == null ? 0.5 : Math.max(0, Math.min(1, tone));
   var sea = new THREE.Group();
   var deep = new THREE.Mesh(new THREE.CircleGeometry(radius, 64),
-    new THREE.MeshStandardMaterial({ color: ISLE.seaDeep, roughness: 0.75, metalness: 0 }));
+    new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaDeep, t), roughness: 0.72, metalness: 0 }));
   deep.rotation.x = -Math.PI / 2; deep.position.y = -0.02; deep.receiveShadow = true;
   sea.add(deep);
   var shallow = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.42, 64),
-    new THREE.MeshStandardMaterial({ color: ISLE.seaShallow, roughness: 0.8, metalness: 0, transparent: true, opacity: 0.85 }));
+    new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaShallow, t), roughness: 0.78, metalness: 0, transparent: true, opacity: 0.82 }));
   shallow.rotation.x = -Math.PI / 2; shallow.position.y = 0.01; shallow.receiveShadow = true;
   sea.add(shallow);
+  sea.userData.tone = t;
   return sea;
 }
 
 // 순수 Three.js. 이 앱은 빌드 단계가 없어(React가 createElement로 작성됨)
 // React Three Fiber를 쓰지 않는다. React는 마운트/언마운트만 관여한다.
-function IslandView({ entries, seed, onBack }) {
+function IslandView({ entries, seed, seaTone, onBack }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [err, setErr] = useState("");
@@ -4978,22 +5035,35 @@ function IslandView({ entries, seed, onBack }) {
     host.appendChild(renderer.domElement);
 
     var scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdfeef2);
+    scene.background = new THREE.Color(0xcfe6ee);
     // 아이소메트릭 고정 카메라. 섬 전체가 한 화면에 들어와야 한다.
     var aspect = W / H, d = 5.0;
     var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
     cam.position.set(14, 12, 14);
     cam.lookAt(0, 0, 0);
 
-    scene.add(buildSea(15));
+    scene.add(buildSea(15, seaTone == null ? 0.5 : seaTone));
     scene.add(buildIsland(seed || "island"));
-    var key = new THREE.DirectionalLight(0xfff4e6, 1.35);
-    key.position.set(8, 14, 6); key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
-    key.shadow.camera.left = -10; key.shadow.camera.right = 10;
-    key.shadow.camera.top = 10; key.shadow.camera.bottom = -10;
+    // 빛은 화면 기준 왼쪽 위에서. 카메라가 (14,12,14)라 이 방향이면
+    // 그림자가 화면 오른쪽 아래로 일관되게 깔린다.
+    // 빛을 낮게 눕힌다(고도 약 33도). 높으면 그림자가 짧아 형태가 안 드러난다.
+    // 세기는 2.6이면 잔디의 초록 채널이 255에서 잘려 네온색이 된다.
+    var key = new THREE.DirectionalLight(0xffe9c4, 1.85);
+    key.position.set(-12, 8.2, 3); key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    // 그림자 카메라를 섬에 딱 맞춘다. 넓게 잡으면 해상도가 흩어져 흐려진다.
+    key.shadow.camera.left = -7; key.shadow.camera.right = 7;
+    key.shadow.camera.top = 7; key.shadow.camera.bottom = -7;
+    key.shadow.camera.near = 1; key.shadow.camera.far = 42;
+    key.shadow.bias = -0.0004;
+    key.shadow.normalBias = 0.018;
     scene.add(key);
-    scene.add(new THREE.HemisphereLight(0xdff0f5, 0x9fb4b8, 0.55));
+    // 채움광은 낮게. 높으면 그늘이 떠서 대비가 죽는다.
+    scene.add(new THREE.HemisphereLight(0xbfe4f2, 0x6b5b45, 0.24));
+    // 반대편에서 아주 약한 찬 빛. 그늘이 새까맣게 죽는 것만 막는다.
+    var fill = new THREE.DirectionalLight(0x9fc6e0, 0.16);
+    fill.position.set(9, 5, -8);
+    scene.add(fill);
 
     var frames = 0, last = performance.now();
     function tick() {
@@ -5025,7 +5095,7 @@ function IslandView({ entries, seed, onBack }) {
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
-  }, [seed]);
+  }, [seed, seaTone]);
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "min(70vh, 560px)", borderRadius: 16, overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
     err ? React.createElement("div", {
