@@ -3443,6 +3443,70 @@ function emoFamily(hit) {
   return null;
 }
 var FAM_LABEL = { anger: "분노", anxious: "불안", sad: "슬픔", tired: "피로" };
+// SITUATION_MAP의 ctx -> 문구표 상황 키. 목록에 없는 ctx는 '상황 불명'으로 간다.
+var SIT2PHRASE = {
+  "친구": "친구", "친구/놀이": "친구",
+  "학교": "학교", "가족": "가족",
+  "공부/숙제": "공부·숙제", "시험": "공부·숙제",
+  "다툼": "다툼", "혼남": "혼남", "혼자": "혼자", "아픔/병원": "아픔·병원"
+};
+// 상담 대화 시작 문구. 원문과 편집 이력은 PHRASES.md 참고.
+// 앱이 지시하지 않는다. 예시일 뿐이고 쓸지 말지는 교사가 정한다.
+var PHRASES = {
+  sad: {
+    "친구": ["요즘 친구들이랑 지내는 거 어때?", "혼자 있고 싶었던 날이 있었어?", "같이 놀고 싶은데 잘 안 됐던 적 있어?"],
+    "학교": ["학교 오는 게 좀 무겁게 느껴질 때 있어?", "요즘 학교에서 어떤 시간이 제일 힘들어?", "교실에 있을 때 마음이 어때?"],
+    "가족": ["요즘 집에서 지내는 건 어때?", "집에서 마음이 편한 편이야?", "하고 싶은 말인데 못 한 게 있어?"],
+    "공부·숙제": ["요즘 공부 때문에 마음이 무거워?", "잘하고 싶은데 잘 안 될 때가 있어?", "공부할 때 어떤 게 제일 어려워?"],
+    "다툼": ["그 일 있고 나서 마음이 어때?", "아직 마음에 남아 있는 게 있어?", "먼저 말 걸어보고 싶은데 잘 안 돼?"],
+    "혼남": ["그때 일이 아직 마음에 남아 있어?", "혼나고 나서 어떤 생각이 들었어?", "하고 싶은 말이 있었는데 못 했어?"],
+    "혼자": ["요즘 혼자 있는 시간이 많아?", "혼자 있을 때 어떤 생각이 들어?", "같이 있고 싶은 사람이 있어?"],
+    "아픔·병원": ["몸은 좀 어때?", "아플 때 곁에 누가 있어줬어?", "아파서 못 한 일이 있어서 아쉬웠어?"],
+    "": ["요즘 어떻게 지내?", "마음이 좀 가라앉는 날이 있었어?", "선생님한테 하고 싶은 말 있어?", "요즘 마음 쓰이는 일이 있어?", "말로 하기 어려우면 지금 말 안 해도 괜찮아."]
+  },
+  anger: {
+    "친구": ["친구랑 부딪히는 일이 있었어?", "억울했던 일이 있었어?", "말하고 싶은데 못 한 게 있었어?"],
+    "학교": ["요즘 학교에서 잘 안 풀리는 게 있어?", "규칙이나 약속 중에 답답한 게 있어?", "어른들이 몰라준 것 같았던 게 있어?"],
+    "가족": ["집에서 답답할 때가 있어?", "하고 싶은 대로 못 해서 짜증 날 때 있어?", "집에서 억울했던 일이 있어?"],
+    "공부·숙제": ["노력한 만큼 안 나와서 화날 때 있어?", "해도 해도 끝이 없다고 느낄 때 있어?", "숙제나 학원 때문에 답답한 게 있어?"],
+    "다툼": ["어떤 일이 있었는지 얘기해줄 수 있어?", "그때 하고 싶었던 말이 있어?", "네 쪽 이야기는 아직 못 한 것 같아?"],
+    "혼남": ["혼났을 때 억울한 게 있었어?", "네 이야기를 다 못 한 것 같아?", "네가 억울했던 부분을 다시 말해줄래?"],
+    "혼자": ["혼자 있고 싶어지는 일이 있었어?", "누가 나를 빼놓은 것 같다고 느낀 적 있어?", "말 걸기 싫은 날이 있어?"],
+    "아픔·병원": ["아픈데 알아주지 않아서 답답했던 적 있어?", "몸이 안 좋을 때 마음은 어때?", "아파서 못 하게 된 게 있어?"],
+    "": ["요즘 짜증 나는 일이 좀 있었어?", "무슨 일이 있었는지 얘기해줄 수 있어?", "억울한 게 있으면 말해줘도 돼.", "요즘 마음이 어때?"]
+  },
+  anxious: {
+    "친구": ["친구들이 나를 어떻게 볼까 걱정될 때 있어?", "말 걸기가 망설여질 때가 있어?", "내일 학교에서 만날 생각하면 어때?"],
+    "학교": ["학교에서 긴장되는 순간이 있어?", "발표나 모둠활동이 부담될 때 있어?", "아침에 학교 올 때 마음이 어때?"],
+    "가족": ["집에서 걱정되는 일이 있어?", "집에 있을 때 마음이 놓여?", "요즘 집에서 신경 쓰이는 일이 있어?"],
+    "공부·숙제": ["시험 생각하면 마음이 어때?", "틀릴까 봐 걱정될 때 있어?", "못 따라갈까 봐 걱정될 때 있어?"],
+    "다툼": ["그 일이 또 생길까 봐 신경 쓰여?", "그 친구를 만날 때 마음이 어때?", "어떻게 될지 몰라서 불편해?"],
+    "혼남": ["또 혼날까 봐 조심하게 될 때 있어?", "학교 올 때 마음이 어때?", "뭘 하면 될지 몰라서 막막할 때 있어?"],
+    "혼자": ["혼자 있을 때 어떤 생각이 자주 들어?", "다가가고 싶은데 망설여질 때 있어?", "쉬는 시간이 어떻게 느껴져?"],
+    "아픔·병원": ["몸이 어디가 계속 불편해?", "병원 가는 게 걱정돼?", "몸이 안 좋을 때 누구한테 말해?"],
+    "": ["요즘 신경 쓰이는 일이 있어?", "잠들기 전에 생각나는 게 있어?", "걱정되는 게 있으면 같이 생각해봐도 돼.", "요즘 마음이 편한 편이야?"]
+  },
+  tired: {
+    "친구": ["친구들이랑 있는 게 요즘 좀 힘들어?", "혼자 쉬고 싶은 날이 있어?", "어울리는 게 피곤하게 느껴질 때 있어?"],
+    "학교": ["요즘 학교 생활이 좀 벅차?", "쉬고 싶다는 생각 자주 들어?", "하루가 길게 느껴져?"],
+    "가족": ["집에서 푹 쉬고 있어?", "요즘 잠은 잘 자?", "집에 가면 좀 나아?"],
+    "공부·숙제": ["요즘 해야 할 게 너무 많아?", "하고 나면 아무것도 하기 싫어질 때 있어?", "쉬는 시간이 충분해?"],
+    "다툼": ["그 일 때문에 진이 빠졌어?", "이제 그냥 신경 쓰기 싫어졌어?", "요즘 기운이 어때?"],
+    "혼남": ["요즘 뭘 해도 잘 안 된다고 느껴져?", "애쓰는 게 지칠 때 있어?", "그냥 가만히 있고 싶은 날이 있어?"],
+    "혼자": ["혼자 있으면 좀 쉬어져?", "사람들이랑 있는 게 힘들 때 있어?", "요즘 기운이 어때?"],
+    "아픔·병원": ["몸은 좀 나아졌어?", "아프고 나서 기운이 잘 안 돌아와?", "요즘 잠은 잘 자?"],
+    "": ["요즘 몸이랑 마음이 좀 지쳐 있어?", "뭘 해도 재미없다고 느낄 때 있어?", "요즘 잠은 잘 자?", "쉬는 시간이 충분해?"]
+  }
+};
+// 배열에서 n개를 무작위로 고른다. 렌더링마다 바뀌면 안 되므로 목록 계산 시 한 번만 부른다.
+function pickN(arr, n) {
+  var a = (arr || []).slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a.slice(0, n);
+}
 var CESD_KEYWORDS = ["귀찮", "입맛", "울적", "우울", "실패작", "무서", "두려", "잠을 설", "잠이 안", "잠을 못", "말수", "외로", "차갑게", "울음", "울었", "슬퍼", "슬프", "싫어하", "기운이 안", "기운이 없", "죽고 싶", "혼자"];
 var CREATURES = [{
   name: "거품", r: 13, color: "rgba(200,240,247,0.4)", stroke: null, img: null
@@ -7265,6 +7329,7 @@ function App() {
   });
   const [myStudents, setMS] = useState([]);
   const [watchList, setWatchList] = useState([]);
+  const [openPhr, setOpenPhr] = useState({}); // 대화 문구 펼침 상태. 기본은 접힘.
   useEffect(function () {
     var cancelled = false;
     (async function () {
@@ -7275,7 +7340,7 @@ function App() {
         var stu = myStudents[si];
         var es = [];
         try { es = await dLoad(stu.id); } catch (e) { es = []; }
-        var byDay = {};
+        var byDay = {}, labCnt = {}, famCnt = {}, flagged = [];
         es.forEach(function (en) {
           if (!en || !en.ts || en.ts < weekAgo) return;
           var d = new Date(en.ts);
@@ -7288,9 +7353,33 @@ function App() {
           if (!byDay[dk]) byDay[dk] = { d: dk, sad: [], kw: null };
           sad.forEach(function (s) { if (byDay[dk].sad.indexOf(s) < 0) byDay[dk].sad.push(s); });
           if (kwHit && !byDay[dk].kw) byDay[dk].kw = kwHit;
+          // 신호가 잡힌 일기에서만 감정·상황을 모은다. "그때의 상황"이라는 뜻이다.
+          flagged.push(en);
+          ((en.analysis && en.analysis.hits) || []).forEach(function (hh) {
+            var fam = emoFamily(hh);
+            if (!fam) return; // 긍정 감정은 제외
+            labCnt[hh.label] = (labCnt[hh.label] || 0) + 1;
+            famCnt[fam] = (famCnt[fam] || 0) + 1;
+          });
         });
         var days = Object.keys(byDay).map(function (k) { return byDay[k]; });
-        if (days.length >= 4) out.push({ name: stu.name || stu.loginId || "학생", count: days.length, days: days });
+        if (days.length >= 4) {
+          var topLab = Object.keys(labCnt).map(function (L) { return { label: L, n: labCnt[L] }; })
+            .sort(function (a, b) { return b.n - a.n; }).slice(0, 4);
+          var FAM_ORDER = ["sad", "anger", "anxious", "tired"];
+          var fam = FAM_ORDER.filter(function (f) { return famCnt[f]; })
+            .sort(function (a, b) { return famCnt[b] - famCnt[a]; })[0] || "sad";
+          var sits = extractSituations(flagged.map(function (e) { return e.text || ""; }));
+          var sitKey = "";
+          for (var qi = 0; qi < sits.length; qi++) { if (SIT2PHRASE[sits[qi].text]) { sitKey = SIT2PHRASE[sits[qi].text]; break; } }
+          out.push({
+            name: stu.name || stu.loginId || "학생",
+            count: days.length, days: days,
+            topLab: topLab, fam: fam, sits: sits.slice(0, 3), sitKey: sitKey,
+            // 렌더링마다 바뀌지 않도록 여기서 한 번만 고른다.
+            phrases: pickN((PHRASES[fam] || PHRASES.sad)[sitKey] || (PHRASES[fam] || PHRASES.sad)[""], 3)
+          });
+        }
       }
       if (!cancelled) setWatchList(out);
     })();
@@ -8886,7 +8975,7 @@ function App() {
       background: "#8b5cf6",
       opacity: bulkCount ? 1 : 0.4
     }
-  }, "1\uBC88~", bulkCount || "N", "\uBC88 \uC77C\uAD04 \uC0DD\uC131")), watchList.length > 0 && React.createElement("div", {
+  }, "1\uBC88~", bulkCount || "N", "\uBC88 \uC77C\uAD04 \uC0DD\uC131")), myStudents.length > 0 && React.createElement("div", {
   style: {
     ...crd,
     marginBottom: 16,
@@ -8917,7 +9006,7 @@ function App() {
     marginBottom: 12,
     lineHeight: 1.6
   }
-}, "최근 7일 감정일기에서 마음이 힘들어 보이는 신호가 있는 학생이에요."), watchList.map(function (w, wi) {
+}, "최근 7일 감정일기에서 마음이 힘들어 보이는 신호가 있는 학생이에요."), watchList.length ? watchList.map(function (w, wi) {
   return React.createElement("div", {
     key: wi,
     style: {
@@ -8964,14 +9053,38 @@ function App() {
         color: isKw ? "#6b7480" : "#4a72a0"
       }
     }, dy.d, " ", isKw ? "'" + dy.kw + "'" : dy.sad.join("·"));
-  })), React.createElement("div", {
+  })),
+  (w.topLab && w.topLab.length) || (w.sits && w.sits.length) ? React.createElement("div", {
+    style: { marginTop: 9, fontSize: 13, color: "#54626c", lineHeight: 1.9 }
+  }, w.topLab && w.topLab.length ? React.createElement("div", null,
+      React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "자주 나온 감정"),
+      w.topLab.map(function (t) { return t.label + " " + t.n; }).join(" · ")) : null,
+    w.sits && w.sits.length ? React.createElement("div", null,
+      React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "그때의 상황"),
+      w.sits.map(function (t) { return t.text + " " + t.count; }).join(" · ")) : null) : null,
+  React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
+    onClick: function () { setOpenPhr(Object.assign({}, openPhr, { [wi]: !openPhr[wi] })); },
+    style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
+  }, openPhr[wi] ? "대화 문구 접기" : "대화 문구 보기")),
+  openPhr[wi] && w.phrases && w.phrases.length ? React.createElement("div", {
+    style: { marginTop: 8, padding: "11px 13px", background: "#fff", border: "1px solid #e3edf1", borderRadius: 10 }
+  }, React.createElement("div", { style: { fontSize: 12, color: "#93a3ac", marginBottom: 6 } },
+      "이렇게 말을 걸어볼 수 있어요 · " + (FAM_LABEL[w.fam] || "") + (w.sitKey ? " × " + w.sitKey : " (상황 불명)")),
+    w.phrases.map(function (ph, pi) {
+      return React.createElement("div", { key: pi, style: { fontSize: 14, color: "#2b3a42", lineHeight: 1.9 } }, "· " + ph);
+    }),
+    React.createElement("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f4f6", fontSize: 12, color: "#93a3ac", lineHeight: 1.7 } },
+      "이 문구는 참고용 예시입니다. 아이의 상황을 가장 잘 아는 것은 선생님입니다.")) : null,
+  React.createElement("div", {
     style: {
       fontSize: 13,
       color: "#93a3ac",
       marginTop: 10
     }
   }, "Wee·상담 연계 › 보호자 상담 › 필요시 1388·109"));
-})), React.createElement("div", {
+}) : React.createElement("div", {
+  style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
+}, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")), React.createElement("div", {
     style: {
       ...crd,
       marginBottom: 16
