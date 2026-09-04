@@ -886,6 +886,39 @@ async function d2Update(id, payload) {
 function d2Clean(o) {
   return JSON.parse(JSON.stringify(o));
 }
+// 일기 한 편 쓰기(추가·수정 공용). 자식 노드 하나만 건드리므로
+// 두 기기에서 동시에 써도 서로의 일기를 덮지 않는다.
+async function d2Put(id, entry) {
+  var k = entry._k || entryKey(entry.ts);
+  var o = {};
+  o[k] = d2Clean({ date: entry.date, text: entry.text, ts: entry.ts, analysis: entry.analysis });
+  o._migrated = true;
+  await d2Update(id, o);
+  return k;
+}
+async function d2Del(id, entry) {
+  var k = entry._k || entryKey(entry.ts);
+  await firebase.database().ref("app/" + d2Key(id) + "/" + k).remove();
+}
+// 기록 비우기. _migrated를 남겨야 옛 경로로 폴백해 지운 일기가 되살아나지 않는다.
+async function d2Clear(id) {
+  await firebase.database().ref("app/" + d2Key(id)).set({ _migrated: true });
+}
+async function d2Drop(id) {
+  await firebase.database().ref("app/" + d2Key(id)).remove();
+}
+// 아직 이관 안 된 학생을 첫 로그인 때 옮긴다. 마이그레이션 누락에 대한 안전망.
+async function d2Ensure(id) {
+  var v2 = await sGet(d2Key(id));
+  if (v2 && v2._migrated) return;
+  var old = safeEntries(await sGet(dKey(id)));
+  var payload = {};
+  old.forEach(function (en) {
+    payload[entryKey(en.ts)] = d2Clean({ date: en.date, text: en.text, ts: en.ts, analysis: en.analysis });
+  });
+  payload._migrated = true;
+  await d2Update(id, payload);
+}
 // 일기 읽기. 새 경로가 마이그레이션 완료 상태면 그쪽을, 아니면 옛 경로를 읽는다.
 // 어느 쪽이든 예전과 똑같은 모양의 배열을 돌려준다(소비 코드는 손대지 않는다).
 async function dLoad(id) {
@@ -4573,7 +4606,9 @@ function todayStr() {
 function DiaryView({
   entries,
   setEntries,
-  save,
+  onAdd,
+  onUpdate,
+  onDelete,
   readOnly,
   userId
 }) {
@@ -4734,20 +4769,26 @@ function DiaryView({
   }, []);
   const doSave = useCallback((entryText, entryDate, preAnalysis) => {
     const analysis = preAnalysis || analyzeEntry(entryText);
+    // ts는 Date.now()+Math.random()인데 정수부가 커서 소수부에 약 11비트만
+    // 남는다. 같은 밀리초에 겹칠 수 있으므로 기존 키와 부딪히면 1ms씩 민다.
+    var used = {};
+    entries.forEach(function (e) { used[entryKey(e.ts)] = 1; });
+    var nts = Date.now() + Math.random();
+    while (used[entryKey(nts)]) nts = Math.floor(nts) + 1 + Math.random();
     const ne = {
       date: entryDate,
       text: entryText,
       analysis,
-      ts: Date.now() + Math.random()
+      ts: nts
     };
     const u = [...entries, ne];
     setEntries(u);
-    save(u);
+    onAdd(ne);
     setLastR(ne);
     setText("");
     setPending(null);
     advanceDate(u, entryDate);
-  }, [entries, tab, setEntries, save, advanceDate]);
+  }, [entries, tab, setEntries, onAdd, advanceDate]);
   const add = useCallback(() => {
     if (readOnly) return;
     const rawText = text.trim();
@@ -4858,10 +4899,11 @@ function DiaryView({
   }, [pending, customEmo, doSave]);
   const del = useCallback(ts => {
     if (readOnly) return;
+    const target = entries.find(e => e.ts === ts);
     const u = entries.filter(e => e.ts !== ts);
     setEntries(u);
-    save(u);
-  }, [entries, readOnly, setEntries, save]);
+    if (target) onDelete(target);
+  }, [entries, readOnly, setEntries, onDelete]);
   const stats = useMemo(() => {
     if (!entries.length) return null;
     const freq = {};
@@ -5530,7 +5572,8 @@ function DiaryView({
         return en;
       });
       setEntries(updated);
-      await save(updated);
+      var touched = updated.find(function (en) { return en.ts === lastR.ts; });
+      if (touched) await onUpdate(touched);
       setLastR({
         ...lastR,
         analysis: {
@@ -5635,7 +5678,8 @@ function DiaryView({
         return en;
       });
       setEntries(updated);
-      await save(updated);
+      var touched = updated.find(function (en) { return en.ts === lastR.ts; });
+      if (touched) await onUpdate(touched);
       setLastR({
         ...lastR,
         analysis: {
@@ -7204,7 +7248,7 @@ function App() {
   const [myEntries, setME] = useState([]);
   const [trialEntries, setTE] = useState([]);
   const [trialId] = useState("trial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8));
-  const trialSave = useCallback(async function (e) {}, []);
+  const trialNoop = useCallback(async function (e) {}, []);
   useEffect(() => {
     (async () => {
       const sc = await sGet(SK.schools);
@@ -7280,6 +7324,7 @@ function App() {
       schoolCode: code,
       schoolName: school.schoolName
     });
+    await d2Ensure(found.id);
     const entries = await dLoad(found.id);
     setME(entries);
     setPage("studentDiary");
@@ -7328,7 +7373,7 @@ function App() {
     const updated = [...list, ns];
     await sSet(stuKey(code), updated);
     setMS(updated);
-    await sSet(dKey(ns.id), []);
+    await d2Clear(ns.id);
     setStF({
       studentName: "",
       loginId: "",
@@ -7371,7 +7416,7 @@ function App() {
           classNumber: bulkClass.trim()
         };
         updated.push(ns);
-        await sSet(dKey(ns.id), []);
+        await d2Clear(ns.id);
         added++;
       }
     }
@@ -7392,6 +7437,7 @@ function App() {
       });
       await sSet(stuKey(code), updated);
       setMS(updated);
+      await d2Drop(stu.id);
       await sSet(dKey(stu.id), null);
       if (viewStu && viewStu.id === stu.id) {
         setVS(null);
@@ -7410,13 +7456,22 @@ function App() {
   };
   const clearStuRecords = async stu => {
     if (!confirm(stu.name + "의 기록을 모두 비울까요?")) return;
+    await d2Clear(stu.id);
     await sSet(dKey(stu.id), []);
     if (viewStu && viewStu.id === stu.id) setVE([]);
     setMsg("기록이 비워졌습니다.");
   };
-  const saveMyEntries = useCallback(async e => {
+  const myAdd = useCallback(async e => {
     if (!currentUser) return;
-    await sSet(dKey(currentUser.id), e);
+    await d2Put(currentUser.id, e);
+  }, [currentUser]);
+  const myUpdate = useCallback(async e => {
+    if (!currentUser) return;
+    await d2Put(currentUser.id, e);
+  }, [currentUser]);
+  const myDelete = useCallback(async e => {
+    if (!currentUser) return;
+    await d2Del(currentUser.id, e);
   }, [currentUser]);
   const logout = () => {
     setCU(null);
@@ -8208,7 +8263,9 @@ function App() {
   }, React.createElement(DiaryView, {
     entries: trialEntries,
     setEntries: setTE,
-    save: trialSave,
+    onAdd: trialNoop,
+    onUpdate: trialNoop,
+    onDelete: trialNoop,
     readOnly: false,
     userId: trialId
   })));
@@ -8376,7 +8433,9 @@ function App() {
   }, React.createElement(DiaryView, {
     entries: myEntries,
     setEntries: setME,
-    save: saveMyEntries,
+    onAdd: myAdd,
+    onUpdate: myUpdate,
+    onDelete: myDelete,
     readOnly: false,
     userId: currentUser ? currentUser.id : null
   })));
@@ -9168,7 +9227,9 @@ function App() {
   }, "\u2715")), React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 } }, React.createElement("button", { onClick: function () { openEmotionReport(viewStu.name, viewEntries); }, style: { padding: "7px 16px", fontSize: 14, borderRadius: 8, border: "1px solid #99d8c9", background: "#e6f4f0", color: "#0e7490", cursor: "pointer", fontFamily: "'Gowun Dodum',system-ui" } }, "리포트 저장")), React.createElement(DiaryView, {
     entries: viewEntries,
     setEntries: setVE,
-    save: async e => await sSet(dKey(viewStu.id), e),
+    onAdd: async () => {},
+    onUpdate: async () => {},
+    onDelete: async () => {},
     readOnly: true
   })))));
   return null;
