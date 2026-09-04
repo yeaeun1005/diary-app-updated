@@ -8350,6 +8350,11 @@ function App() {
     try { await d2Ensure(found.id); } catch (e) { console.error("d2Ensure:", e); }
     const entries = await dLoad(found.id);
     setME(entries);
+    // 섬 요약과 학급 온도계를 채운다. 기존 학생은 일기는 있어도 isle 노드가 없다.
+    // 실패해도 로그인은 진행한다. 일기 기능과 무관하다.
+    var meNow = { ...found, schoolCode: code };
+    try { await isleSync(meNow, islandState(entries)); } catch (e) { console.error("isleSync:", e); }
+    try { await dayMark(meNow, entries); } catch (e) { console.error("dayMark:", e); }
     setPage("studentDiary");
     setLF({
       schoolCode: "",
@@ -8484,14 +8489,23 @@ function App() {
     if (viewStu && viewStu.id === stu.id) setVE([]);
     setMsg("기록이 비워졌습니다.");
   };
+  // 일기 저장이 먼저다. 섬·온도계는 부수 작업이라 실패해도 일기를 막지 않는다.
+  const syncIsland = useCallback(async (e, all) => {
+    if (!currentUser) return;
+    try { await isleSync(currentUser, islandState([e])); } catch (err) { console.error("isleSync:", err); }
+    try { await dayMark(currentUser, all); } catch (err) { console.error("dayMark:", err); }
+  }, [currentUser]);
   const myAdd = useCallback(async e => {
     if (!currentUser) return;
     await d2Put(currentUser.id, e);
-  }, [currentUser]);
+    await syncIsland(e, [...myEntries, e]);
+  }, [currentUser, myEntries, syncIsland]);
   const myUpdate = useCallback(async e => {
     if (!currentUser) return;
     await d2Put(currentUser.id, e);
-  }, [currentUser]);
+    // 감정 교정으로 어휘가 바뀔 수 있다. 누적이라 지우지는 않는다.
+    await syncIsland(e, myEntries.map(function (x) { return x.ts === e.ts ? e : x; }));
+  }, [currentUser, myEntries, syncIsland]);
   const myDelete = useCallback(async e => {
     if (!currentUser) return;
     await d2Del(currentUser.id, e);
