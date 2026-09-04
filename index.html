@@ -878,6 +878,14 @@ function entryKey(ts) {
   while (head.length < 13) head = "0" + head;
   return "e" + head + "_" + suf;
 }
+// 새 경로에 자식 노드를 병합한다. set이 아니라 update라 기존 노드를 지우지 않는다.
+async function d2Update(id, payload) {
+  await firebase.database().ref("app/" + d2Key(id)).update(payload);
+}
+// Firebase는 undefined를 거부한다. JSON 왕복으로 undefined 속성을 털어낸다.
+function d2Clean(o) {
+  return JSON.parse(JSON.stringify(o));
+}
 // 일기 읽기. 새 경로가 마이그레이션 완료 상태면 그쪽을, 아니면 옛 경로를 읽는다.
 // 어느 쪽이든 예전과 똑같은 모양의 배열을 돌려준다(소비 코드는 손대지 않는다).
 async function dLoad(id) {
@@ -6945,35 +6953,179 @@ function App() {
   }, [authOpen]);
   const [viewStu, setVS] = useState(null);
   const [viewEntries, setVE] = useState([]);
-  // ①단계 마이그레이션 dry-run — 읽기만 한다. 아무것도 쓰지 않는다.
+  // ①단계 마이그레이션 도구 — 지정 교사 계정에서만 보인다.
+  const MIG_OWNER = "toya1005";
   const [migOpen, setMigOpen] = useState(false);
   const [migBusy, setMigBusy] = useState(false);
   const [migReport, setMigReport] = useState(null);
-  const runMigCheck = async () => {
-    setMigOpen(true);
-    setMigBusy(true);
-    setMigReport(null);
-    var rows = [];
-    var tOld = 0, tKeys = 0, tDup = 0, tDone = 0;
-    for (var i = 0; i < myStudents.length; i++) {
-      var stu = myStudents[i];
-      var old = [];
-      try { old = safeEntries(await sGet(dKey(stu.id))); } catch (e) { old = []; }
-      var v2 = null;
-      try { v2 = await sGet(d2Key(stu.id)); } catch (e) { v2 = null; }
-      var done = !!(v2 && v2._migrated);
-      var already = v2 ? Object.keys(v2).filter(function (k) { return k.charAt(0) === "e"; }).length : 0;
-      var seen = {}, dup = [];
-      old.forEach(function (en) {
-        var k = entryKey(en.ts);
-        if (seen[k]) dup.push(en.date || "?"); else seen[k] = 1;
-      });
-      rows.push({ name: stu.name, oldN: old.length, keyN: Object.keys(seen).length, dup: dup, done: done, already: already });
-      tOld += old.length; tKeys += Object.keys(seen).length; tDup += dup.length; if (done) tDone++;
+  const [migSel, setMigSel] = useState({});
+  const [migProg, setMigProg] = useState("");
+  const [migDone, setMigDone] = useState(null);
+
+  // 전체 학교를 훑는다. 읽기만 한다.
+  const runMigScan = async () => {
+    setMigOpen(true); setMigBusy(true); setMigReport(null); setMigDone(null);
+    setMigProg("학교 목록을 읽는 중…");
+    var sc = (await sGet(SK.schools)) || [];
+    var out = [], tStu = 0, tEnt = 0, tKey = 0, tDup = 0, tMig = 0;
+    for (var i = 0; i < sc.length; i++) {
+      var sch = sc[i];
+      if (!sch || !sch.schoolCode) continue;
+      setMigProg("(" + (i + 1) + "/" + sc.length + ") " + (sch.schoolName || sch.schoolCode));
+      var list = [];
+      try { list = (await sGet(stuKey(sch.schoolCode))) || []; } catch (e) { list = []; }
+      var ent = 0, key = 0, dup = 0, mig = 0;
+      for (var j = 0; j < list.length; j++) {
+        var stu = list[j];
+        if (!stu || !stu.id) continue;
+        var old = [];
+        try { old = safeEntries(await sGet(dKey(stu.id))); } catch (e) { old = []; }
+        var v2 = null;
+        try { v2 = await sGet(d2Key(stu.id)); } catch (e) { v2 = null; }
+        if (v2 && v2._migrated) mig++;
+        var seen = {};
+        old.forEach(function (en) { var k = entryKey(en.ts); if (seen[k]) dup++; else seen[k] = 1; });
+        ent += old.length; key += Object.keys(seen).length;
+      }
+      out.push({ code: sch.schoolCode, name: sch.schoolName || "(이름없음)", teacher: sch.teacherName || "", stu: list.length, ent: ent, key: key, dup: dup, mig: mig });
+      tStu += list.length; tEnt += ent; tKey += key; tDup += dup; tMig += mig;
     }
-    setMigReport({ rows: rows, tOld: tOld, tKeys: tKeys, tDup: tDup, tDone: tDone, n: myStudents.length });
-    setMigBusy(false);
+    var sel = {};
+    out.forEach(function (r) { if (r.ent > 0) sel[r.code] = true; }); // 실제 데이터 있는 반만 기본 선택
+    setMigSel(sel);
+    setMigReport({ rows: out, nSchool: out.length, tStu: tStu, tEnt: tEnt, tKey: tKey, tDup: tDup, tMig: tMig });
+    setMigProg(""); setMigBusy(false);
   };
+
+  // 선택한 학급만 새 경로로 복사한다. 옛 경로는 읽기만 하고 절대 건드리지 않는다.
+  const runMigApply = async () => {
+    if (!migReport) return;
+    var picked = migReport.rows.filter(function (r) { return migSel[r.code]; });
+    if (!picked.length) { setMsg("마이그레이션할 학급을 선택해주세요."); return; }
+    var totEnt = picked.reduce(function (a, r) { return a + r.ent; }, 0);
+    if (!confirm("학급 " + picked.length + "개 / 일기 " + totEnt + "편을 새 경로(app/d2)로 복사합니다.\n\n"
+      + "기존 데이터(app/diary_<id>)는 읽기만 하고 그대로 둡니다.\n"
+      + "이미 복사된 일기는 건너뜁니다. 여러 번 실행해도 안전합니다.\n\n계속할까요?")) return;
+    setMigBusy(true); setMigDone(null);
+    var copied = 0, skipped = 0, students = 0, failed = [];
+    for (var i = 0; i < picked.length; i++) {
+      var r = picked[i];
+      var list = [];
+      try { list = (await sGet(stuKey(r.code))) || []; } catch (e) { list = []; }
+      for (var j = 0; j < list.length; j++) {
+        var stu = list[j];
+        if (!stu || !stu.id) continue;
+        setMigProg("(" + (i + 1) + "/" + picked.length + ") " + r.name + " · 학생 " + (j + 1) + "/" + list.length);
+        try {
+          var old = safeEntries(await sGet(dKey(stu.id)));
+          var v2 = (await sGet(d2Key(stu.id))) || {};
+          var payload = {};
+          old.forEach(function (en) {
+            var k = entryKey(en.ts);
+            if (v2[k]) { skipped++; return; }
+            payload[k] = d2Clean({ date: en.date, text: en.text, ts: en.ts, analysis: en.analysis });
+            copied++;
+          });
+          payload._migrated = true;
+          await d2Update(stu.id, payload);
+          students++;
+        } catch (e) {
+          failed.push((stu.name || stu.id) + ": " + (e && e.message ? e.message : String(e)));
+        }
+      }
+    }
+    setMigProg("");
+    await runMigScan();
+    setMigDone({ copied: copied, skipped: skipped, students: students, failed: failed });
+  };
+
+  const migTile = (label, value, warn) => React.createElement("div", {
+    style: { flex: 1, textAlign: "center", background: warn ? "#fef2f2" : "#f4f9fb", borderRadius: 8, padding: "8px 4px" }
+  }, React.createElement("div", { style: { fontSize: 11, color: "#7a8a92" } }, label),
+     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: warn ? "#dc2626" : "#0e7490" } }, value));
+
+  const migUI = () => React.createElement("div", null, React.createElement("div", {
+    style: { textAlign: "right", marginBottom: 10 }
+  }, React.createElement("button", {
+    onClick: runMigScan,
+    style: { ...bSoft, padding: "5px 12px", fontSize: 12, color: "#64748b", opacity: 0.75 }
+  }, "저장 구조 점검")), migOpen && React.createElement("div", {
+    onClick: () => { if (!migBusy) setMigOpen(false); },
+    style: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }
+  }, React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: { background: "#fff", borderRadius: 16, maxWidth: 660, width: "100%", maxHeight: "90vh", overflow: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }
+  }, React.createElement("div", {
+    style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #f1f5f9", position: "sticky", top: 0, background: "#fff", zIndex: 1 }
+  }, React.createElement("div", {
+    style: { fontFamily: "'Jua',sans-serif", fontSize: 18, color: "#0e7490" }
+  }, "저장 구조 점검 · 마이그레이션"), React.createElement("button", {
+    onClick: () => setMigOpen(false),
+    disabled: migBusy,
+    style: { background: "none", border: "none", fontSize: 20, cursor: migBusy ? "not-allowed" : "pointer", color: "#94a3b8", lineHeight: 1, opacity: migBusy ? 0.4 : 1 }
+  }, "\u2715")), React.createElement("div", { style: { padding: "18px 20px" } },
+    migBusy ? React.createElement("div", {
+      style: { textAlign: "center", color: "#475569", padding: "30px 0", fontSize: 14 }
+    }, "작업 중…", React.createElement("div", { style: { marginTop: 8, fontSize: 12, color: "#94a3b8" } }, migProg))
+    : !migReport ? null
+    : React.createElement("div", null,
+      migDone && React.createElement("div", {
+        style: { background: migDone.failed.length ? "#fef2f2" : "#f0fdf4", border: "1px solid " + (migDone.failed.length ? "#fecaca" : "#bbf7d0"), borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 13, lineHeight: 1.8 }
+      }, React.createElement("div", { style: { fontWeight: 700, color: migDone.failed.length ? "#dc2626" : "#15803d", marginBottom: 4 } },
+          migDone.failed.length ? "일부 실패" : "복사 완료"),
+        "학생 " + migDone.students + "명 · 새로 복사 " + migDone.copied + "편 · 이미 있어 건너뜀 " + migDone.skipped + "편",
+        migDone.failed.length ? React.createElement("div", { style: { marginTop: 6, color: "#dc2626", fontSize: 12 } }, migDone.failed.slice(0, 5).join(" / ")) : null),
+      React.createElement("div", {
+        style: { fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", marginBottom: 14, lineHeight: 1.7 }
+      }, "기존 데이터(app/diary_<id>)는 읽기만 하고 그대로 둡니다. 새 경로(app/d2)로 복사만 합니다. 여러 번 실행해도 안전합니다."),
+      React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 6 } },
+        migTile("학교", migReport.nSchool + "개", false),
+        migTile("학생", migReport.tStu + "명", false),
+        migTile("일기", migReport.tEnt + "편", false),
+        migTile("새 키", migReport.tKey + "개", false),
+        migTile("ts 중복", migReport.tDup + "건", migReport.tDup > 0)),
+      React.createElement("div", {
+        style: { fontSize: 12, color: migReport.tDup > 0 ? "#dc2626" : "#64748b", margin: "8px 0 12px" }
+      }, migReport.tDup > 0 ? "\u26A0 ts 중복이 있습니다. 복사 전에 확인이 필요합니다."
+        : "\u2713 ts 중복 없음 · 이미 이관된 학생 " + migReport.tMig + "명"),
+      React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 8, fontSize: 12 } },
+        React.createElement("button", {
+          onClick: () => { var x = {}; migReport.rows.forEach(function (r) { if (r.ent > 0) x[r.code] = true; }); setMigSel(x); },
+          style: { ...bSoft, padding: "4px 10px", fontSize: 12 }
+        }, "데이터 있는 반만"),
+        React.createElement("button", {
+          onClick: () => { var x = {}; migReport.rows.forEach(function (r) { x[r.code] = true; }); setMigSel(x); },
+          style: { ...bSoft, padding: "4px 10px", fontSize: 12 }
+        }, "전체 선택"),
+        React.createElement("button", {
+          onClick: () => setMigSel({}),
+          style: { ...bSoft, padding: "4px 10px", fontSize: 12 }
+        }, "선택 해제")),
+      React.createElement("div", { style: { border: "1px solid #eef2f5", borderRadius: 10, overflow: "hidden" } },
+        migReport.rows.map(function (r, i) {
+          var on = !!migSel[r.code];
+          return React.createElement("label", {
+            key: r.code,
+            style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", fontSize: 13, cursor: "pointer", borderTop: i ? "1px solid #f4f7f9" : "none", background: r.dup ? "#fff7f7" : on ? "#f8fdfc" : "#fff" }
+          }, React.createElement("input", {
+            type: "checkbox", checked: on,
+            onChange: () => setMigSel(Object.assign({}, migSel, { [r.code]: !on })),
+            style: { width: 15, height: 15, cursor: "pointer", flexShrink: 0 }
+          }), React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { color: r.ent ? "#1e293b" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, r.name),
+            React.createElement("div", { style: { fontSize: 11, color: "#94a3b8" } }, r.code + (r.teacher ? " · " + r.teacher : ""))),
+          React.createElement("div", { style: { width: 150, textAlign: "right", color: r.ent ? "#64748b" : "#cbd5e1", fontSize: 12 } },
+            "학생 " + r.stu + " · 일기 " + r.ent + " \u2192 " + r.key + "키"),
+          React.createElement("div", { style: { width: 74, textAlign: "right", fontSize: 12, color: r.dup ? "#dc2626" : r.mig ? "#15803d" : "#cbd5e1" } },
+            r.dup ? "중복 " + r.dup : r.mig ? "이관 " + r.mig : r.ent ? "대기" : "빈 반"));
+        })),
+      React.createElement("div", { style: { marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 } },
+        React.createElement("button", { onClick: runMigScan, style: { ...bSoft } }, "다시 점검"),
+        React.createElement("button", {
+          onClick: runMigApply,
+          style: { ...bPri, background: "linear-gradient(135deg,#0d9488,#0e7490)" }
+        }, "선택한 학급 복사")))))));
+
   const [todayOpen, setTodayOpen] = useState(false);
   const [todayAgg, setTodayAgg] = useState(null);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -8275,53 +8427,7 @@ function App() {
       maxWidth: 760,
       margin: "0 auto"
     }
-  }, React.createElement("div", {
-    style: { textAlign: "right", marginBottom: 10 }
-  }, React.createElement("button", {
-    onClick: runMigCheck,
-    style: { ...bSoft, padding: "5px 12px", fontSize: 12, color: "#64748b", opacity: 0.75 }
-  }, "\uC800\uC7A5 \uAD6C\uC870 \uC810\uAC80")), migOpen && React.createElement("div", {
-    onClick: () => setMigOpen(false),
-    style: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }
-  }, React.createElement("div", {
-    onClick: e => e.stopPropagation(),
-    style: { background: "#fff", borderRadius: 16, maxWidth: 620, width: "100%", maxHeight: "90vh", overflow: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }
-  }, React.createElement("div", {
-    style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #f1f5f9", position: "sticky", top: 0, background: "#fff" }
-  }, React.createElement("div", {
-    style: { fontFamily: "'Jua',sans-serif", fontSize: 18, color: "#0e7490" }
-  }, "\uC800\uC7A5 \uAD6C\uC870 \uC810\uAC80 (\uC77D\uAE30 \uC804\uC6A9)"), React.createElement("button", {
-    onClick: () => setMigOpen(false),
-    style: { background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }
-  }, "\u2715")), React.createElement("div", {
-    style: { padding: "18px 20px" }
-  }, migBusy ? React.createElement("div", {
-    style: { textAlign: "center", color: "#475569", padding: "30px 0", fontSize: 14 }
-  }, "\uD655\uC778\uD558\uB294 \uC911\u2026") : !migReport ? null : React.createElement("div", null, React.createElement("div", {
-    style: { fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", marginBottom: 14, lineHeight: 1.7 }
-  }, "\uC774 \uC810\uAC80\uC740 \uB370\uC774\uD130\uB97C \uC77D\uAE30\uB9CC \uD569\uB2C8\uB2E4. \uC544\uBB34\uAC83\uB3C4 \uC800\uC7A5\uD558\uAC70\uB098 \uBC14\uAFB8\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."), React.createElement("div", {
-    style: { display: "flex", gap: 8, marginBottom: 14 }
-  }, [["\uD559\uC0DD", migReport.n + "\uBA85", false], ["\uC77C\uAE30", migReport.tOld + "\uD3B8", false], ["\uC0C8 \uD0A4", migReport.tKeys + "\uAC1C", false], ["ts \uC911\uBCF5", migReport.tDup + "\uAC74", migReport.tDup > 0]].map(function (c, i) {
-    return React.createElement("div", {
-      key: i,
-      style: { flex: 1, textAlign: "center", background: c[2] ? "#fef2f2" : "#f4f9fb", borderRadius: 8, padding: "8px 4px" }
-    }, React.createElement("div", { style: { fontSize: 11, color: "#7a8a92" } }, c[0]), React.createElement("div", {
-      style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: c[2] ? "#dc2626" : "#0e7490" }
-    }, c[1]));
-  })), React.createElement("div", {
-    style: { fontSize: 13, fontWeight: 600, color: migReport.tDup > 0 ? "#dc2626" : "#0e7490", marginBottom: 10 }
-  }, migReport.tDup > 0 ? "\u26A0 ts \uC911\uBCF5\uC774 \uC788\uC2B5\uB2C8\uB2E4. 2\uB2E8\uACC4 \uC804\uC5D0 \uCC98\uB9AC\uD574\uC57C \uD569\uB2C8\uB2E4." : "\u2713 ts \uC911\uBCF5 \uC5C6\uC74C. 2\uB2E8\uACC4\uB85C \uC9C4\uD589 \uAC00\uB2A5\uD569\uB2C8\uB2E4."), React.createElement("div", {
-    style: { border: "1px solid #eef2f5", borderRadius: 10, overflow: "hidden" }
-  }, migReport.rows.map(function (r, i) {
-    return React.createElement("div", {
-      key: i,
-      style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, borderTop: i ? "1px solid #f4f7f9" : "none", background: r.dup.length ? "#fff7f7" : "#fff" }
-    }, React.createElement("div", { style: { flex: 1, color: "#1e293b" } }, r.name), React.createElement("div", {
-      style: { width: 116, textAlign: "right", color: "#64748b" }
-    }, r.oldN + "\uD3B8 \u2192 " + r.keyN + "\uD0A4"), React.createElement("div", {
-      style: { width: 96, textAlign: "right", color: r.dup.length ? "#dc2626" : "#94a3b8" }
-    }, r.dup.length ? "\uC911\uBCF5 " + r.dup.length : r.done ? "\uC774\uAD00\uB428 " + r.already : r.oldN === 0 ? "\uC5C6\uC74C" : "\uB300\uAE30"));
-  })))))), msgBox, myStudents.length === 0 && React.createElement("div", {
+  }, currentUser.teacherId === MIG_OWNER && migUI(), msgBox, myStudents.length === 0 && React.createElement("div", {
     style: {
       ...crd,
       marginBottom: 16,
