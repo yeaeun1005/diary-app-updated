@@ -4732,9 +4732,225 @@ function todayStr() {
   return fmtDate(new Date());
 }
 // ── ③ 3D 내 섬 ───────────────────────────────────────────────
+// 결정론적 난수. 같은 학생은 언제 열어도 같은 섬이어야 한다.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hashSeed(str) {
+  var h = 2166136261;
+  for (var i = 0; i < String(str).length; i++) { h ^= String(str).charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// 파스텔·저채도. 남국 리조트 톤으로 가지 않는다. 텍스처는 쓰지 않고
+// 색과 조명만으로 질감을 만든다.
+var ISLE = {
+  grassLow:  [0.60, 0.70, 0.55],
+  grassHigh: [0.70, 0.77, 0.63],
+  sand:      [0.87, 0.83, 0.72],
+  cliff:     [0.56, 0.62, 0.61],
+  wood:      0xc2ad92,
+  seaDeep:   0x7fa8bb,
+  seaShallow:0xa8cbd6
+};
+function lerp3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+// 정점 색은 Color.set을 거치지 않으므로 ColorManagement가 변환해주지 않는다.
+// 위 팔레트는 sRGB로 적었으니 여기서 직접 선형으로 바꾼다.
+function s2l(c) { return [Math.pow(c[0], 2.2), Math.pow(c[1], 2.2), Math.pow(c[2], 2.2)]; }
+
+// 섬 하나를 만들어 Group으로 돌려준다. ③-4에서 이걸 30개 복제해 성능을 잰다.
+// detail을 낮추면 폴리곤이 줄어든다(멀리 있는 섬용).
+function buildIsland(seedStr, opts) {
+  opts = opts || {};
+  var detail = opts.detail == null ? 1 : opts.detail;
+  var rings = Math.max(8, Math.round(28 * detail));
+  // 8의 배수로 맞춘다. 안쪽 링에서 분할 수를 정확히 절반씩 줄여야 이음매가 맞는다.
+  var SEGS = Math.max(24, Math.round(96 * detail / 8) * 8);
+  // 극좌표 격자는 중심으로 갈수록 정점이 몰려 삼각형이 바늘처럼 얇아지고,
+  // 그 결과 가운데에 부챗살 같은 음영 자국이 생긴다.
+  // 안쪽일수록 분할 수를 절반씩 줄여 삼각형 모양을 고르게 유지한다.
+  function segAt(t) {
+    if (t < 0.14) return Math.max(6, SEGS >> 3);
+    if (t < 0.30) return Math.max(6, SEGS >> 2);
+    if (t < 0.55) return Math.max(6, SEGS >> 1);
+    return SEGS;
+  }
+  var R0 = 4.2, PEAK = 1.30, SKIRT = 1.8;
+  var rnd = mulberry32(hashSeed(seedStr || "island"));
+  var p1 = rnd() * 6.283, p2 = rnd() * 6.283, p3 = rnd() * 6.283;
+  var a1 = 0.15 + rnd() * 0.06, a2 = 0.08 + rnd() * 0.05, a3 = 0.04 + rnd() * 0.03;
+  // 해안선: 낮은 주파수 셋을 겹쳐 자연스러운 굴곡을 만든다. 정사각형이 아니다.
+  function coast(th) { return R0 * (1 + a1 * Math.sin(3 * th + p1) + a2 * Math.sin(5 * th + p2) + a3 * Math.sin(7 * th + p3)); }
+
+  // 높이는 중심 거리가 아니라 월드 좌표(x,z)로 정한다.
+  // 중심 거리만 쓰면 한 점이 유일한 최고점이 되어 원뿔·천막처럼 보이고,
+  // 중심에서 각도별로 높이가 갈리면 꼭대기에 접힌 자국이 생긴다.
+  // 낮은 구릉 두셋을 중심에서 비켜 놓고 겹친다. 화산섬이 아니라 구릉섬이다.
+  var hills = [];
+  var nH = 2 + (rnd() < 0.45 ? 1 : 0);
+  var baseAng = rnd() * 6.283185307;
+  for (var hI = 0; hI < nH; hI++) {
+    // 봉우리끼리 각도를 벌린다. 가까우면 하나로 뭉쳐 다시 원뿔이 된다.
+    var hAng = baseAng + hI * (6.283185307 / nH) + (rnd() - 0.5) * 0.7;
+    var hRad = (0.37 + rnd() * 0.13) * R0;      // 정가운데를 피하되 섬 안에 둔다
+    hills.push({
+      x: Math.cos(hAng) * hRad,
+      z: Math.sin(hAng) * hRad,
+      h: hI === 0 ? 1 : 0.62 + rnd() * 0.22,     // 첫 봉우리가 주봉
+      s: (1.22 + rnd() * 0.30) * (hI === 0 ? 1.10 : 1),
+      flat: 0.52 + rnd() * 0.20                  // 꼭대기 평탄 구간. 넓을수록 능선이 평평하다
+    });
+  }
+  function terrain(x, z) {
+    // 합이 아니라 부드러운 합집합(p-노름)으로 겹친다.
+    // 그냥 더하면 겹치는 곳이 두 배로 솟아 산맥이 되고, max를 쓰면 이음매가 각진다.
+    var acc = 0;
+    for (var i = 0; i < hills.length; i++) {
+      var H = hills[i], dx = x - H.x, dz = z - H.z;
+      var dd = Math.sqrt(dx * dx + dz * dz) / H.s;
+      // flat 안쪽은 평평한 능선, 바깥으로 완만히 떨어진다. 꼭대기가 뾰족하지 않다.
+      var u = Math.max(0, dd - H.flat);
+      var c = H.h * Math.exp(-u * u);
+      acc += c * c * c * c;
+    }
+    return Math.pow(acc, 0.25);
+  }
+  function height(t, th, x, z) {
+    // 안쪽 절반은 감쇠하지 않는다. 여기서 깎으면 능선 전체가 바깥으로 기울어
+    // 평평해야 할 꼭대기가 비스듬해진다.
+    var te = t < 0.5 ? 0 : (t - 0.5) / 0.5;
+    var edge = Math.pow(Math.max(0, 1 - Math.pow(te, 2.4)), 1.15);
+    var micro = 0.024 * Math.sin(x * 1.6 + p1) * Math.sin(z * 1.8 + p3);
+    var beach = t > 0.84 ? -0.62 * Math.pow((t - 0.84) / 0.16, 2) : 0;
+    return (PEAK * terrain(x, z) + micro) * edge + beach + 0.14;
+  }
+  var pos = [], col = [], idx = [];
+  function pushVert(t, th, r) {
+    var vx = Math.cos(th) * r, vz = Math.sin(th) * r;
+    var y = height(t, th, vx, vz);
+    pos.push(vx, y, vz);
+    // 높이와 해안 거리로 색을 섞는다. 모래 -> 잔디 -> 밝은 잔디.
+    var c;
+    if (t > 0.80) c = lerp3(ISLE.grassLow, ISLE.sand, Math.min(1, (t - 0.80) / 0.16));
+    else c = lerp3(ISLE.grassLow, ISLE.grassHigh, Math.min(1, Math.max(0, y / (PEAK * 0.95))));
+    var n = 0.965 + rnd() * 0.07; // 미세한 얼룩. 텍스처 없이 단조로움을 깬다.
+    var cl = s2l(c);
+    col.push(cl[0] * n, cl[1] * n, cl[2] * n);
+  }
+  pos.push(0, height(0, 0, 0, 0), 0); col.push.apply(col, s2l(ISLE.grassHigh));
+  var ringInfo = [];
+  for (var i = 1; i <= rings; i++) {
+    var t = i / rings, sc = segAt(t), base = pos.length / 3;
+    for (var j = 0; j < sc; j++) {
+      var th = j / sc * 6.283185307;
+      pushVert(t, th, coast(th) * t);
+    }
+    ringInfo.push({ base: base, n: sc });
+  }
+  // 중심 부채꼴 — 가장 안쪽 링은 분할이 적어 삼각형이 통통하다.
+  var r1 = ringInfo[0];
+  for (var j2 = 0; j2 < r1.n; j2++) idx.push(0, r1.base + (j2 + 1) % r1.n, r1.base + j2);
+  for (var i2 = 0; i2 < ringInfo.length - 1; i2++) {
+    var In = ringInfo[i2], Out = ringInfo[i2 + 1];
+    if (Out.n === In.n) {
+      for (var j3 = 0; j3 < In.n; j3++) {
+        var A = In.base + j3, B = In.base + (j3 + 1) % In.n;
+        var C = Out.base + j3, D = Out.base + (j3 + 1) % Out.n;
+        idx.push(A, B, C, B, D, C);
+      }
+    } else {
+      // 바깥 링이 두 배로 촘촘한 경계. 안쪽 한 칸에 삼각형 세 개로 잇는다.
+      for (var j4 = 0; j4 < In.n; j4++) {
+        var a = In.base + j4, b = In.base + (j4 + 1) % In.n;
+        var c0 = Out.base + (2 * j4) % Out.n;
+        var c1 = Out.base + (2 * j4 + 1) % Out.n;
+        var c2 = Out.base + (2 * j4 + 2) % Out.n;
+        idx.push(a, c1, c0, a, b, c1, b, c2, c1);
+      }
+    }
+  }
+  var segs = SEGS; // 스커트는 바깥 링과 같은 좌표를 다시 만들어 색 경계를 준다
+  // 옆면(스커트). 없으면 종잇장처럼 보인다.
+  var skirtStart = pos.length / 3;
+  for (var j4 = 0; j4 < segs; j4++) {
+    var th4 = j4 / segs * 6.283185307, r4 = coast(th4);
+    var sx = Math.cos(th4) * r4, sz = Math.sin(th4) * r4;
+    pos.push(sx, height(1, th4, sx, sz), sz);
+    col.push.apply(col, s2l(lerp3(ISLE.sand, ISLE.cliff, 0.35)));
+  }
+  var skirtLow = pos.length / 3;
+  for (var j5 = 0; j5 < segs; j5++) {
+    var th5 = j5 / segs * 6.283185307, r5 = coast(th5) * 0.9;
+    pos.push(Math.cos(th5) * r5, -SKIRT, Math.sin(th5) * r5);
+    col.push.apply(col, s2l(ISLE.cliff));
+  }
+  for (var j6 = 0; j6 < segs; j6++) {
+    var A2 = skirtStart + j6, B2 = skirtStart + (j6 + 1) % segs;
+    var C2 = skirtLow + j6, D2 = skirtLow + (j6 + 1) % segs;
+    idx.push(A2, C2, B2, B2, C2, D2);
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  // 클레이: 거칠기 최대, 금속성 0. 반사가 있으면 점토로 보이지 않는다.
+  var land = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, flatShading: false }));
+  land.castShadow = true; land.receiveShadow = true;
+
+  var grp = new THREE.Group();
+  grp.add(land);
+
+  // 부두 — 배를 타고 나가는 곳. 해안선에서 바깥으로 뻗는다.
+  var dockTh = rnd() * 6.283185307;
+  var dock = new THREE.Group();
+  var wood = new THREE.MeshStandardMaterial({ color: ISLE.wood, roughness: 0.95, metalness: 0 });
+  var rC = coast(dockTh);
+  for (var k = 0; k < 5; k++) {
+    var rr = rC - 0.35 + k * 0.42;
+    var plank = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 1.05), wood);
+    plank.position.set(Math.cos(dockTh) * rr, 0.16, Math.sin(dockTh) * rr);
+    plank.rotation.y = -dockTh;
+    plank.castShadow = true; plank.receiveShadow = true;
+    dock.add(plank);
+    if (k % 2 === 0) {
+      for (var sgn = -1; sgn <= 1; sgn += 2) {
+        var post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.75, 8), wood);
+        var px = Math.cos(dockTh) * rr - Math.sin(dockTh) * 0.42 * sgn;
+        var pz = Math.sin(dockTh) * rr + Math.cos(dockTh) * 0.42 * sgn;
+        post.position.set(px, -0.16, pz);
+        post.castShadow = true;
+        dock.add(post);
+      }
+    }
+  }
+  grp.add(dock);
+  grp.userData.coast = coast;
+  grp.userData.height = height;
+  grp.userData.dockTh = dockTh;
+  return grp;
+}
+// 바다. 깊은 바다 위에 얕은 바다를 얹어 물가의 투명감을 낸다.
+function buildSea(radius) {
+  var sea = new THREE.Group();
+  var deep = new THREE.Mesh(new THREE.CircleGeometry(radius, 64),
+    new THREE.MeshStandardMaterial({ color: ISLE.seaDeep, roughness: 0.75, metalness: 0 }));
+  deep.rotation.x = -Math.PI / 2; deep.position.y = -0.02; deep.receiveShadow = true;
+  sea.add(deep);
+  var shallow = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.42, 64),
+    new THREE.MeshStandardMaterial({ color: ISLE.seaShallow, roughness: 0.8, metalness: 0, transparent: true, opacity: 0.85 }));
+  shallow.rotation.x = -Math.PI / 2; shallow.position.y = 0.01; shallow.receiveShadow = true;
+  sea.add(shallow);
+  return sea;
+}
+
 // 순수 Three.js. 이 앱은 빌드 단계가 없어(React가 createElement로 작성됨)
 // React Three Fiber를 쓰지 않는다. React는 마운트/언마운트만 관여한다.
-function IslandView({ entries, onBack }) {
+function IslandView({ entries, seed, onBack }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [err, setErr] = useState("");
@@ -4751,6 +4967,10 @@ function IslandView({ entries, onBack }) {
     }
     var W = host.clientWidth || 640, H = host.clientHeight || 420;
     // 크롬북은 저사양이므로 픽셀비를 2로 제한한다. 레티나에서 4배 그리면 그만큼 느려진다.
+    // r147은 ColorManagement.legacyMode가 기본 true라 색 변환이 없고,
+    // outputEncoding 기본값도 Linear다. 둘 다 두면 화면이 하얗게 날아간다.
+    if (THREE.ColorManagement) THREE.ColorManagement.legacyMode = false;
+    renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(W, H);
     renderer.shadowMap.enabled = true;
@@ -4760,37 +4980,25 @@ function IslandView({ entries, onBack }) {
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdfeef2);
     // 아이소메트릭 고정 카메라. 섬 전체가 한 화면에 들어와야 한다.
-    var aspect = W / H, d = 6;
+    var aspect = W / H, d = 5.0;
     var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
     cam.position.set(14, 12, 14);
     cam.lookAt(0, 0, 0);
 
-    // ③-0은 로드 확인이 목적이다. 형태는 ③-1에서 만든다.
-    var probe = new THREE.Mesh(
-      new THREE.SphereGeometry(2.2, 32, 24),
-      new THREE.MeshStandardMaterial({ color: 0xa9cbd6, roughness: 0.95, metalness: 0 })
-    );
-    probe.castShadow = true; probe.receiveShadow = true;
-    scene.add(probe);
-    var floor = new THREE.Mesh(
-      new THREE.CircleGeometry(7, 48),
-      new THREE.MeshStandardMaterial({ color: 0xcfe4e8, roughness: 1, metalness: 0 })
-    );
-    floor.rotation.x = -Math.PI / 2; floor.position.y = -2.2; floor.receiveShadow = true;
-    scene.add(floor);
-    var key = new THREE.DirectionalLight(0xfff4e6, 1.5);
+    scene.add(buildSea(15));
+    scene.add(buildIsland(seed || "island"));
+    var key = new THREE.DirectionalLight(0xfff4e6, 1.35);
     key.position.set(8, 14, 6); key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -10; key.shadow.camera.right = 10;
     key.shadow.camera.top = 10; key.shadow.camera.bottom = -10;
     scene.add(key);
-    scene.add(new THREE.HemisphereLight(0xdff0f5, 0x9fb4b8, 0.85));
+    scene.add(new THREE.HemisphereLight(0xdff0f5, 0x9fb4b8, 0.55));
 
     var frames = 0, last = performance.now();
     function tick() {
       if (disposed) return;
       raf = requestAnimationFrame(tick);
-      probe.rotation.y += 0.004;
       renderer.render(scene, cam);
       frames++;
       var now = performance.now();
@@ -4817,7 +5025,7 @@ function IslandView({ entries, onBack }) {
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [seed]);
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "min(70vh, 560px)", borderRadius: 16, overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
     err ? React.createElement("div", {
@@ -8556,6 +8764,7 @@ function App() {
     style: { padding: "16px 20px", maxWidth: 900, margin: "0 auto" }
   }, React.createElement(IslandView, {
     entries: myEntries,
+    seed: String(currentUser.id || currentUser.name || "island"),
     onBack: function () { setPage("studentDiary"); }
   })));
   if (page === "studentDiary" && currentUser) return React.createElement("div", {
