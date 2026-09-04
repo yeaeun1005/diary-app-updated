@@ -6945,6 +6945,35 @@ function App() {
   }, [authOpen]);
   const [viewStu, setVS] = useState(null);
   const [viewEntries, setVE] = useState([]);
+  // ①단계 마이그레이션 dry-run — 읽기만 한다. 아무것도 쓰지 않는다.
+  const [migOpen, setMigOpen] = useState(false);
+  const [migBusy, setMigBusy] = useState(false);
+  const [migReport, setMigReport] = useState(null);
+  const runMigCheck = async () => {
+    setMigOpen(true);
+    setMigBusy(true);
+    setMigReport(null);
+    var rows = [];
+    var tOld = 0, tKeys = 0, tDup = 0, tDone = 0;
+    for (var i = 0; i < myStudents.length; i++) {
+      var stu = myStudents[i];
+      var old = [];
+      try { old = safeEntries(await sGet(dKey(stu.id))); } catch (e) { old = []; }
+      var v2 = null;
+      try { v2 = await sGet(d2Key(stu.id)); } catch (e) { v2 = null; }
+      var done = !!(v2 && v2._migrated);
+      var already = v2 ? Object.keys(v2).filter(function (k) { return k.charAt(0) === "e"; }).length : 0;
+      var seen = {}, dup = [];
+      old.forEach(function (en) {
+        var k = entryKey(en.ts);
+        if (seen[k]) dup.push(en.date || "?"); else seen[k] = 1;
+      });
+      rows.push({ name: stu.name, oldN: old.length, keyN: Object.keys(seen).length, dup: dup, done: done, already: already });
+      tOld += old.length; tKeys += Object.keys(seen).length; tDup += dup.length; if (done) tDone++;
+    }
+    setMigReport({ rows: rows, tOld: tOld, tKeys: tKeys, tDup: tDup, tDone: tDone, n: myStudents.length });
+    setMigBusy(false);
+  };
   const [todayOpen, setTodayOpen] = useState(false);
   const [todayAgg, setTodayAgg] = useState(null);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -8246,7 +8275,53 @@ function App() {
       maxWidth: 760,
       margin: "0 auto"
     }
-  }, msgBox, myStudents.length === 0 && React.createElement("div", {
+  }, React.createElement("div", {
+    style: { textAlign: "right", marginBottom: 10 }
+  }, React.createElement("button", {
+    onClick: runMigCheck,
+    style: { ...bSoft, padding: "5px 12px", fontSize: 12, color: "#64748b", opacity: 0.75 }
+  }, "\uC800\uC7A5 \uAD6C\uC870 \uC810\uAC80")), migOpen && React.createElement("div", {
+    onClick: () => setMigOpen(false),
+    style: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }
+  }, React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: { background: "#fff", borderRadius: 16, maxWidth: 620, width: "100%", maxHeight: "90vh", overflow: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }
+  }, React.createElement("div", {
+    style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #f1f5f9", position: "sticky", top: 0, background: "#fff" }
+  }, React.createElement("div", {
+    style: { fontFamily: "'Jua',sans-serif", fontSize: 18, color: "#0e7490" }
+  }, "\uC800\uC7A5 \uAD6C\uC870 \uC810\uAC80 (\uC77D\uAE30 \uC804\uC6A9)"), React.createElement("button", {
+    onClick: () => setMigOpen(false),
+    style: { background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }
+  }, "\u2715")), React.createElement("div", {
+    style: { padding: "18px 20px" }
+  }, migBusy ? React.createElement("div", {
+    style: { textAlign: "center", color: "#475569", padding: "30px 0", fontSize: 14 }
+  }, "\uD655\uC778\uD558\uB294 \uC911\u2026") : !migReport ? null : React.createElement("div", null, React.createElement("div", {
+    style: { fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", marginBottom: 14, lineHeight: 1.7 }
+  }, "\uC774 \uC810\uAC80\uC740 \uB370\uC774\uD130\uB97C \uC77D\uAE30\uB9CC \uD569\uB2C8\uB2E4. \uC544\uBB34\uAC83\uB3C4 \uC800\uC7A5\uD558\uAC70\uB098 \uBC14\uAFB8\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."), React.createElement("div", {
+    style: { display: "flex", gap: 8, marginBottom: 14 }
+  }, [["\uD559\uC0DD", migReport.n + "\uBA85", false], ["\uC77C\uAE30", migReport.tOld + "\uD3B8", false], ["\uC0C8 \uD0A4", migReport.tKeys + "\uAC1C", false], ["ts \uC911\uBCF5", migReport.tDup + "\uAC74", migReport.tDup > 0]].map(function (c, i) {
+    return React.createElement("div", {
+      key: i,
+      style: { flex: 1, textAlign: "center", background: c[2] ? "#fef2f2" : "#f4f9fb", borderRadius: 8, padding: "8px 4px" }
+    }, React.createElement("div", { style: { fontSize: 11, color: "#7a8a92" } }, c[0]), React.createElement("div", {
+      style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: c[2] ? "#dc2626" : "#0e7490" }
+    }, c[1]));
+  })), React.createElement("div", {
+    style: { fontSize: 13, fontWeight: 600, color: migReport.tDup > 0 ? "#dc2626" : "#0e7490", marginBottom: 10 }
+  }, migReport.tDup > 0 ? "\u26A0 ts \uC911\uBCF5\uC774 \uC788\uC2B5\uB2C8\uB2E4. 2\uB2E8\uACC4 \uC804\uC5D0 \uCC98\uB9AC\uD574\uC57C \uD569\uB2C8\uB2E4." : "\u2713 ts \uC911\uBCF5 \uC5C6\uC74C. 2\uB2E8\uACC4\uB85C \uC9C4\uD589 \uAC00\uB2A5\uD569\uB2C8\uB2E4."), React.createElement("div", {
+    style: { border: "1px solid #eef2f5", borderRadius: 10, overflow: "hidden" }
+  }, migReport.rows.map(function (r, i) {
+    return React.createElement("div", {
+      key: i,
+      style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, borderTop: i ? "1px solid #f4f7f9" : "none", background: r.dup.length ? "#fff7f7" : "#fff" }
+    }, React.createElement("div", { style: { flex: 1, color: "#1e293b" } }, r.name), React.createElement("div", {
+      style: { width: 116, textAlign: "right", color: "#64748b" }
+    }, r.oldN + "\uD3B8 \u2192 " + r.keyN + "\uD0A4"), React.createElement("div", {
+      style: { width: 96, textAlign: "right", color: r.dup.length ? "#dc2626" : "#94a3b8" }
+    }, r.dup.length ? "\uC911\uBCF5 " + r.dup.length : r.done ? "\uC774\uAD00\uB428 " + r.already : r.oldN === 0 ? "\uC5C6\uC74C" : "\uB300\uAE30"));
+  })))))), msgBox, myStudents.length === 0 && React.createElement("div", {
     style: {
       ...crd,
       marginBottom: 16,
