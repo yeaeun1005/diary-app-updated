@@ -4914,17 +4914,22 @@ function buildIsland(seedStr, opts) {
   var rC = coast(dockTh);
   for (var k = 0; k < 5; k++) {
     var rr = rC - 0.35 + k * 0.42;
-    var plank = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 1.05), wood);
+    // 폭 0.52에 간격 0.42면 판자끼리 0.10씩 겹치고, 모두 같은 높이라
+    // 겹친 부분이 동일 평면이 되어 z-파이팅과 그림자 얼룩이 생긴다.
+    // 폭을 줄여 판자 사이에 틈을 둔다. 실제 부두처럼 보이기도 한다.
+    var plank = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 1.05), wood);
     plank.position.set(Math.cos(dockTh) * rr, 0.16, Math.sin(dockTh) * rr);
     plank.rotation.y = -dockTh;
     plank.castShadow = true; plank.receiveShadow = true;
     dock.add(plank);
     if (k % 2 === 0) {
       for (var sgn = -1; sgn <= 1; sgn += 2) {
-        var post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.75, 8), wood);
-        var px = Math.cos(dockTh) * rr - Math.sin(dockTh) * 0.42 * sgn;
-        var pz = Math.sin(dockTh) * rr + Math.cos(dockTh) * 0.42 * sgn;
-        post.position.set(px, -0.16, pz);
+        // 기둥은 판자 발자국 바깥(옆으로 0.58 > 반폭 0.525)에 세운다.
+        // 판자 밑에 두면 판자에 자기 그림자가 얼룩으로 진다.
+        var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.8, 8), wood);
+        var px = Math.cos(dockTh) * rr - Math.sin(dockTh) * 0.58 * sgn;
+        var pz = Math.sin(dockTh) * rr + Math.cos(dockTh) * 0.58 * sgn;
+        post.position.set(px, -0.13, pz);
         post.castShadow = true;
         dock.add(post);
       }
@@ -4972,6 +4977,213 @@ function buildIsland(seedStr, opts) {
   grp.userData.dockTh = dockTh;
   return grp;
 }
+// 감정 어휘 -> 섬 상태. 종류만 센다. 횟수는 쓰지 않는다(양치기 방지).
+// 누적이다. 한 번 생긴 식생은 사라지지 않는다. DESIGN.md §5.
+function islandState(entries) {
+  var seen = {}, out = [];
+  (entries || []).forEach(function (e) {
+    ((e.analysis && e.analysis.hits) || []).forEach(function (h) {
+      if (!h || !h.label || seen[h.label]) return;
+      seen[h.label] = 1;
+      out.push({
+        label: h.label,
+        q: QC[h.q] ? h.q : "LA",   // QM은 리포트 템플릿 문자열 안에만 있다. 앱 스코프는 QC.
+        valStd: typeof h.valStd === "number" ? h.valStd : 0,
+        aroStd: typeof h.aroStd === "number" ? h.aroStd : 0
+      });
+    });
+  });
+  return out;
+}
+// 영역별 식생 규칙. 부정 감정도 똑같이 아름다워야 한다(§5 절대 원칙).
+var VEG = {
+  HA: { name: "활기", band: [0.34, 0.70], kinds: ["flower", "fruit"] },
+  LA: { name: "평온", band: [0.28, 0.68], kinds: ["tree", "pond"] },
+  LV: { name: "슬픔", band: [0.66, 0.88], kinds: ["reed", "wflower", "lamp"] },
+  HV: { name: "분노", band: [0.52, 0.84], kinds: ["rock", "wave"] }
+};
+var VEGCOL = {
+  flowerA: 0xef8fa8, flowerB: 0xf3c05a, flowerC: 0xd98cd0,
+  fruitLeaf: 0x6ea444, fruit: 0xe0603f,
+  treeLeaf: 0x4e8f3e, treeLeaf2: 0x63a052,
+  trunk: 0x6b4a30,
+  pond: 0x6fc0cf,
+  reed: 0x8fa066, reedTop: 0xc9a86b,
+  wflower: 0xf2f0e4, wflowerCore: 0xe8d79a,
+  lampStone: 0x8d8578, lanternGlow: 0xffd48a,
+  rock: 0x8a8578, rockMoss: 0x6f8455,
+  wave: 0xbfe2e6
+};
+// 섬 표면 높이. 식생을 지면에 붙이려면 필요하다.
+function surfaceY(isle, x, z) {
+  var th = Math.atan2(z, x), r = Math.hypot(x, z);
+  var t = Math.min(1, r / isle.userData.coast(th));
+  return isle.userData.height(t, th, x, z);
+}
+// Russell 좌표 -> 섬 방위.
+// psi = 3π/2 - phi 로 두면 화면에서 활기가 위, 평온이 오른쪽,
+// 슬픔이 아래, 분노가 왼쪽에 온다(카메라가 (14,12,14)일 때).
+function russellAngle(valStd, aroStd, label) {
+  if (Math.abs(valStd) < 1e-4 && Math.abs(aroStd) < 1e-4) {
+    return mulberry32(hashSeed(label || "x"))() * 6.283185307;
+  }
+  return 1.5 * Math.PI - Math.atan2(aroStd, valStd);
+}
+// 감정 어휘를 식생으로 심는다. 배치는 어휘 이름을 시드로 하므로
+// 같은 어휘는 언제 열어도 같은 자리에 있다.
+function buildVegetation(isle, state, opts) {
+  opts = opts || {};
+  var list = state || [];
+  // 어휘가 많아질수록 어휘당 개수를 줄인다. 적을 땐 풍성하고 많아져도 안 터진다.
+  var n = list.length;
+  var per = n <= 8 ? 6 : n <= 16 ? 4 : n <= 26 ? 3 : 2;
+  var items = [];   // {kind, x, y, z, s, sy, rot, col}
+  function place(kind, x, y, z, s, sy, rot, col) {
+    items.push({ kind: kind, x: x, y: y, z: z, s: s, sy: sy, rot: rot, col: col });
+  }
+  list.forEach(function (em) {
+    var rule = VEG[em.q] || VEG.LA;
+    var rnd = mulberry32(hashSeed(em.label));
+    var psi = russellAngle(em.valStd, em.aroStd, em.label);
+    for (var i = 0; i < per; i++) {
+      var ang = psi + (rnd() - 0.5) * 0.75;
+      var frac = rule.band[0] + rnd() * (rule.band[1] - rule.band[0]);
+      var rr = isle.userData.coast(ang) * frac;
+      var x = Math.cos(ang) * rr, z = Math.sin(ang) * rr;
+      var y = surfaceY(isle, x, z);
+      var kind = rule.kinds[i % rule.kinds.length];
+      var sc = 0.8 + rnd() * 0.5;
+      var rot = rnd() * 6.283185307;
+      place(kind, x, y, z, sc, sc * (0.85 + rnd() * 0.4), rot, rnd());
+    }
+  });
+  // 감정과 무관한 기본 장식. 일기가 없는 새 학생의 섬도 휑하지 않아야 한다.
+  var brnd = mulberry32(hashSeed("base-" + (opts.seed || "island")));
+  for (var b = 0; b < 7; b++) {
+    var ba = brnd() * 6.283185307;
+    var br = isle.userData.coast(ba) * (0.30 + brnd() * 0.50);
+    var bx = Math.cos(ba) * br, bz = Math.sin(ba) * br;
+    place(brnd() < 0.45 ? "rock" : "tree", bx, surfaceY(isle, bx, bz), bz,
+          0.55 + brnd() * 0.35, 0.6 + brnd() * 0.3, brnd() * 6.283, brnd());
+  }
+  return items;
+}
+// 식생 인스턴스를 실제 메시로 만든다. 종류별로 InstancedMesh 하나씩 묶어
+// 드로우콜을 열 개 안쪽으로 유지한다. 섬 30개를 그려야 하므로 중요하다.
+function buildVegMeshes(items) {
+  var grp = new THREE.Group();
+  if (!items.length) return grp;
+  var C = function (h) { return new THREE.Color(h); };
+  // 지오메트리는 밑동이 y=0에 오도록 미리 옮겨둔다.
+  // 그래야 줄기와 잎을 같은 인스턴스 행렬로 그릴 수 있다.
+  var G = {
+    // 작게 그려지므로 분할을 낮춰도 부드러운 노멀 덕에 둥글게 보인다.
+    // 섬 30개를 그려야 하므로 여기서 아끼는 것이 크다.
+    blob:    new THREE.SphereGeometry(1, 8, 6),
+    trunk:   new THREE.CylinderGeometry(0.085, 0.115, 1, 5).translate(0, 0.5, 0),
+    stem:    new THREE.CylinderGeometry(0.022, 0.03, 1, 4).translate(0, 0.5, 0),
+    disc:    new THREE.CircleGeometry(1, 12).rotateX(-Math.PI / 2)
+  };
+  var M = function (col, extra) {
+    var o = { color: C(col), roughness: 1, metalness: 0, vertexColors: false };
+    if (extra) for (var k in extra) o[k] = extra[k];
+    return new THREE.MeshStandardMaterial(o);
+  };
+  // 종류별로 (지오메트리, 재질, 인스턴스 변환)을 모은다.
+  var parts = {
+    trunk:   { geo: G.trunk, mat: M(VEGCOL.trunk),        list: [] },
+    leaf:    { geo: G.blob,  mat: M(VEGCOL.treeLeaf),     list: [] },
+    petal:   { geo: G.blob,  mat: M(VEGCOL.flowerA),      list: [] },
+    fruit:   { geo: G.blob,  mat: M(VEGCOL.fruit),        list: [] },
+    pond:    { geo: G.disc,  mat: M(VEGCOL.pond, { transparent: true, opacity: 0.85 }), list: [] },
+    stem:    { geo: G.stem,  mat: M(VEGCOL.reed),         list: [] },
+    reedTop: { geo: G.blob,  mat: M(VEGCOL.reedTop),      list: [] },
+    stone:   { geo: G.blob,  mat: M(VEGCOL.lampStone),    list: [] },
+    wpetal:  { geo: G.blob,  mat: M(VEGCOL.wflower),       list: [] },
+    glow:    { geo: G.blob,  mat: M(VEGCOL.lanternGlow, { emissive: C(VEGCOL.lanternGlow), emissiveIntensity: 0.9 }), list: [] },
+    rock:    { geo: G.blob,  mat: M(VEGCOL.rock),         list: [] },
+    wave:    { geo: G.disc,  mat: M(VEGCOL.wave, { transparent: true, opacity: 0.6 }), list: [] }
+  };
+  var v3 = new THREE.Vector3(), q = new THREE.Quaternion(), sv = new THREE.Vector3();
+  var eu = new THREE.Euler();
+  function add(part, x, y, z, sx, sy, sz, rot, col) {
+    eu.set(0, rot, 0); q.setFromEuler(eu);
+    v3.set(x, y, z); sv.set(sx, sy, sz);
+    var m = new THREE.Matrix4().compose(v3, q, sv);
+    parts[part].list.push({ m: m, c: col });
+  }
+  items.forEach(function (it) {
+    var s = it.s, y = it.y, c = it.col;
+    if (it.kind === "tree") {
+      var h = 0.55 * it.sy;
+      add("trunk", it.x, y, it.z, s * 0.5, h, s * 0.5, it.rot, null);
+      add("leaf", it.x, y + h + 0.30 * s, it.z, 0.44 * s, 0.40 * s, 0.44 * s, it.rot,
+          C(c < 0.5 ? VEGCOL.treeLeaf : VEGCOL.treeLeaf2));
+      add("leaf", it.x + 0.13 * s, y + h + 0.10 * s, it.z - 0.10 * s, 0.30 * s, 0.26 * s, 0.30 * s, it.rot, null);
+    } else if (it.kind === "fruit") {
+      var fh = 0.50 * it.sy;
+      add("trunk", it.x, y, it.z, s * 0.46, fh, s * 0.46, it.rot, null);
+      add("leaf", it.x, y + fh + 0.26 * s, it.z, 0.40 * s, 0.36 * s, 0.40 * s, it.rot, C(VEGCOL.fruitLeaf));
+      add("fruit", it.x + 0.20 * s, y + fh + 0.22 * s, it.z, 0.075 * s, 0.075 * s, 0.075 * s, 0, null);
+      add("fruit", it.x - 0.15 * s, y + fh + 0.14 * s, it.z + 0.14 * s, 0.065 * s, 0.065 * s, 0.065 * s, 0, null);
+    } else if (it.kind === "flower") {
+      add("stem", it.x, y, it.z, s * 0.7, 0.22 * it.sy, s * 0.7, it.rot, null);
+      var fc = c < 0.34 ? VEGCOL.flowerA : c < 0.67 ? VEGCOL.flowerB : VEGCOL.flowerC;
+      add("petal", it.x, y + 0.22 * it.sy + 0.05 * s, it.z, 0.10 * s, 0.075 * s, 0.10 * s, 0, C(fc));
+      add("petal", it.x + 0.12 * s, y + 0.17 * it.sy, it.z + 0.08 * s, 0.075 * s, 0.06 * s, 0.075 * s, 0, C(fc));
+    } else if (it.kind === "pond") {
+      add("pond", it.x, y + 0.03, it.z, 0.42 * s, 1, 0.34 * s, it.rot, null);
+    } else if (it.kind === "reed") {
+      // 막대 몇 개면 앙상해 보인다. 무리를 늘리고 끝에 이삭을 단다.
+      for (var k = 0; k < 6; k++) {
+        var ka = it.rot + k * 1.05;
+        var ox = Math.cos(ka) * (0.05 + 0.055 * (k % 3)) * s;
+        var oz = Math.sin(ka) * (0.05 + 0.055 * (k % 3)) * s;
+        var rh = (0.24 + 0.13 * ((k * 7 % 5) / 5)) * it.sy;
+        add("stem", it.x + ox, y, it.z + oz, s * 0.9, rh, s * 0.9, ka, null);
+        add("reedTop", it.x + ox, y + rh, it.z + oz, 0.042 * s, 0.115 * s, 0.042 * s, 0, null);
+      }
+    } else if (it.kind === "lamp") {
+      // 기둥 위 가로등처럼 서 있으면 대낮에 어색하다.
+      // 물가에 놓인 낮은 돌등으로 바꾼다. 작고 낮게, 따뜻하게.
+      add("stone", it.x, y + 0.03 * s, it.z, 0.13 * s, 0.075 * s, 0.12 * s, it.rot, null);
+      add("glow", it.x, y + 0.10 * s, it.z, 0.055 * s, 0.05 * s, 0.055 * s, 0, null);
+    } else if (it.kind === "wflower") {
+      // 흰 들꽃 무리. 차분하지만 예뻐야 한다(§5 절대 원칙).
+      for (var w = 0; w < 5; w++) {
+        var wa = it.rot + w * 1.257;
+        var wx = it.x + Math.cos(wa) * (0.045 + 0.05 * (w % 2)) * s;
+        var wz = it.z + Math.sin(wa) * (0.045 + 0.05 * (w % 2)) * s;
+        var wh = (0.14 + 0.05 * (w % 3)) * it.sy;
+        add("stem", wx, y, wz, s * 0.75, wh, s * 0.75, wa, null);
+        add("wpetal", wx, y + wh + 0.018 * s, wz, 0.048 * s, 0.032 * s, 0.048 * s, 0, null);
+      }
+    } else if (it.kind === "rock") {
+      add("rock", it.x, y + 0.055 * s, it.z, 0.26 * s, 0.17 * s, 0.21 * s, it.rot,
+          C(c < 0.35 ? VEGCOL.rockMoss : VEGCOL.rock));
+      if (c > 0.5) add("rock", it.x + 0.19 * s, y + 0.03 * s, it.z + 0.11 * s, 0.14 * s, 0.10 * s, 0.12 * s, it.rot, null);
+    } else if (it.kind === "wave") {
+      add("wave", it.x, y + 0.04, it.z, 0.30 * s, 1, 0.10 * s, it.rot, null);
+    }
+  });
+  Object.keys(parts).forEach(function (k) {
+    var P = parts[k];
+    if (!P.list.length) { P.geo.dispose(); P.mat.dispose(); return; }
+    var im = new THREE.InstancedMesh(P.geo, P.mat, P.list.length);
+    var anyCol = false;
+    P.list.forEach(function (e, i) {
+      im.setMatrixAt(i, e.m);
+      if (e.c) { im.setColorAt(i, e.c); anyCol = true; }
+      else im.setColorAt(i, new THREE.Color(1, 1, 1));
+    });
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = true;
+    im.receiveShadow = (k === "pond" || k === "wave") ? true : false;
+    grp.add(im);
+  });
+  return grp;
+}
 // 바다 색조. ④ 학급 온도계가 이 값 하나만 바꾼다.
 // 0 = 무거운 날(짙고 차분), 0.5 = 보통, 1 = 맑은 날(밝고 투명한 청록).
 // DESIGN.md §6대로 색상(hue)은 건드리지 않고 밝기와 채도만 움직인다.
@@ -5011,6 +5223,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [err, setErr] = useState("");
+  const [vocab, setVocab] = useState(0);
   useEffect(function () {
     var host = hostRef.current;
     if (!host) return;
@@ -5043,7 +5256,11 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     cam.lookAt(0, 0, 0);
 
     scene.add(buildSea(15, seaTone == null ? 0.5 : seaTone));
-    scene.add(buildIsland(seed || "island"));
+    var isleGrp = buildIsland(seed || "island");
+    scene.add(isleGrp);
+    var st = islandState(entries);
+    scene.add(buildVegMeshes(buildVegetation(isleGrp, st, { seed: seed })));
+    setVocab(st.length);
     // 빛은 화면 기준 왼쪽 위에서. 카메라가 (14,12,14)라 이 방향이면
     // 그림자가 화면 오른쪽 아래로 일관되게 깔린다.
     // 빛을 낮게 눕힌다(고도 약 33도). 높으면 그림자가 짧아 형태가 안 드러난다.
@@ -5095,7 +5312,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
-  }, [seed, seaTone]);
+  }, [seed, seaTone, entries]);
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "min(70vh, 560px)", borderRadius: 16, overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
     err ? React.createElement("div", {
@@ -5107,7 +5324,22 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     React.createElement("button", {
       onClick: onBack,
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13 }
-    }, "돌아가기"));
+    }, "돌아가기"),
+    // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
+    React.createElement("div", {
+      style: { position: "absolute", left: 12, bottom: 12, width: 104, height: 104, borderRadius: "50%",
+               background: "rgba(255,255,255,0.72)", boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
+               fontSize: 11, color: "#3f5560", userSelect: "none" }
+    },
+      React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 7, textAlign: "center", color: "#c96a1f", fontWeight: 700 } }, "활기"),
+      React.createElement("div", { style: { position: "absolute", right: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#3d8b78", fontWeight: 700 } }, "평온"),
+      React.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: 7, textAlign: "center", color: "#4a72a0", fontWeight: 700 } }, "슬픔"),
+      React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#c14d4d", fontWeight: 700 } }, "분노"),
+      React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 7, height: 7, marginLeft: -3.5, marginTop: -3.5, borderRadius: "50%", background: "#9fb0bb" } })),
+    React.createElement("div", {
+      style: { position: "absolute", right: 12, bottom: 12, padding: "6px 12px", borderRadius: 10,
+               background: "rgba(255,255,255,0.82)", fontSize: 13, color: "#3f5560" }
+    }, "감정 어휘 ", React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"));
 }
 function DiaryView({
   entries,
