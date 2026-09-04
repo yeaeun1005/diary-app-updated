@@ -5184,6 +5184,49 @@ function buildVegMeshes(items) {
   });
   return grp;
 }
+// ③-4 성능 하네스. 저장소를 건드리지 않고 app/isle와 같은 모양의
+// 합성 데이터를 만든다. ⑥에서 실제 데이터로 바꿔도 렌더 코드는 그대로다.
+// URL 해시 #fleet 또는 #fleet=12 로 켠다. 계정과 무관하다.
+function fleetCount() {
+  try {
+    var m = /(?:^|[#&])fleet(?:=(\d+))?/.exec(window.location.hash || "");
+    if (!m) return 0;
+    return m[1] ? Math.max(1, Math.min(60, parseInt(m[1], 10))) : 30;
+  } catch (e) { return 0; }
+}
+var FLEET_Q = ["HA", "LA", "LV", "HV"];
+function fleetStates(n) {
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    var rnd = mulberry32(hashSeed("fleet" + i));
+    // 어휘 0~30가지로 흩어 최악 조건까지 만든다.
+    var nv = Math.round(rnd() * 30);
+    var st = [];
+    for (var k = 0; k < nv; k++) {
+      var q = FLEET_Q[k % 4];
+      st.push({
+        label: "f" + i + "_" + k, q: q,
+        valStd: (q === "HA" || q === "LA" ? 1 : -1) * (0.3 + rnd() * 0.6),
+        aroStd: (q === "HA" || q === "HV" ? 1 : -1) * (0.3 + rnd() * 0.6)
+      });
+    }
+    out.push({ seed: "fleet-" + i, state: st });
+  }
+  return out;
+}
+// 육각 배치. 섬 반경이 약 4.2라 중심 간격을 10.5로 두면 겹치지 않는다.
+function fleetLayout(n) {
+  var cols = Math.max(1, Math.ceil(Math.sqrt(n * 1.2)));
+  var SX = 10.5, SZ = 9.1, out = [];
+  for (var i = 0; i < n; i++) {
+    var r = Math.floor(i / cols), c = i % cols;
+    out.push({
+      x: (c - (cols - 1) / 2) * SX + (r % 2 ? SX / 2 : 0),
+      z: (r - (Math.ceil(n / cols) - 1) / 2) * SZ
+    });
+  }
+  return out;
+}
 // 바다 색조. ④ 학급 온도계가 이 값 하나만 바꾼다.
 // 0 = 무거운 날(짙고 차분), 0.5 = 보통, 1 = 맑은 날(밝고 투명한 청록).
 // DESIGN.md §6대로 색상(hue)은 건드리지 않고 밝기와 채도만 움직인다.
@@ -5224,6 +5267,8 @@ function IslandView({ entries, seed, seaTone, onBack }) {
   const [fps, setFps] = useState(0);
   const [err, setErr] = useState("");
   const [vocab, setVocab] = useState(0);
+  const [stats, setStats] = useState(null);
+  const fleetN = fleetCount();
   useEffect(function () {
     var host = hostRef.current;
     if (!host) return;
@@ -5251,16 +5296,39 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     scene.background = new THREE.Color(0xcfe6ee);
     // 아이소메트릭 고정 카메라. 섬 전체가 한 화면에 들어와야 한다.
     var aspect = W / H, d = 5.0;
+    var FLEET0 = fleetCount();
+    if (FLEET0 > 0) {
+      var lay0 = fleetLayout(FLEET0), mx = 0, mz = 0;
+      lay0.forEach(function (p) { mx = Math.max(mx, Math.abs(p.x)); mz = Math.max(mz, Math.abs(p.z)); });
+      d = Math.max((mz + 6) * 1.06, (mx + 6) / aspect * 1.06);
+    }
     var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
     cam.position.set(14, 12, 14);
     cam.lookAt(0, 0, 0);
 
-    scene.add(buildSea(15, seaTone == null ? 0.5 : seaTone));
-    var isleGrp = buildIsland(seed || "island");
-    scene.add(isleGrp);
-    var st = islandState(entries);
-    scene.add(buildVegMeshes(buildVegetation(isleGrp, st, { seed: seed })));
-    setVocab(st.length);
+    var FLEET = fleetCount();
+    if (FLEET > 0) {
+      // 섬 30개 성능 확인. 실제 ⑥의 바다 화면과 같은 코드 경로를 탄다.
+      var lay = fleetLayout(FLEET), fs = fleetStates(FLEET), totalVocab = 0;
+      scene.add(buildSea(Math.max(30, lay[lay.length - 1].x + 40), seaTone == null ? 0.5 : seaTone));
+      for (var fi = 0; fi < FLEET; fi++) {
+        var gI = buildIsland(fs[fi].seed);
+        gI.position.set(lay[fi].x, 0, lay[fi].z);
+        scene.add(gI);
+        var vg = buildVegMeshes(buildVegetation(gI, fs[fi].state, { seed: fs[fi].seed }));
+        vg.position.copy(gI.position);
+        scene.add(vg);
+        totalVocab += fs[fi].state.length;
+      }
+      setVocab(totalVocab);
+    } else {
+      scene.add(buildSea(15, seaTone == null ? 0.5 : seaTone));
+      var isleGrp = buildIsland(seed || "island");
+      scene.add(isleGrp);
+      var st = islandState(entries);
+      scene.add(buildVegMeshes(buildVegetation(isleGrp, st, { seed: seed })));
+      setVocab(st.length);
+    }
     // 빛은 화면 기준 왼쪽 위에서. 카메라가 (14,12,14)라 이 방향이면
     // 그림자가 화면 오른쪽 아래로 일관되게 깔린다.
     // 빛을 낮게 눕힌다(고도 약 33도). 높으면 그림자가 짧아 형태가 안 드러난다.
@@ -5269,9 +5337,12 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     key.position.set(-12, 8.2, 3); key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     // 그림자 카메라를 섬에 딱 맞춘다. 넓게 잡으면 해상도가 흩어져 흐려진다.
-    key.shadow.camera.left = -7; key.shadow.camera.right = 7;
-    key.shadow.camera.top = 7; key.shadow.camera.bottom = -7;
-    key.shadow.camera.near = 1; key.shadow.camera.far = 42;
+    // 함대 모드에서는 그림자 카메라를 전체에 맞춘다. 해상도가 흩어져
+    // 그림자가 흐려지지만, 여기서 재려는 것은 화질이 아니라 부하다.
+    var SH = FLEET > 0 ? Math.max(d * 1.5, 40) : 7;
+    key.shadow.camera.left = -SH; key.shadow.camera.right = SH;
+    key.shadow.camera.top = SH; key.shadow.camera.bottom = -SH;
+    key.shadow.camera.near = 1; key.shadow.camera.far = FLEET > 0 ? SH * 4 : 42;
     key.shadow.bias = -0.0004;
     key.shadow.normalBias = 0.018;
     scene.add(key);
@@ -5289,7 +5360,14 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       renderer.render(scene, cam);
       frames++;
       var now = performance.now();
-      if (now - last >= 500) { setFps(Math.round(frames * 1000 / (now - last))); frames = 0; last = now; }
+      if (now - last >= 500) {
+        setFps(Math.round(frames * 1000 / (now - last)));
+        // 크롬북에서 원인을 가르려면 fps만으로 부족하다.
+        // 드로우콜이 많으면 CPU, 삼각형이 많으면 GPU 쪽이다.
+        var ri = renderer.info.render;
+        setStats({ calls: ri.calls, tris: ri.triangles });
+        frames = 0; last = now;
+      }
     }
     tick();
 
@@ -5320,7 +5398,12 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     }, err) : null,
     React.createElement("div", {
       style: { position: "absolute", left: 10, top: 10, padding: "3px 9px", borderRadius: 8, background: "rgba(255,255,255,0.82)", fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums" }
-    }, fps, " fps"),
+    }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
+        "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri") : null),
+    fleetN > 0 ? React.createElement("div", {
+      style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
+               background: "rgba(255,214,102,0.9)", fontSize: 12, color: "#6b4a00" }
+    }, "성능 확인 모드 · 섬 " + fleetN + "개") : null,
     React.createElement("button", {
       onClick: onBack,
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13 }
@@ -5339,7 +5422,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     React.createElement("div", {
       style: { position: "absolute", right: 12, bottom: 12, padding: "6px 12px", borderRadius: 10,
                background: "rgba(255,255,255,0.82)", fontSize: 13, color: "#3f5560" }
-    }, "감정 어휘 ", React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"));
+    }, fleetN > 0 ? "합성 어휘 " : "감정 어휘 ", React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"));
 }
 function DiaryView({
   entries,
