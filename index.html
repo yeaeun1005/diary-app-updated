@@ -854,6 +854,45 @@ async function sSet(k, v) {
     console.error("sSet:", e);
   }
 }
+// ── 일기 저장 구조 v2 (①단계) ──────────────────────────────
+// 옛 구조: app/diary_<id>  = 일기 배열 전체 (한 번에 덮어씀)
+// 새 구조: app/d2/<id>/<key> = 일기 하나당 자식 노드 하나
+// ts는 마음대화가 entryTs로 참조하므로 절대 바꾸지 않는다.
+// 노드 키만 ts에서 따로 유도한다.
+function d2Key(id) {
+  return "d2/" + id;
+}
+const KEY36 = 2176782336; // 36^6
+// ts -> 노드 키. 같은 ts는 언제 돌려도 같은 키가 나온다(마이그레이션 멱등성).
+// 형식: e + 13자리 정수ms + _ + 소수부 base36 6자리
+//  · "e" 접두사 — 순수 숫자 키를 Firebase가 배열로 해석하는 것을 막는다
+//  · 13자리 고정폭 — 키 사전순 정렬이 곧 시간순 정렬이 된다
+function entryKey(ts) {
+  var n = Number(ts);
+  if (!isFinite(n) || n <= 0) n = 0;
+  var ms = Math.floor(n);
+  var frac = n - ms;
+  var suf = Math.min(Math.floor(frac * KEY36), KEY36 - 1).toString(36);
+  while (suf.length < 6) suf = "0" + suf;
+  var head = String(ms);
+  while (head.length < 13) head = "0" + head;
+  return "e" + head + "_" + suf;
+}
+// 일기 읽기. 새 경로가 마이그레이션 완료 상태면 그쪽을, 아니면 옛 경로를 읽는다.
+// 어느 쪽이든 예전과 똑같은 모양의 배열을 돌려준다(소비 코드는 손대지 않는다).
+async function dLoad(id) {
+  var v2 = await sGet(d2Key(id));
+  if (v2 && v2._migrated) {
+    return Object.keys(v2).filter(function (k) {
+      return k.charAt(0) === "e";
+    }).sort().map(function (k) {
+      var e = safeEntries([v2[k]])[0];
+      e._k = k;
+      return e;
+    });
+  }
+  return safeEntries(await sGet(dKey(id)));
+}
 const FONT = "https://fonts.googleapis.com/css2?family=Jua&display=swap";
 const shell = {
   minHeight: "100vh",
@@ -6916,7 +6955,7 @@ function App() {
     let wrote = 0;
     for (const stu of myStudents) {
       let es = [];
-      try { es = safeEntries(await sGet(dKey(stu.id))); } catch (err) { es = []; }
+      try { es = await dLoad(stu.id); } catch (err) { es = []; }
       const todayEs = es.filter(e => e.date === today);
       if (todayEs.length > 0) wrote++;
       todayEs.forEach(e => ((e.analysis && e.analysis.hits) || []).forEach(hit => {
@@ -6959,7 +6998,7 @@ function App() {
       for (var si = 0; si < myStudents.length; si++) {
         var stu = myStudents[si];
         var es = [];
-        try { es = safeEntries(await sGet(dKey(stu.id))); } catch (e) { es = []; }
+        try { es = await dLoad(stu.id); } catch (e) { es = []; }
         var byDay = {};
         es.forEach(function (en) {
           if (!en || !en.ts || en.ts < weekAgo) return;
@@ -7060,7 +7099,7 @@ function App() {
       schoolCode: code,
       schoolName: school.schoolName
     });
-    const entries = safeEntries(await sGet(dKey(found.id)));
+    const entries = await dLoad(found.id);
     setME(entries);
     setPage("studentDiary");
     setLF({
@@ -7185,7 +7224,7 @@ function App() {
   };
   const viewStudentRecords = async stu => {
     setVS(stu);
-    const e = safeEntries(await sGet(dKey(stu.id)));
+    const e = await dLoad(stu.id);
     setVE(e);
   };
   const clearStuRecords = async stu => {
