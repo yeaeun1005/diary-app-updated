@@ -3421,6 +3421,28 @@ function openEmotionReport(name, entries) {
   w.document.close();
 }
 var SAD_EMOS = ["우울", "슬픔", "외로움", "실망", "피곤", "지루함", "두려움"];
+// ── 감정 4계열 판정 (PHRASES.md) ──────────────────────────────
+// 앱 사분면은 HV가 분노·불안을, LV가 슬픔·피로를 함께 묶는다.
+// 상담 문구는 넷을 따로 다루므로 어휘 목록으로 다시 가른다.
+// "화남"은 고르기 화면 표시용 이름이라 저장되지 않지만 방어적으로 넣어둔다.
+var FAM_ANGER   = ["분노", "화남", "짜증"];
+var FAM_ANXIOUS = ["두려움", "불안", "긴장", "스트레스", "경악", "부끄러움"];
+var FAM_SAD     = ["슬픔", "우울", "외로움", "실망", "죄책감"];
+var FAM_TIRED   = ["피곤", "지루함"];
+// 부정 감정 하나를 4계열 중 하나로 분류한다. 긍정(HA/LA)이면 null.
+function emoFamily(hit) {
+  if (!hit || !hit.label) return null;
+  if (FAM_ANGER.indexOf(hit.label) >= 0) return "anger";
+  if (FAM_ANXIOUS.indexOf(hit.label) >= 0) return "anxious";
+  if (FAM_SAD.indexOf(hit.label) >= 0) return "sad";
+  if (FAM_TIRED.indexOf(hit.label) >= 0) return "tired";
+  // 학생이 직접 입력한 감정은 label이 임의라 목록에 없다. 각성으로 가른다.
+  var a = typeof hit.aro9 === "number" ? hit.aro9 : 5;
+  if (hit.q === "HV") return a >= 7 ? "anger" : "anxious";
+  if (hit.q === "LV") return a <= 2 ? "tired" : "sad";
+  return null;
+}
+var FAM_LABEL = { anger: "분노", anxious: "불안", sad: "슬픔", tired: "피로" };
 var CESD_KEYWORDS = ["귀찮", "입맛", "울적", "우울", "실패작", "무서", "두려", "잠을 설", "잠이 안", "잠을 못", "말수", "외로", "차갑게", "울음", "울었", "슬퍼", "슬프", "싫어하", "기운이 안", "기운이 없", "죽고 싶", "혼자"];
 var CREATURES = [{
   name: "거품", r: 13, color: "rgba(200,240,247,0.4)", stroke: null, img: null
