@@ -4994,6 +4994,9 @@ function buildIsland(seedStr, opts) {
   var stairB = stairA + 1.9 + rnd() * 0.9;
   // 잠수 지점은 부두 반대편에 둔다. 1층 랜드마크 둘이 붙어 있으면
   // 걸어다닐 이유가 없다(DESIGN.md §3).
+  // 다리는 계단 둘의 반대편에 둔다. 그래야 한 방향으로 돌아 제자리로 오는
+  // 순환 경로가 되고, 3층에서 1층으로 내려올 때 계단을 되짚지 않아도 된다.
+  var bridgeTh = (stairA + stairB) / 2 + Math.PI + (rnd() - 0.5) * 0.4;
   var diveTh = dockTh + Math.PI + (rnd() - 0.5) * 0.9;
   var plazaTh = stairB + Math.PI + (rnd() - 0.5) * 0.8;
 
@@ -5198,7 +5201,7 @@ function buildIsland(seedStr, opts) {
       // rIn까지 이어지므로 실제로는 rIn + run에서 이미 위층 높이가 된다.
       // 걷기 판정이 이걸 모르면 꼭대기에서 지면이 경사로를 앞질러 막힌다.
       stairInfo.push({ th: fl.th, rOut: rOut, rIn: rIn, rTop: rIn + run,
-                       yLo: fl.lo, yHi: fl.hi, halfW: 0.31 });
+                       yLo: fl.lo, yHi: fl.hi, halfW: 0.31, arch: 0, kind: "stair" });
       for (var s = 0; s < NST; s++) {
         // 단마다 얇은 판을 세우면 계단이 아니라 울타리가 된다.
         // 각 단은 자기 앞면에서 위층까지 통째로 이어지는 상자다. 아래 단이
@@ -5307,6 +5310,80 @@ function buildIsland(seedStr, opts) {
   foam.renderOrder = 1;
   grp.add(foam);
 
+  function bandAtLocal(th, lv) {
+    var C = coast(th), lo = -1, hi = -1;
+    for (var r = 0.02; r <= C; r += 0.01) {
+      var p = profileAt(r, th);
+      if (p.zone === "top" && p.lv === lv) { if (lo < 0) lo = r; hi = r; }
+    }
+    return lo < 0 ? null : { lo: lo, hi: hi };
+  }
+  // 다리 — 1층과 3층을 바로 잇는다. 계단 둘만으로는 3층에서 1층까지
+  // 너무 돌아간다(DESIGN.md §4 "층 사이는 계단이나 다리로 연결한다").
+  // 가운데가 2층 위를 지나므로 직선으로 놓으면 2층 바닥을 스친다.
+  // 활처럼 띄워 2층 위로 확실히 넘긴다. 걷기 판정도 같은 곡선을 쓴다.
+  if (detail >= 0.6) {
+    var b1 = bandAtLocal(bridgeTh, 0), b3 = bandAtLocal(bridgeTh, 2);
+    if (b1 && b3) {
+      // 1층 안쪽에서 바로 시작하면 2층 벽이 코앞이라 상판이 턱을 스친다.
+      // 바깥으로 빼서 오를 거리를 번다.
+      var brOut = Math.min(b1.hi - 0.30, b1.lo + 1.15);   // 1층 평지에 발을 딛는다
+      var brTop = b3.hi;                                  // 3층 가장자리에서 제 높이에 닿는다
+      var brIn = Math.max(b3.lo, b3.hi - 0.55);           // 3층 평지 안쪽까지 발판이 이어진다
+      if (brOut - brTop > 1.2) {
+        var BR_ARCH = 0.58, BR_HW = 0.34;
+        var brInfo = { th: bridgeTh, rOut: brOut, rIn: brIn, rTop: brTop,
+                       yLo: TY[0], yHi: TY[2], halfW: BR_HW, arch: BR_ARCH, kind: "bridge" };
+        stairInfo.push(brInfo);
+        var bMat = new THREE.MeshStandardMaterial({ color: ISLE.wood, roughness: 1, metalness: 0 });
+        var bM = [], bq = new THREE.Quaternion(), be = new THREE.Euler(),
+            bv = new THREE.Vector3(), bs = new THREE.Vector3();
+        var NP = 13, span = brOut - brTop;
+        function deckY(t) { return TY[0] + (TY[2] - TY[0]) * t + BR_ARCH * Math.sin(Math.PI * t); }
+        for (var bp = 0; bp < NP; bp++) {
+          var t1 = bp / NP, t2 = (bp + 1) / NP, tm = (t1 + t2) / 2;
+          var rm = brOut - span * tm;
+          // 판자를 다리 기울기에 맞춰 눕힌다. 수평으로 두면 계단처럼 층진다.
+          var slope = (deckY(t2) - deckY(t1)) / (span / NP);
+          be.set(0, -bridgeTh, -Math.atan(slope)); bq.setFromEuler(be);
+          bv.set(Math.cos(bridgeTh) * rm, deckY(tm) - 0.05, Math.sin(bridgeTh) * rm);
+          bs.set(span / NP * 1.25, 0.10, BR_HW * 2);
+          bM.push(new THREE.Matrix4().compose(bv, bq, bs));
+          // 난간. 없으면 널빤지로만 보인다.
+          if (bp % 2 === 0) {
+            for (var sg2 = -1; sg2 <= 1; sg2 += 2) {
+              be.set(0, -bridgeTh, 0); bq.setFromEuler(be);
+              bv.set(Math.cos(bridgeTh) * rm - Math.sin(bridgeTh) * BR_HW * sg2,
+                     deckY(tm) + 0.16,
+                     Math.sin(bridgeTh) * rm + Math.cos(bridgeTh) * BR_HW * sg2);
+              bs.set(0.07, 0.34, 0.07);
+              bM.push(new THREE.Matrix4().compose(bv, bq, bs));
+            }
+          }
+        }
+        // 위쪽 난간 줄
+        for (var rl = 0; rl < NP; rl += 2) {
+          var tr1 = rl / NP, tr2 = Math.min(1, (rl + 2) / NP), trm = (tr1 + tr2) / 2;
+          var rr2 = brOut - span * trm;
+          var sl2 = (deckY(tr2) - deckY(tr1)) / (span * (tr2 - tr1));
+          for (var sg3 = -1; sg3 <= 1; sg3 += 2) {
+            be.set(0, -bridgeTh, -Math.atan(sl2)); bq.setFromEuler(be);
+            bv.set(Math.cos(bridgeTh) * rr2 - Math.sin(bridgeTh) * BR_HW * sg3,
+                   deckY(trm) + 0.32,
+                   Math.sin(bridgeTh) * rr2 + Math.cos(bridgeTh) * BR_HW * sg3);
+            bs.set(span * (tr2 - tr1) * 1.1, 0.055, 0.055);
+            bM.push(new THREE.Matrix4().compose(bv, bq, bs));
+          }
+        }
+        var bMesh = new THREE.InstancedMesh(roundedSlab(), bMat, bM.length);
+        for (var bi2 = 0; bi2 < bM.length; bi2++) bMesh.setMatrixAt(bi2, bM[bi2]);
+        bMesh.instanceMatrix.needsUpdate = true;
+        bMesh.castShadow = true; bMesh.receiveShadow = true;
+        grp.add(bMesh);
+      }
+    }
+  }
+
   // 식생을 놓지 않을 자리. 이동 경로와 랜드마크는 눈에 보여야 한다.
   var keepOuts = [];
   stairInfo.forEach(function (st) {
@@ -5316,14 +5393,7 @@ function buildIsland(seedStr, opts) {
 
   // ③-8 랜드마크. 셋 다 같은 디딤판 위에 선다 — 규칙 하나를 배우면 셋을
   // 다 알아본다. ⑥-2 친구 섬과 ⑤ 광장에서도 같은 판을 쓴다.
-  function bandAt(th, lv) {
-    var C = coast(th), lo = -1, hi = -1;
-    for (var r = 0.02; r <= C; r += 0.01) {
-      var p = profileAt(r, th);
-      if (p.zone === "top" && p.lv === lv) { if (lo < 0) lo = r; hi = r; }
-    }
-    return lo < 0 ? null : { lo: lo, hi: hi };
-  }
+  var bandAt = bandAtLocal;
   var landmarks = [];
   // 비워둘 반경은 랜드마크마다 다르다. 3층은 좁아서 넉넉히 잡으면
   // 그 층 식생이 통째로 사라진다.
@@ -5418,7 +5488,7 @@ function buildIsland(seedStr, opts) {
   // 광장 표지 — 3층. 섬에서 가장 높다. 계단을 올라올 이유가 된다.
   var plazaBand = bandAt(plazaTh, 2);
   var plazaR = plazaBand ? (plazaBand.lo + plazaBand.hi) * 0.5 : 0.5;
-  addLandmark("plaza", "광장 표지", "우리 반 광장", "우리 반 광장으로 가요", plazaTh, plazaR, function (lg, lth) {
+  addLandmark("plaza", "광장 표지", "우리 반으로", "우리 반 광장으로 가요", plazaTh, plazaR, function (lg, lth) {
     var stoneM2 = new THREE.MeshStandardMaterial({ color: 0x9a8f7d, roughness: 1, metalness: 0 });
     var base = new THREE.Mesh(roundedSlab(), stoneM2);
     base.scale.set(0.46, 0.16, 0.46); base.position.y = 0.12;
@@ -5542,17 +5612,30 @@ function stairSurface(isle, x, z) {
     var u = x * c + z * sn;          // 반지름 방향
     var v = -x * sn + z * c;         // 접선 방향 = 계단 폭
     if (Math.abs(v) <= st.halfW && u >= st.rIn && u <= st.rOut) {
-      // 그려진 단의 윗면을 따라간다. rTop 안쪽은 위층과 같은 높이의 참이다.
-      var t = (st.rOut - u) / Math.max(1e-6, st.rOut - st.rTop);
-      return st.yLo + (st.yHi - st.yLo) * Math.min(1, Math.max(0, t));
+      // 그려진 단(또는 다리 상판)의 윗면을 따라간다.
+      // rTop 안쪽은 위층과 같은 높이의 참이다.
+      var t = Math.min(1, Math.max(0, (st.rOut - u) / Math.max(1e-6, st.rOut - st.rTop)));
+      var y = st.yLo + (st.yHi - st.yLo) * t;
+      // 다리는 2층 위를 넘어가야 하므로 활처럼 띄웠다. 같은 곡선을 쓴다.
+      if (st.arch) y += st.arch * Math.sin(Math.PI * t);
+      return y;
     }
   }
   return null;
 }
-// 캐릭터가 딛는 높이. 지면과 계단 중 높은 쪽이다.
-function walkY(isle, x, z) {
+// 캐릭터가 딛는 높이.
+// 다리는 2층 위를 지나가므로 늘 높은 쪽을 고르면 2층을 걷던 아이가 상판으로
+// 끌려 올라간다. 그렇다고 "지금 높이에 가까운 쪽"을 고르면 계단을 못 오른다 —
+// 오를 때는 발밑의 평평한 지면이 늘 더 가깝기 때문이다.
+// 맞는 규칙은 **한 걸음 안에 닿는 가장 높은 면**이다.
+// refY가 없으면(식생 배치·검사) 높은 쪽을 쓴다.
+var WALK_STEP_UP = 0.28;   // 다리가 2층 위로 띄운 높이(약 0.42)보다 작아야 한다
+function walkY(isle, x, z, refY) {
   var sy = stairSurface(isle, x, z), gy = surfaceY(isle, x, z);
-  return sy == null ? gy : Math.max(gy, sy);
+  if (sy == null) return gy;
+  if (refY == null) return Math.max(gy, sy);
+  var hi = Math.max(gy, sy), lo = Math.min(gy, sy);
+  return hi <= refY + WALK_STEP_UP ? hi : lo;
 }
 // 그 각도에서 lv층 평지가 차지하는 반지름 구간. profileAt만 본다.
 function tierBand(isle, th, lv) {
@@ -6018,19 +6101,19 @@ var WALK_WATER_MIN = 0.06;  // 물에는 못 들어간다
 // 표본 간격이 넓으면 실제보다 통로가 좁게 잡혀, 좁은 목에서 캐릭터가 낀다.
 // 벽은 두께 0.05에 0.56을 오르므로 간격이 좁아도 기울기가 크게 나와 걸러진다.
 var WALK_EPS = 0.035;
-function groundSlope(isle, x, z) {
+function groundSlope(isle, x, z, refY) {
   var e = WALK_EPS;
-  var gx = (walkY(isle, x + e, z) - walkY(isle, x - e, z)) / (2 * e);
-  var gz = (walkY(isle, x, z + e) - walkY(isle, x, z - e)) / (2 * e);
+  var gx = (walkY(isle, x + e, z, refY) - walkY(isle, x - e, z, refY)) / (2 * e);
+  var gz = (walkY(isle, x, z + e, refY) - walkY(isle, x, z - e, refY)) / (2 * e);
   return Math.hypot(gx, gz);
 }
 function walkStep(isle, pos, dx, dz) {
   var len = Math.hypot(dx, dz);
   if (len < 1e-6) return false;
   var nx = pos.x + dx, nz = pos.z + dz;
-  var y1 = walkY(isle, nx, nz);
-  if (y1 < WALK_WATER_MIN) return false;                              // 물에는 못 들어간다
-  if (groundSlope(isle, nx, nz) > WALK_SLOPE_MAX) return false;       // 벽은 못 오른다
+  var y1 = walkY(isle, nx, nz, pos.y);
+  if (y1 < WALK_WATER_MIN) return false;                                  // 물에는 못 들어간다
+  if (groundSlope(isle, nx, nz, pos.y) > WALK_SLOPE_MAX) return false;    // 벽은 못 오른다
   if (Math.abs(y1 - pos.y) > WALK_SLOPE_MAX * len + 0.004) return false;  // 끊긴 곳도 못 건넌다
   pos.x = nx; pos.z = nz; pos.y = y1;
   return true;
@@ -6043,8 +6126,8 @@ function walkStep(isle, pos, dx, dz) {
 function walkMove(isle, pos, dx, dz) {
   if (walkStep(isle, pos, dx, dz)) return true;
   var e = WALK_EPS, tx0 = pos.x + dx, tz0 = pos.z + dz;
-  var gx = (walkY(isle, tx0 + e, tz0) - walkY(isle, tx0 - e, tz0)) / (2 * e);
-  var gz = (walkY(isle, tx0, tz0 + e) - walkY(isle, tx0, tz0 - e)) / (2 * e);
+  var gx = (walkY(isle, tx0 + e, tz0, pos.y) - walkY(isle, tx0 - e, tz0, pos.y)) / (2 * e);
+  var gz = (walkY(isle, tx0, tz0 + e, pos.y) - walkY(isle, tx0, tz0 - e, pos.y)) / (2 * e);
   var g2 = gx * gx + gz * gz;
   if (g2 > 1e-9) {
     var k = (dx * gx + dz * gz) / g2;
@@ -6204,6 +6287,20 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
   const [soon, setSoon] = useState(null);       // 아직 없는 화면
   const goRef = useRef(null);
   const touch = coarsePointer();
+  // 폰 세로 화면에서는 나침반·배너·어휘 수가 서로 겹친다. 작게 줄이고 자리를 옮긴다.
+  const [small, setSmall] = useState(function () {
+    try { return window.innerWidth < 560; } catch (e) { return false; }
+  });
+  useEffect(function () {
+    function onR() { try { setSmall(window.innerWidth < 560); } catch (e) {} }
+    window.addEventListener("resize", onR);
+    window.addEventListener("orientationchange", onR);
+    return function () {
+      window.removeEventListener("resize", onR);
+      window.removeEventListener("orientationchange", onR);
+    };
+  }, []);
+  const compass = small ? 74 : 104;
   const fleetN = fleetCount();
   useEffect(function () {
     var host = hostRef.current;
@@ -6231,7 +6328,12 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
     // 아이소메트릭 고정 카메라. 섬 전체가 한 화면에 들어와야 한다.
-    var aspect = W / H, d = 5.0 * ISLE_K;
+    // 가로가 좁으면 섬이 잘린다. 세로 화면에서는 섬이 가로로 들어갈 만큼만
+    // 넓히고 바다는 잘리게 둔다. 가로 화면 구도(비율 1.4쯤)는 그대로다.
+    // 가로 화면 기준을 그대로 유지하면 바다 여백까지 담느라 섬이 너무 작아진다.
+    var FIT_HALF = 7.4 * ISLE_K / 1.4286;   // 섬이 화면에 들어갈 가로 반폭
+    function camHalf(a) { return Math.max(5.0 * ISLE_K, FIT_HALF / a); }
+    var aspect = W / H, d = camHalf(aspect);
     var FLEET0 = fleetCount();
     if (FLEET0 > 0) {
       var lay0 = fleetLayout(FLEET0), mx = 0, mz = 0;
@@ -6298,8 +6400,9 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
         v.normalize().multiplyScalar(WALK_SPEED * dt);
         walkMove(theIsle, charGrp.position, v.x, v.z);
       }
-      // 높이는 매 프레임 지면에서 다시 잡는다.
-      charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
+      // 높이는 매 프레임 지면에서 다시 잡는다. 지금 높이를 함께 넘겨야
+      // 다리 밑을 걸을 때 상판으로 끌려 올라가지 않는다.
+      charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z, charGrp.position.y);
     }
     // ③-8 랜드마크. 가까이 가면 디딤판이 밝아지고 화면 아래에 한 줄이 뜬다.
     var nearLmRef = null, going = null;
@@ -6393,16 +6496,28 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     function onResize() {
       if (disposed || !host) return;
       var w = host.clientWidth || 640, h = host.clientHeight || 420, a2 = w / h;
+      if (!w || !h) return;
+      // 함대 모드는 자기 계산으로 d를 잡으므로 건드리지 않는다.
+      if (FLEET === 0) d = camHalf(a2);
       cam.left = -d * a2; cam.right = d * a2; cam.top = d; cam.bottom = -d;
       cam.updateProjectionMatrix();
       renderer.setSize(w, h);
     }
     window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    // 주소창이 접히거나 키보드가 올라오면 resize가 안 오는 기기가 있다.
+    var ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(onResize);
+      ro.observe(host);
+    }
     return function () {
       disposed = true;
       if (charGrp) CHAR_LAST[seed] = { x: charGrp.position.x, z: charGrp.position.z };
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      if (ro) ro.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       scene.traverse(function (o) {
@@ -6413,7 +6528,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
   }, [seed, seaTone, entries]);
-  return React.createElement("div", { style: { position: "relative", width: "100%", height: "min(70vh, 560px)", borderRadius: 16, overflow: "hidden", background: "#dfeef2" } },
+  return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
     // 잠수는 물이 아래에서 차오르고(내려간다), 항해는 옆으로 지나간다(건너간다).
     React.createElement("style", null,
@@ -6447,7 +6562,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     // ③-8 랜드마크 배너. 배너 자체가 버튼이라 터치 기기에서도 한 번에 들어간다.
     nearLm && !wipe && !soon ? React.createElement("button", {
       onClick: function () { if (goRef.current) goRef.current(); },
-      style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)",
+      style: { position: "absolute", left: "50%", bottom: small ? 100 : 18, transform: "translateX(-50%)",
                display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
                padding: "10px 18px", borderRadius: 14, border: "none", cursor: "pointer",
                background: "rgba(255,255,255,0.94)", boxShadow: "0 3px 14px rgba(0,0,0,0.18)",
@@ -6485,7 +6600,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       }, "돌아가기"))) : null,
     // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
     React.createElement("div", {
-      style: { position: "absolute", left: 12, bottom: 12, width: 104, height: 104, borderRadius: "50%",
+      style: { position: "absolute", left: 12, bottom: 12, width: compass, height: compass, borderRadius: "50%",
                background: "rgba(255,255,255,0.72)", boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
                fontSize: 11, color: "#3f5560", userSelect: "none" }
     },
@@ -6495,8 +6610,9 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#c14d4d", fontWeight: 700 } }, "분노"),
       React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 7, height: 7, marginLeft: -3.5, marginTop: -3.5, borderRadius: "50%", background: "#9fb0bb" } })),
     React.createElement("div", {
-      style: { position: "absolute", right: 12, bottom: 12, padding: "6px 12px", borderRadius: 10,
-               background: "rgba(255,255,255,0.82)", fontSize: 13, color: "#3f5560" }
+      style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
+               borderRadius: 10, background: "rgba(255,255,255,0.82)",
+               fontSize: small ? 12 : 13, color: "#3f5560" }
     }, fleetN > 0 ? "합성 어휘 " : "감정 어휘 ", React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"));
 }
 function DiaryView({
@@ -10227,15 +10343,19 @@ function App() {
     readOnly: false,
     userId: trialId
   })));
+  // 섬은 화면을 꽉 채운다. 상자 안에 넣으면 캔버스만 작아지고 아래가 여백이 된다.
+  // 제목은 캔버스 위에 겹쳐 얹는다. 자리를 차지하면 그만큼 섬이 줄어든다.
   if (page === "island" && currentUser) return React.createElement("div", {
-    style: shell
+    style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
   }, React.createElement("div", {
-    style: { padding: "16px 24px", borderBottom: "1px solid #e5e7eb", background: "rgba(255,255,255,0.92)", textAlign: "center" }
+    style: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, pointerEvents: "none",
+             padding: "10px 16px", textAlign: "center",
+             background: "linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0))" }
   }, React.createElement("h1", {
     className: "diary-h1",
-    style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0 }
+    style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0, fontSize: "clamp(15px, 4vw, 22px)" }
   }, currentUser.name, "의 마음 섬")), React.createElement("div", {
-    style: { padding: "16px 20px", maxWidth: 900, margin: "0 auto" }
+    style: { position: "absolute", inset: 0 }
   }, React.createElement(IslandView, {
     entries: myEntries,
     seed: String(currentUser.id || currentUser.name || "island"),
