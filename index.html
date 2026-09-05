@@ -5183,7 +5183,11 @@ function buildIsland(seedStr, opts) {
       var rOut = Math.min(rIn + 0.16 * NST, fl.outLim(fl.th) - 0.12);
       if (rOut < rIn + 0.34) rOut = rIn + 0.34;   // 단이 안 보일 만큼 눌리지는 않게
       var run = (rOut - rIn) / NST;
-      stairInfo.push({ th: fl.th, rOut: rOut, rIn: rIn, yLo: fl.lo, yHi: fl.hi, halfW: 0.31 });
+      // rTop은 계단이 위층 높이에 도달하는 반지름이다. 마지막 단의 윗면이
+      // rIn까지 이어지므로 실제로는 rIn + run에서 이미 위층 높이가 된다.
+      // 걷기 판정이 이걸 모르면 꼭대기에서 지면이 경사로를 앞질러 막힌다.
+      stairInfo.push({ th: fl.th, rOut: rOut, rIn: rIn, rTop: rIn + run,
+                       yLo: fl.lo, yHi: fl.hi, halfW: 0.31 });
       for (var s = 0; s < NST; s++) {
         // 단마다 얇은 판을 세우면 계단이 아니라 울타리가 된다.
         // 각 단은 자기 앞면에서 위층까지 통째로 이어지는 상자다. 아래 단이
@@ -5325,21 +5329,77 @@ function surfaceY(isle, x, z) {
 // 벽·어깨·필렛에 식생이 박히는 것을 막는다. 안쪽 평지로 밀어낸다.
 // ③-7에서 층별로 제대로 배치하면 이 가드는 없어진다. 지금은 나무가 벽에
 // 박힌 화면이 나오지 않게 하는 임시 조치다.
+// 계단 발치와 상단 둘레는 비워둔다. 식생이 계단을 파묻으면 아이가
+// 올라갈 곳을 못 찾는다. 이동 경로는 눈에 보여야 한다.
+var STAIR_CLEAR = 1.2;
+function stairDist(isle, x, z) {
+  var S = isle.userData.stairs || [], best = 1e9;
+  for (var i = 0; i < S.length; i++) {
+    var st = S[i], c = Math.cos(st.th), sn = Math.sin(st.th);
+    // 발치(rOut)와 상단(rIn) 두 점
+    var d1 = Math.hypot(x - c * st.rOut, z - sn * st.rOut);
+    var d2 = Math.hypot(x - c * st.rIn, z - sn * st.rIn);
+    best = Math.min(best, d1, d2);
+  }
+  return best;
+}
 // mrg는 그 식생이 지면에서 차지하는 반경이다. 웅덩이·파도는 납작한 원판이라
 // 가장자리에 걸치면 벽 밖 허공으로 통째로 삐져나온다. 나무·바위보다 넓게 잡는다.
 function flatSpot(isle, x, z, mrg) {
-  var th = Math.atan2(z, x), r = Math.hypot(x, z);
+  var th0 = Math.atan2(z, x), r0 = Math.hypot(x, z);
   var m = mrg == null ? 0.20 : mrg;
-  for (var i = 0; i < 24; i++) {
-    var p = isle.userData.profileAt(r, th);
-    // 물가 갈대는 해변에 있어도 된다. 다만 물에 잠기면 안 된다.
-    var ok = p.zone === "top" || (p.zone === "beach" && p.y > 0.06);
-    if (ok && isle.userData.profileAt(r + m, th).y > p.y - 0.03) break;
-    r -= 0.07;
-    if (r < 0.12) { r = 0.12; break; }
+  var bestX = 0, bestZ = 0, bestD = -1;
+  // 계단을 피하려면 각도를 틀어야 한다. 반지름만 줄이면 같은 계단 앞으로
+  // 더 파고들 뿐이다. 좌우로 번갈아 벌리며 처음 열리는 쪽으로 간다.
+  for (var a = 0; a < 21; a++) {
+    var th = th0 + (a === 0 ? 0 : (a % 2 ? 1 : -1) * Math.ceil(a / 2) * 0.16);
+    var r = r0;
+    for (var i = 0; i < 24; i++) {
+      var p = isle.userData.profileAt(r, th);
+      // 물가 갈대는 해변에 있어도 된다. 다만 물에 잠기면 안 된다.
+      var ok = p.zone === "top" || (p.zone === "beach" && p.y > 0.06);
+      if (ok && isle.userData.profileAt(r + m, th).y > p.y - 0.03) break;
+      r -= 0.07;
+      if (r < 0.12) { r = 0.12; break; }
+    }
+    var cx = Math.cos(th) * r, cz = Math.sin(th) * r;
+    var d = stairDist(isle, cx, cz);
+    if (d >= STAIR_CLEAR) return { x: cx, z: cz, y: surfaceY(isle, cx, cz) };
+    if (d > bestD) { bestD = d; bestX = cx; bestZ = cz; }
   }
-  var fx = Math.cos(th) * r, fz = Math.sin(th) * r;
-  return { x: fx, z: fz, y: surfaceY(isle, fx, fz) };
+  // 어느 각도로도 못 비켰으면 그중 계단에서 가장 먼 자리를 쓴다.
+  return { x: bestX, z: bestZ, y: surfaceY(isle, bestX, bestZ) };
+}
+// ── ③-6 걷기용 지면 ──────────────────────────────────────────
+// 계단 윗면. 실제 단은 층계지만 걷기에는 경사로로 읽는다.
+// 원기둥이 단마다 튀지 않고 미끄러져 올라간다.
+function stairSurface(isle, x, z) {
+  var S = isle.userData.stairs || [];
+  for (var i = 0; i < S.length; i++) {
+    var st = S[i], c = Math.cos(st.th), sn = Math.sin(st.th);
+    var u = x * c + z * sn;          // 반지름 방향
+    var v = -x * sn + z * c;         // 접선 방향 = 계단 폭
+    if (Math.abs(v) <= st.halfW && u >= st.rIn && u <= st.rOut) {
+      // 그려진 단의 윗면을 따라간다. rTop 안쪽은 위층과 같은 높이의 참이다.
+      var t = (st.rOut - u) / Math.max(1e-6, st.rOut - st.rTop);
+      return st.yLo + (st.yHi - st.yLo) * Math.min(1, Math.max(0, t));
+    }
+  }
+  return null;
+}
+// 캐릭터가 딛는 높이. 지면과 계단 중 높은 쪽이다.
+function walkY(isle, x, z) {
+  var sy = stairSurface(isle, x, z), gy = surfaceY(isle, x, z);
+  return sy == null ? gy : Math.max(gy, sy);
+}
+// 그 각도에서 lv층 평지가 차지하는 반지름 구간. profileAt만 본다.
+function tierBand(isle, th, lv) {
+  var C = isle.userData.coast(th), lo = -1, hi = -1;
+  for (var r = 0.02; r <= C; r += 0.01) {
+    var p = isle.userData.profileAt(r, th);
+    if (p.zone === "top" && p.lv === lv) { if (lo < 0) lo = r; hi = r; }
+  }
+  return lo < 0 ? null : { lo: lo, hi: hi, w: hi - lo };
 }
 // Russell 좌표 -> 섬 방위.
 // psi = 3π/2 - phi 로 두면 화면에서 활기가 위, 평온이 오른쪽,
@@ -5520,8 +5580,11 @@ function buildCharacter() {
   var grp = new THREE.Group();
   var geo = new THREE.CylinderGeometry(CHAR_D / 2, CHAR_D / 2, CHAR_H, 16);
   geo.translate(0, CHAR_H / 2, 0);   // 밑동이 y=0. 지면 높이를 그대로 넣으면 된다
+  // 실루엣은 본체(0xdd6b4f)와 같은 색상(약 12도)에 밝기만 올린 것이다.
+  // 전에 쓰던 살구색은 모래·계단 돌과 겹쳐 돌기둥처럼 보였다.
+  // 불투명도도 0.55 → 0.7로 올린다. 낮으면 잔디 초록이 섞여 다시 흙색이 된다.
   var sil = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    color: 0xffb08f, depthTest: false, depthWrite: false, transparent: true, opacity: 0.55
+    color: 0xef866c, depthTest: false, depthWrite: false, transparent: true, opacity: 0.7
   }));
   sil.renderOrder = 998;
   grp.add(sil);
@@ -5538,14 +5601,112 @@ function buildCharacter() {
 // 어느 각도에서 그 층 평지의 한가운데를 찾는다. 캐릭터를 세우거나
 // ③-8에서 랜드마크를 놓을 때 쓴다. profileAt만 보므로 지형 수치가 바뀌어도 따라온다.
 function tierSpot(isle, th, lv) {
-  var C = isle.userData.coast(th), lo = -1, hi = -1;
-  for (var r = 0.02; r <= C; r += 0.02) {
-    var p = isle.userData.profileAt(r, th);
-    if (p.zone === "top" && p.lv === lv) { if (lo < 0) lo = r; hi = r; }
+  var b = tierBand(isle, th, lv);
+  if (!b) return null;
+  var rm = (b.lo + b.hi) / 2, x = Math.cos(th) * rm, z = Math.sin(th) * rm;
+  return { x: x, z: z, y: surfaceY(isle, x, z) };
+}
+// 한 걸음. pos는 {x,y,z}면 되고 THREE.Vector3도 그대로 들어간다.
+// 갈 수 있으면 pos를 옮기고 true를 준다.
+var WALK_SPEED = 1.7;       // 초당. 1층(폭 약 6.8)을 4초쯤에 가로지른다
+// 벽(기울기 11)과 걸을 수 있는 곳(계단 0.88, 해변 최대 1.2) 사이는 넓게 벌어져 있다.
+// 여유를 크게 두어야 좁은 목에서 캐릭터가 끼지 않는다.
+var WALK_SLOPE_MAX = 2.0;
+var WALK_WATER_MIN = 0.06;  // 물에는 못 들어간다
+// 그 자리 지면의 기울기. 걸음 방향과 무관하게 지면 자체를 본다.
+// 이걸 안 보고 걸음의 높이차만 재면, 벽을 비스듬히 지그재그로 오를 수 있다.
+// 한 걸음은 거의 접선 방향이라 높이차가 작게 나오는데, 그 조금씩이 쌓인다.
+// 표본 간격이 넓으면 실제보다 통로가 좁게 잡혀, 좁은 목에서 캐릭터가 낀다.
+// 벽은 두께 0.05에 0.56을 오르므로 간격이 좁아도 기울기가 크게 나와 걸러진다.
+var WALK_EPS = 0.035;
+function groundSlope(isle, x, z) {
+  var e = WALK_EPS;
+  var gx = (walkY(isle, x + e, z) - walkY(isle, x - e, z)) / (2 * e);
+  var gz = (walkY(isle, x, z + e) - walkY(isle, x, z - e)) / (2 * e);
+  return Math.hypot(gx, gz);
+}
+function walkStep(isle, pos, dx, dz) {
+  var len = Math.hypot(dx, dz);
+  if (len < 1e-6) return false;
+  var nx = pos.x + dx, nz = pos.z + dz;
+  var y1 = walkY(isle, nx, nz);
+  if (y1 < WALK_WATER_MIN) return false;                              // 물에는 못 들어간다
+  if (groundSlope(isle, nx, nz) > WALK_SLOPE_MAX) return false;       // 벽은 못 오른다
+  if (Math.abs(y1 - pos.y) > WALK_SLOPE_MAX * len + 0.004) return false;  // 끊긴 곳도 못 건넌다
+  pos.x = nx; pos.z = nz; pos.y = y1;
+  return true;
+}
+// 벽에 부딪히면 벽을 따라 미끄러진다. 통째로 막으면 벽에 닿는 순간
+// 조작이 붙어버리고, 좁은 목에서는 아예 지나갈 수 없게 된다.
+// 축을 하나씩 시도하는 흔한 방법은 여기서 안 통한다. 판정이 걸음 방향이
+// 아니라 지면 기울기라, x만·z만 움직여도 여전히 급한 자리에 떨어진다.
+// 막힌 자리의 등고선(기울기에 수직인 방향)으로 접어서 간다.
+function walkMove(isle, pos, dx, dz) {
+  if (walkStep(isle, pos, dx, dz)) return true;
+  var e = WALK_EPS, tx0 = pos.x + dx, tz0 = pos.z + dz;
+  var gx = (walkY(isle, tx0 + e, tz0) - walkY(isle, tx0 - e, tz0)) / (2 * e);
+  var gz = (walkY(isle, tx0, tz0 + e) - walkY(isle, tx0, tz0 - e)) / (2 * e);
+  var g2 = gx * gx + gz * gz;
+  if (g2 > 1e-9) {
+    var k = (dx * gx + dz * gz) / g2;
+    if (walkStep(isle, pos, dx - k * gx, dz - k * gz)) return true;
   }
-  if (lo < 0) return null;
-  var rm = (lo + hi) / 2;
-  return { x: Math.cos(th) * rm, z: Math.sin(th) * rm, y: surfaceY(isle, Math.cos(th) * rm, Math.sin(th) * rm) };
+  if (walkStep(isle, pos, dx, 0)) return true;
+  return walkStep(isle, pos, 0, dz);
+}
+// #dev 일 때만 켜지는 디버그. 계정과 무관하고 저장소도 건드리지 않는다.
+function devMode() {
+  try { return /(?:^|[#&])dev\b/.test(window.location.hash || ""); } catch (e) { return false; }
+}
+// lv층 평지가 가장 좁아지는 각도. ③-5에서 1층만 0.85를 지키고 2층은
+// 둘레의 10%쯤에서 눌린다는 것을 눈으로 확인하려고 둔다.
+function narrowestTier(isle, lv) {
+  var best = null;
+  for (var i = 0; i < 360; i++) {
+    var th = i / 360 * 6.283185307, b = tierBand(isle, th, lv);
+    if (b && (!best || b.w < best.w)) best = { th: th, w: b.w, lo: b.lo, hi: b.hi };
+  }
+  return best;
+}
+// 그 각도에서 lv층 평지의 바깥 벽이 서 있는 반지름.
+function wallRadius(isle, th, lv) {
+  var C = isle.userData.coast(th);
+  for (var r = 0.05; r <= C; r += 0.004) {
+    var p = isle.userData.profileAt(r, th);
+    if (p.zone === "wall" && p.lv === lv) return r;
+  }
+  return null;
+}
+// 좁은 지점의 좌우 벽을 띠로 덧칠한다. 벽면에서 살짝 띄워 z-파이팅을 피한다.
+function buildNarrowMarks(isle, th) {
+  var grp = new THREE.Group(), SPAN = 0.34, N = 28;
+  [{ lv: 1, col: 0xff2fa0 },   // 바깥 벽 (2층 → 1층)
+   { lv: 2, col: 0x00d5ff }    // 안쪽 벽 (3층 → 2층)
+  ].forEach(function (M) {
+    var pos = [], idx = [], n = 0;
+    for (var i = 0; i <= N; i++) {
+      var a = th - SPAN + 2 * SPAN * i / N, rw = wallRadius(isle, a, M.lv);
+      if (rw == null) continue;
+      var rr = rw + 0.035;
+      pos.push(Math.cos(a) * rr, TIER_Y[M.lv] + 0.01, Math.sin(a) * rr);
+      pos.push(Math.cos(a) * rr, TIER_Y[M.lv - 1] - 0.01, Math.sin(a) * rr);
+      n++;
+    }
+    for (var k = 0; k < n - 1; k++) {
+      var A = k * 2, B2 = k * 2 + 1, C2 = (k + 1) * 2, D = (k + 1) * 2 + 1;
+      idx.push(A, C2, B2, B2, C2, D);
+    }
+    if (!idx.length) return;
+    var g2 = new THREE.BufferGeometry();
+    g2.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g2.setIndex(idx);
+    var mesh = new THREE.Mesh(g2, new THREE.MeshBasicMaterial({
+      color: M.col, side: THREE.DoubleSide, transparent: true, opacity: 0.85
+    }));
+    mesh.renderOrder = 5;
+    grp.add(mesh);
+  });
+  return grp;
 }
 // ③-4 성능 하네스. 저장소를 건드리지 않고 app/isle와 같은 모양의
 // 합성 데이터를 만든다. ⑥에서 실제 데이터로 바꿔도 렌더 코드는 그대로다.
@@ -5631,6 +5792,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
   const [err, setErr] = useState("");
   const [vocab, setVocab] = useState(0);
   const [stats, setStats] = useState(null);
+  const [dbg, setDbg] = useState("");
   const fleetN = fleetCount();
   useEffect(function () {
     var host = hostRef.current;
@@ -5670,6 +5832,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     cam.lookAt(0, 0, 0);
 
     var FLEET = fleetCount();
+    var theIsle = null, charGrp = null;   // 걷기는 단일 섬에서만. 함대는 성능 하네스다
     if (FLEET > 0) {
       // 섬 30개 성능 확인. 실제 ⑥의 바다 화면과 같은 코드 경로를 탄다.
       var lay = fleetLayout(FLEET), fs = fleetStates(FLEET), totalVocab = 0;
@@ -5695,10 +5858,11 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       // 1층 카메라 앞쪽(각도 π/4)이 카메라 (14,12,14) 기준 화면 아래쪽이다.
       var chSpot = tierSpot(isleGrp, Math.PI / 4, 0);
       if (chSpot) {
-        var ch = buildCharacter();
-        ch.position.set(chSpot.x, chSpot.y, chSpot.z);
-        scene.add(ch);
+        charGrp = buildCharacter();
+        charGrp.position.set(chSpot.x, chSpot.y, chSpot.z);
+        scene.add(charGrp);
       }
+      theIsle = isleGrp;
     }
     // 빛은 화면 기준 왼쪽 위에서. 카메라가 (14,12,14)라 이 방향이면
     // 그림자가 화면 오른쪽 아래로 일관되게 깔린다.
@@ -5724,10 +5888,61 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     fill.position.set(9, 5, -8);
     scene.add(fill);
 
-    var frames = 0, last = performance.now();
+    // ③-6 걷기. 방향키/WASD만. 탭 이동은 나중에.
+    // 이동은 화면 기준이다. 아이소메트릭이라 월드 좌표를 그대로 쓰면
+    // 위 키를 눌렀을 때 화면에서 대각선으로 간다.
+    var UP = new THREE.Vector3(0, 1, 0);
+    var scrF = new THREE.Vector3(-cam.position.x, 0, -cam.position.z).normalize();  // 화면 위쪽
+    var scrR = new THREE.Vector3().crossVectors(scrF, UP).normalize();              // 화면 오른쪽
+    var KEYMAP = {
+      ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
+      ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
+    };
+    var keys = {}, dbgMarks = null;
+    function walk(dt) {
+      if (!charGrp || !theIsle) return;
+      var mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+      var mz = (keys.up ? 1 : 0) - (keys.down ? 1 : 0);
+      if (mx || mz) {
+        var v = new THREE.Vector3().addScaledVector(scrR, mx).addScaledVector(scrF, mz);
+        v.normalize().multiplyScalar(WALK_SPEED * dt);
+        walkMove(theIsle, charGrp.position, v.x, v.z);
+      }
+      // 높이는 매 프레임 지면에서 다시 잡는다.
+      charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
+    }
+    function jumpToNarrow() {
+      if (!charGrp || !theIsle) return;
+      var n = narrowestTier(theIsle, 1);   // 2층
+      if (!n) return;
+      var rm = (n.lo + n.hi) / 2;
+      charGrp.position.set(Math.cos(n.th) * rm, 0, Math.sin(n.th) * rm);
+      charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
+      if (dbgMarks) {
+        scene.remove(dbgMarks);
+        dbgMarks.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      }
+      dbgMarks = buildNarrowMarks(theIsle, n.th);
+      scene.add(dbgMarks);
+      setDbg("2층 최소 폭 " + n.w.toFixed(2) + " · " + Math.round(n.th * 180 / Math.PI) + "° · 분홍=바깥 벽, 하늘=안쪽 벽");
+    }
+    function onKeyDown(e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = 1; e.preventDefault(); }
+      else if (e.code === "KeyG" && devMode()) { jumpToNarrow(); e.preventDefault(); }
+    }
+    function onKeyUp(e) { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = 0; }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    var frames = 0, last = performance.now(), lastT = last;
     function tick() {
       if (disposed) return;
       raf = requestAnimationFrame(tick);
+      var t0 = performance.now();
+      // 탭을 다시 열면 dt가 몇 초로 튄다. 그대로 쓰면 캐릭터가 순간이동한다.
+      walk(Math.min(0.05, (t0 - lastT) / 1000));
+      lastT = t0;
       renderer.render(scene, cam);
       frames++;
       var now = performance.now();
@@ -5754,6 +5969,8 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
       scene.traverse(function (o) {
         if (o.geometry) o.geometry.dispose();
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.dispose(); });
@@ -5775,6 +5992,16 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,214,102,0.9)", fontSize: 12, color: "#6b4a00" }
     }, "성능 확인 모드 · 섬 " + fleetN + "개") : null,
+    // ③-6: 조작 안내. 아직 시험 단계라 작게만 둔다.
+    fleetN > 0 ? null : React.createElement("div", {
+      style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
+               background: "rgba(255,255,255,0.78)", fontSize: 12, color: "#5b7684" }
+    }, "방향키 또는 WASD로 걸어보세요", devMode() ? " · G: 2층 최소 폭" : ""),
+    dbg ? React.createElement("div", {
+      style: { position: "absolute", left: 10, top: 62, padding: "3px 9px", borderRadius: 8,
+               background: "rgba(30,30,40,0.82)", fontSize: 12, color: "#ffe9c4",
+               fontVariantNumeric: "tabular-nums" }
+    }, dbg) : null,
     React.createElement("button", {
       onClick: onBack,
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13 }
