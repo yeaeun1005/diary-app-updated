@@ -4947,6 +4947,13 @@ function roundedSlab() {
   g.computeVertexNormals();
   return g;
 }
+// 섬 반지름. 캐릭터(키 1.1)에 견주어 걸어다닐 공간이 얼마나 되는지를 정한다.
+// ISLE_K는 ③-5까지 쓰던 4.2 기준 배율이다. 카메라·바다·그림자 상자·함대
+// 간격이 모두 여기에 곱해지므로, 반지름을 키워도 화면 구도는 그대로다.
+// 4.2에서는 2층 평지가 둘레의 13%에서 0.85 아래로 눌렸다. 6.0이면 시드 400개
+// 전부 0.85를 지키고, 윤곽을 억지로 펴는 최소 폭 잠금도 45% → 3%로 줄어든다.
+var ISLE_R = 6.0;
+var ISLE_K = ISLE_R / 4.2;
 // 1층 · 2층 · 3층 평지 높이. 아래가 넓고 위로 갈수록 좁다.
 // 단 높이가 낮으면 벽이 얇아져 계단이 아니라 완만한 경사로 읽힌다.
 var TIER_Y = [0.34, 0.90, 1.46];
@@ -4965,7 +4972,7 @@ function buildIsland(seedStr, opts) {
   // 8의 배수로 맞춘다. 안쪽 링에서 분할 수를 정확히 절반씩 줄여야 이음매가 맞는다.
   var SEGS = Math.max(24, Math.round(96 * detail / 8) * 8);
   var TAU = 6.283185307;
-  var R0 = 4.2, SKIRT = 1.8;
+  var R0 = ISLE_R, SKIRT = 1.8;
   // 베벨은 있어야 점토가 되지만, 크면 계단이 물러져 경사면처럼 보인다.
   // 단 높이(0.56)에 견주어 충분히 작게 잡는다.
   var B = 0.075;     // 층 어깨를 깎는 반지름. 여기가 없으면 각진 로우폴리가 된다
@@ -5216,7 +5223,8 @@ function buildIsland(seedStr, opts) {
   var rC = coast(dockTh);
   for (var k = 0; k < 5; k++) {
     // 첫 판자를 모래 위에 얹는다. 해변이 완만해져서 예전 시작점은 물속이었다.
-    var rr = rC - 0.55 + k * 0.42;
+    // 시작 지점은 해변 폭에 비례하고, 판자 자체는 아이 몸에 맞춘 크기라 그대로다.
+    var rr = rC - 0.55 * ISLE_K + k * 0.42;
     // 폭 0.52에 간격 0.42면 판자끼리 0.10씩 겹치고, 모두 같은 높이라
     // 겹친 부분이 동일 평면이 되어 z-파이팅과 그림자 얼룩이 생긴다.
     // 폭을 줄여 판자 사이에 틈을 둔다. 실제 부두처럼 보이기도 한다.
@@ -5608,7 +5616,9 @@ function tierSpot(isle, th, lv) {
 }
 // 한 걸음. pos는 {x,y,z}면 되고 THREE.Vector3도 그대로 들어간다.
 // 갈 수 있으면 pos를 옮기고 true를 준다.
-var WALK_SPEED = 1.7;       // 초당. 1층(폭 약 6.8)을 4초쯤에 가로지른다
+// 초당. 섬이 커지면 같은 속도로는 가로지르는 데 더 걸린다. 반지름에 맞춰
+// 함께 올려 1층을 가로지르는 시간을 4초쯤으로 유지한다.
+var WALK_SPEED = 1.7 * ISLE_K;
 // 벽(기울기 11)과 걸을 수 있는 곳(계단 0.88, 해변 최대 1.2) 사이는 넓게 벌어져 있다.
 // 여유를 크게 두어야 좁은 목에서 캐릭터가 끼지 않는다.
 var WALK_SLOPE_MAX = 2.0;
@@ -5741,7 +5751,7 @@ function fleetStates(n) {
 // 육각 배치. 섬 반경이 약 4.2라 중심 간격을 10.5로 두면 겹치지 않는다.
 function fleetLayout(n) {
   var cols = Math.max(1, Math.ceil(Math.sqrt(n * 1.2)));
-  var SX = 10.5, SZ = 9.1, out = [];
+  var SX = 10.5 * ISLE_K, SZ = 9.1 * ISLE_K, out = [];
   for (var i = 0; i < n; i++) {
     var r = Math.floor(i / cols), c = i % cols;
     out.push({
@@ -5820,12 +5830,12 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
     // 아이소메트릭 고정 카메라. 섬 전체가 한 화면에 들어와야 한다.
-    var aspect = W / H, d = 5.0;
+    var aspect = W / H, d = 5.0 * ISLE_K;
     var FLEET0 = fleetCount();
     if (FLEET0 > 0) {
       var lay0 = fleetLayout(FLEET0), mx = 0, mz = 0;
       lay0.forEach(function (p) { mx = Math.max(mx, Math.abs(p.x)); mz = Math.max(mz, Math.abs(p.z)); });
-      d = Math.max((mz + 6) * 1.06, (mx + 6) / aspect * 1.06);
+      d = Math.max((mz + 6 * ISLE_K) * 1.06, (mx + 6 * ISLE_K) / aspect * 1.06);
     }
     var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
     cam.position.set(14, 12, 14);
@@ -5836,7 +5846,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     if (FLEET > 0) {
       // 섬 30개 성능 확인. 실제 ⑥의 바다 화면과 같은 코드 경로를 탄다.
       var lay = fleetLayout(FLEET), fs = fleetStates(FLEET), totalVocab = 0;
-      scene.add(buildSea(Math.max(30, lay[lay.length - 1].x + 40), seaTone == null ? 0.5 : seaTone));
+      scene.add(buildSea(Math.max(30 * ISLE_K, lay[lay.length - 1].x + 40 * ISLE_K), seaTone == null ? 0.5 : seaTone));
       for (var fi = 0; fi < FLEET; fi++) {
         var gI = buildIsland(fs[fi].seed);
         gI.position.set(lay[fi].x, 0, lay[fi].z);
@@ -5848,7 +5858,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       }
       setVocab(totalVocab);
     } else {
-      scene.add(buildSea(15, seaTone == null ? 0.5 : seaTone));
+      scene.add(buildSea(15 * ISLE_K, seaTone == null ? 0.5 : seaTone));
       var isleGrp = buildIsland(seed || "island");
       scene.add(isleGrp);
       var st = islandState(entries);
@@ -5874,10 +5884,10 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     // 그림자 카메라를 섬에 딱 맞춘다. 넓게 잡으면 해상도가 흩어져 흐려진다.
     // 함대 모드에서는 그림자 카메라를 전체에 맞춘다. 해상도가 흩어져
     // 그림자가 흐려지지만, 여기서 재려는 것은 화질이 아니라 부하다.
-    var SH = FLEET > 0 ? Math.max(d * 1.5, 40) : 7;
+    var SH = FLEET > 0 ? Math.max(d * 1.5, 40 * ISLE_K) : 7 * ISLE_K;
     key.shadow.camera.left = -SH; key.shadow.camera.right = SH;
     key.shadow.camera.top = SH; key.shadow.camera.bottom = -SH;
-    key.shadow.camera.near = 1; key.shadow.camera.far = FLEET > 0 ? SH * 4 : 42;
+    key.shadow.camera.near = 1; key.shadow.camera.far = FLEET > 0 ? SH * 4 : 42 * ISLE_K;
     key.shadow.bias = -0.0004;
     key.shadow.normalBias = 0.018;
     scene.add(key);
