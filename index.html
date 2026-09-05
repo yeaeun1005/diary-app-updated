@@ -4992,6 +4992,10 @@ function buildIsland(seedStr, opts) {
   // 두 계단을 같은 방향에 두면 걸어다닐 이유가 없어진다(DESIGN.md §3).
   var stairA = dockTh + 0.55 + rnd() * 0.55;
   var stairB = stairA + 1.9 + rnd() * 0.9;
+  // 잠수 지점은 부두 반대편에 둔다. 1층 랜드마크 둘이 붙어 있으면
+  // 걸어다닐 이유가 없다(DESIGN.md §3).
+  var diveTh = dockTh + Math.PI + (rnd() - 0.5) * 0.9;
+  var plazaTh = stairB + Math.PI + (rnd() - 0.5) * 0.8;
 
   // 해안선: 낮은 주파수 셋을 겹쳐 자연스러운 굴곡을 만든다. 정사각형이 아니다.
   function coast(th) { return R0 * (1 + a1 * Math.sin(3 * th + p1) + a2 * Math.sin(5 * th + p2) + a3 * Math.sin(7 * th + p3)); }
@@ -5246,6 +5250,26 @@ function buildIsland(seedStr, opts) {
       }
     }
   }
+  // 배 — "여기서 나간다"를 형태로 말한다. ⑥-1에서 이 배가 항해한다.
+  var boatTh = dockTh, boatR = rC + 0.70;
+  var boat = new THREE.Group();
+  boat.position.set(Math.cos(boatTh) * boatR - Math.sin(boatTh) * 0.78,
+                    0.06, Math.sin(boatTh) * boatR + Math.cos(boatTh) * 0.78);
+  boat.rotation.y = -boatTh;
+  var hull = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 7),
+    new THREE.MeshStandardMaterial({ color: 0xb5794a, roughness: 1, metalness: 0 }));
+  hull.scale.set(0.72, 0.17, 0.30); hull.position.y = 0.10;
+  hull.castShadow = true; hull.receiveShadow = true;
+  boat.add(hull);
+  var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.62, 6), wood);
+  mast.position.y = 0.44; mast.castShadow = true;
+  boat.add(mast);
+  var sail = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.34, 0.03),
+    new THREE.MeshStandardMaterial({ color: 0xded2b4, roughness: 1, metalness: 0 }));
+  sail.position.set(0.16, 0.50, 0); sail.rotation.y = Math.PI / 2;
+  sail.castShadow = true;
+  boat.add(sail);
+  dock.add(boat);
   grp.add(dock);
 
   // 물가 파도선 — 해안선이 불규칙하므로 실제 수면선(높이 0이 되는 지점)을
@@ -5283,16 +5307,111 @@ function buildIsland(seedStr, opts) {
   foam.renderOrder = 1;
   grp.add(foam);
 
-  // 식생을 놓지 않을 자리. 이동 경로는 눈에 보여야 한다.
-  // ③-8 랜드마크도 여기에 더하면 배치기가 알아서 피한다.
+  // 식생을 놓지 않을 자리. 이동 경로와 랜드마크는 눈에 보여야 한다.
   var keepOuts = [];
   stairInfo.forEach(function (st) {
     keepOuts.push({ x: Math.cos(st.th) * st.rOut, z: Math.sin(st.th) * st.rOut, r: 1.2, why: "계단 발치" });
     keepOuts.push({ x: Math.cos(st.th) * st.rIn, z: Math.sin(st.th) * st.rIn, r: 1.2, why: "계단 상단" });
   });
-  var dockIn = rC - 0.9 * ISLE_K;
-  keepOuts.push({ x: Math.cos(dockTh) * dockIn, z: Math.sin(dockTh) * dockIn, r: 1.0, why: "부두 진입부" });
 
+  // ③-8 랜드마크. 셋 다 같은 디딤판 위에 선다 — 규칙 하나를 배우면 셋을
+  // 다 알아본다. ⑥-2 친구 섬과 ⑤ 광장에서도 같은 판을 쓴다.
+  function bandAt(th, lv) {
+    var C = coast(th), lo = -1, hi = -1;
+    for (var r = 0.02; r <= C; r += 0.01) {
+      var p = profileAt(r, th);
+      if (p.zone === "top" && p.lv === lv) { if (lo < 0) lo = r; hi = r; }
+    }
+    return lo < 0 ? null : { lo: lo, hi: hi };
+  }
+  var landmarks = [];
+  // 비워둘 반경은 랜드마크마다 다르다. 3층은 좁아서 넉넉히 잡으면
+  // 그 층 식생이 통째로 사라진다.
+  // 디딤판 반경이 0.64이므로 1.2면 판 둘레가 확실히 비고, 그 이상은
+  // 식생이 놓일 자리만 잡아먹는다.
+  var LM_CLEAR = { dock: 1.2, dive: 1.2, plaza: 1.05 };
+  function addLandmark(id, name, hint, th, r, build) {
+    var x = Math.cos(th) * r, z = Math.sin(th) * r, y = profileAt(r, th).y;
+    var lg = new THREE.Group();
+    lg.position.set(x, y, z);
+    lg.rotation.y = -th;
+    // 디딤판. 다가가면 여기가 밝아진다.
+    var pmat = new THREE.MeshStandardMaterial({
+      // 디딤판은 섬에서 가장 밝은 면이다. 크림색 그대로 두면 볕을 정면으로
+      // 받아 붉은 채널이 255에서 잘린다(③-2 목표).
+      color: 0xd8c6a2, roughness: 1, metalness: 0,
+      emissive: new THREE.Color(0xffd9a0), emissiveIntensity: 0
+    });
+    var pr = id === "dive" ? 0.56 : 0.60;
+    var plinth = new THREE.Mesh(new THREE.CylinderGeometry(pr, pr + 0.04, 0.07, 20), pmat);
+    plinth.position.y = 0.035;
+    plinth.castShadow = true; plinth.receiveShadow = true;
+    lg.add(plinth);
+    build(lg);
+    grp.add(lg);
+    landmarks.push({ id: id, name: name, hint: hint, x: x, y: y, z: z, th: th, near: 1.3, mat: pmat });
+    keepOuts.push({ x: x, z: z, r: LM_CLEAR[id] || 1.3, why: name });
+  }
+
+  // 부두 — 진입부에 디딤판만 놓는다. 부두 자체는 ③-1 그대로다.
+  var dockIn = rC - 0.9 * ISLE_K;
+  addLandmark("dock", "부두", "바다로 나가요", dockTh, dockIn, function () {});
+
+  // 잠수 지점 — "내려가는 물"로 읽혀야 한다. 우물이 아니다.
+  // 돌로 두른 웅덩이 + 물에 잠긴 계단 두 단.
+  var diveBand = bandAt(diveTh, 0);
+  var diveR = diveBand ? Math.max(diveBand.lo + 0.7, diveBand.hi - 0.75) : coast(diveTh) * 0.72;
+  addLandmark("dive", "잠수 지점", "내 안으로 내려가요", diveTh, diveR, function (lg) {
+    // 테두리 돌은 디딤판보다 어둡게. 같은 톤이면 물이 안 보인다.
+    var stoneM = new THREE.MeshStandardMaterial({ color: 0x7d7364, roughness: 1, metalness: 0 });
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.065, 6, 22), stoneM);
+    rim.rotation.x = -Math.PI / 2; rim.position.y = 0.09;
+    rim.castShadow = true; rim.receiveShadow = true;
+    lg.add(rim);
+    // 잠긴 계단. 아래로 갈수록 어두워 깊이가 읽힌다.
+    for (var d = 0; d < 2; d++) {
+      var sl = new THREE.Mesh(roundedSlab(), new THREE.MeshStandardMaterial({
+        color: d === 0 ? 0x7f7768 : 0x5d5850, roughness: 1, metalness: 0
+      }));
+      sl.scale.set(0.34, 0.07, 0.46);
+      sl.position.set(0.10 + d * 0.13, 0.02 - d * 0.07, 0);
+      lg.add(sl);
+    }
+    // 물. 섬 둘레 바다보다 짙게 — 여기는 깊다.
+    // 물은 섬 둘레 바다보다 훨씬 짙다. 여기는 깊다는 뜻이다.
+    var wat = new THREE.Mesh(new THREE.CircleGeometry(0.47, 22).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x14495c, roughness: 0.55, metalness: 0,
+        transparent: true, opacity: 0.9 }));
+    wat.position.y = 0.086;
+    lg.add(wat);
+    var deep = new THREE.Mesh(new THREE.CircleGeometry(0.27, 18).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x092b3a, roughness: 0.55, metalness: 0 }));
+    deep.position.set(-0.05, 0.090, 0);
+    lg.add(deep);
+  });
+
+  // 광장 표지 — 3층. 섬에서 가장 높다. 계단을 올라올 이유가 된다.
+  var plazaBand = bandAt(plazaTh, 2);
+  var plazaR = plazaBand ? (plazaBand.lo + plazaBand.hi) * 0.5 : 0.5;
+  addLandmark("plaza", "광장 표지", "우리 반 광장으로 가요", plazaTh, plazaR, function (lg) {
+    var stoneM2 = new THREE.MeshStandardMaterial({ color: 0x9a8f7d, roughness: 1, metalness: 0 });
+    var base = new THREE.Mesh(roundedSlab(), stoneM2);
+    base.scale.set(0.46, 0.16, 0.46); base.position.y = 0.12;
+    base.castShadow = true; base.receiveShadow = true;
+    lg.add(base);
+    // 기둥 높이 1.45. 나무 꼭대기(3층에서 약 1.3)보다 깃발이 살짝 위에 온다.
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 1.45, 8),
+      new THREE.MeshStandardMaterial({ color: 0x8a7048, roughness: 1, metalness: 0 }));
+    pole.position.y = 0.20 + 1.45 / 2; pole.castShadow = true;
+    lg.add(pole);
+    var flag = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.30, 0.035),
+      new THREE.MeshStandardMaterial({ color: 0xd6883c, roughness: 1, metalness: 0 }));
+    flag.position.set(0.24, 1.20, 0); flag.rotation.y = Math.PI / 2;
+    flag.castShadow = true;
+    lg.add(flag);
+  });
+
+  grp.userData.landmarks = landmarks;
   grp.userData.coast = coast;
   grp.userData.height = height;
   grp.userData.dockTh = dockTh;
@@ -5374,10 +5493,11 @@ var VEGCOL = {
 function surfaceY(isle, x, z) {
   return isle.userData.profileAt(Math.hypot(x, z), Math.atan2(z, x)).y;
 }
-// 여유 구역을 얼마나 파고들었는지. 밖이면 0.
-// 계단·부두는 buildIsland가 등록하고, ③-8 랜드마크도 같은 목록에 더하면 된다.
+// 여유 구역을 얼마나 파고들었는지. 양수면 안쪽, 음수면 그만큼 떨어져 있다.
+// 0에서 자르면 안 된다 — 식생 발자국만큼 더 밀어낼 때 여유가 얼마인지 알아야 한다.
+// 계단·부두·랜드마크를 buildIsland가 등록하고, 나중 랜드마크도 같은 목록에 더하면 된다.
 function keepOutHit(isle, x, z) {
-  var K = isle.userData.keepOuts || [], worst = 0;
+  var K = isle.userData.keepOuts || [], worst = -1e9;
   for (var i = 0; i < K.length; i++) {
     var d = K[i].r - Math.hypot(x - K[i].x, z - K[i].z);
     if (d > worst) worst = d;
@@ -5440,18 +5560,25 @@ function buildVegetation(isle, state, opts) {
   var list = state || [], TAU = 6.283185307;
   var items = [];
 
-  function fits(x, z, foot, kind) {
-    if (keepOutHit(isle, x, z) > 0) return false;
+  // gm은 간격을 얼마나 봐줄지다(1 = 원칙대로). 어휘가 통째로 빠지는 것을 막는
+  // 마지막 수단에서만 낮춘다. 여유 구역은 어떤 경우에도 봐주지 않는다 —
+  // 계단과 랜드마크가 가려지면 아이가 갈 곳을 못 찾는다.
+  function fits(x, z, foot, kind, gm) {
+    var g = gm == null ? 1 : gm;
+    if (keepOutHit(isle, x, z) > -foot) return false;
     var own = VEG_GAP[kind] || 0;
     for (var i = 0; i < items.length; i++) {
-      var need = Math.max(VEG_MIN_GAP, foot + items[i].foot, own, VEG_GAP[items[i].kind] || 0);
+      // 봐주더라도 캐릭터(지름 0.4)가 지나갈 틈은 남긴다. 여기까지 좁히면
+      // 식생 사이에 길이 막힌다.
+      var need = Math.max(0.45,
+        Math.max(VEG_MIN_GAP, foot + items[i].foot, own, VEG_GAP[items[i].kind] || 0) * g);
       if (Math.hypot(x - items[i].x, z - items[i].z) < need) return false;
     }
     return true;
   }
   // lv층 평지 안에서 자리를 찾는다. 층 가장자리에서 발자국만큼 물러나므로
   // 잎이나 원판이 허공으로 걸치지 않는다.
-  function spotOnTier(rnd, ang, lv, foot, kind) {
+  function spotOnTier(rnd, ang, lv, foot, kind, gm) {
     // 갈대처럼 넓게 떨어뜨리는 종류가 있어 시도를 넉넉히 준다.
     for (var t = 0; t < 40; t++) {
       // 자리가 없으면 각도를 점점 넓게 벌린다. 제 방위는 지키되 붙어 있지는 않게.
@@ -5462,13 +5589,13 @@ function buildVegetation(isle, state, opts) {
       if (hi <= lo) continue;
       var r = lo + rnd() * (hi - lo);
       var x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (fits(x, z, foot, kind)) return { x: x, z: z };
+      if (fits(x, z, foot, kind, gm)) return { x: x, z: z };
     }
     return null;
   }
   // 파도는 물가에만 둔다. 잔디 위에 흰 원판이 떠 있으면 그게 뭔지 알 수 없다.
   // 수면 바로 위 띠를 실제 지면 높이로 찾는다.
-  function spotOnShore(rnd, ang, foot, kind) {
+  function spotOnShore(rnd, ang, foot, kind, gm) {
     for (var t = 0; t < 12; t++) {
       var a = ang + (rnd() - 0.5) * 1.1, C = isle.userData.coast(a);
       var lo = -1, hi = -1;
@@ -5479,7 +5606,7 @@ function buildVegetation(isle, state, opts) {
       if (lo < 0) continue;
       var rr = lo + rnd() * Math.max(0, hi - lo);
       var x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      if (fits(x, z, foot, kind)) return { x: x, z: z };
+      if (fits(x, z, foot, kind, gm)) return { x: x, z: z };
     }
     return null;
   }
@@ -5499,7 +5626,7 @@ function buildVegetation(isle, state, opts) {
     var rule = VEG[em.q] || VEG.LA;
     var rnd = mulberry32(hashSeed(em.label));
     var psi = russellAngle(em.valStd, em.aroStd, em.label);
-    var t0 = Math.floor(rnd() * 3);       // 어느 층부터 시작할지도 어휘가 정한다
+    var t0 = Math.floor(rnd() * 3), any = false;   // 어느 층부터 시작할지도 어휘가 정한다
     for (var i = 0; i < per; i++) {
       // 한 어휘가 세 층에 걸친다. 어휘 하나만 있어도 그 방향이 위아래로 산다.
       var sc = 0.8 + rnd() * 0.5, placed = false;
@@ -5513,7 +5640,24 @@ function buildVegetation(isle, state, opts) {
         var sp = kind === "wave" ? spotOnShore(rnd, psi, foot, kind) : spotOnTier(rnd, psi, lv, foot, kind);
         if (sp) { push(kind, sp, sc, rnd, lv, em.q, em.label); placed = true; }
       }
-      if (!placed) { rnd(); rnd(); rnd(); }   // 못 놓아도 난수 소비를 맞춘다
+      if (placed) any = true;
+      else { rnd(); rnd(); rnd(); }         // 못 놓아도 난수 소비를 맞춘다
+    }
+    // 어휘 하나가 통째로 빠지면 안 된다. 아이가 배운 말이 섬에 흔적도 없게 된다.
+    // 자리가 빡빡하면 작게라도 심는다 — 없는 것보다 작은 편이 낫다.
+    // 자리가 빡빡하면 작게, 그래도 안 되면 간격을 봐준다.
+    // 없는 것보다 작고 가까운 편이 낫다.
+    var RESCUE = [[0.62, 0.75], [0.49, 0.55], [0.40, 0.38]];
+    for (var sh = 0; sh < RESCUE.length && !any; sh++) {
+      var scS = RESCUE[sh][0], gmS = RESCUE[sh][1];
+      for (var kS = 0; kS < 3 && !any; kS++) {
+        var lvS = (t0 + kS) % 3;
+        var kindS = rule.tiers[lvS][0];
+        var footS = (VEG_FOOT[kindS] || 0.2) * scS;
+        var spS = kindS === "wave" ? spotOnShore(rnd, psi, footS, kindS, gmS)
+                                   : spotOnTier(rnd, psi, lvS, footS, kindS, gmS);
+        if (spS) { push(kindS, spS, scS, rnd, lvS, em.q, em.label); any = true; }
+      }
     }
   });
 
@@ -5695,6 +5839,40 @@ function buildVegMeshes(items) {
     grp.add(im);
   });
   return grp;
+}
+// 조명. ③-2에서 정한 값이고 확인용 하네스도 이 함수를 부른다.
+// 두 군데에 적어두면 하네스로 잰 수치가 앱 화면과 달라진다(실제로 겪었다).
+//
+// 빛은 화면 기준 왼쪽 위에서. 카메라가 (14,12,14)라 이 방향이면
+// 그림자가 화면 오른쪽 아래로 일관되게 깔린다.
+// 빛을 낮게 눕힌다. 높으면 그림자가 짧아 형태가 안 드러난다.
+// 세기는 2.6이면 잔디의 초록 채널이 255에서 잘려 네온색이 된다.
+var LIGHT = {
+  keyColor: 0xffe9c4, keyPower: 1.85,
+  keyDir: [-12, 8.2, 3],     // 고도 약 33도
+  hemiSky: 0xbfe4f2, hemiGround: 0x6b5b45, hemiPower: 0.24,
+  fillColor: 0x9fc6e0, fillPower: 0.16, fillDir: [9, 5, -8]
+};
+function addIsleLights(scene, shadowHalf, shadowFar) {
+  var key = new THREE.DirectionalLight(LIGHT.keyColor, LIGHT.keyPower);
+  key.position.set(LIGHT.keyDir[0], LIGHT.keyDir[1], LIGHT.keyDir[2]);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  // 그림자 카메라를 섬에 딱 맞춘다. 넓게 잡으면 해상도가 흩어져 흐려진다.
+  var SH = shadowHalf;
+  key.shadow.camera.left = -SH; key.shadow.camera.right = SH;
+  key.shadow.camera.top = SH; key.shadow.camera.bottom = -SH;
+  key.shadow.camera.near = 1; key.shadow.camera.far = shadowFar;
+  key.shadow.bias = -0.0004;
+  key.shadow.normalBias = 0.018;
+  scene.add(key);
+  // 채움광은 낮게. 높으면 그늘이 떠서 대비가 죽는다.
+  scene.add(new THREE.HemisphereLight(LIGHT.hemiSky, LIGHT.hemiGround, LIGHT.hemiPower));
+  // 반대편에서 아주 약한 찬 빛. 그늘이 새까맣게 죽는 것만 막는다.
+  var fill = new THREE.DirectionalLight(LIGHT.fillColor, LIGHT.fillPower);
+  fill.position.set(LIGHT.fillDir[0], LIGHT.fillDir[1], LIGHT.fillDir[2]);
+  scene.add(fill);
+  return key;
 }
 // ③-6 준비: 캐릭터 기준 크기. 걷기·계단·층 폭이 전부 이 값에 맞춰진다.
 // 지금은 조작 없이 서 있기만 한다. 임시 원기둥이고 모양은 나중에 바꾼다.
@@ -5920,13 +6098,25 @@ function buildSea(radius, tone) {
 
 // 순수 Three.js. 이 앱은 빌드 단계가 없어(React가 createElement로 작성됨)
 // React Three Fiber를 쓰지 않는다. React는 마운트/언마운트만 관여한다.
-function IslandView({ entries, seed, seaTone, onBack }) {
+// 화면을 다녀와도 캐릭터가 그 자리에 있어야 한다. 랜드마크 앞에서 일기를
+// 쓰고 돌아왔는데 처음 자리로 되돌아가 있으면 다시 걸어가야 한다.
+var CHAR_LAST = {};
+// 터치 기기에서는 "스페이스" 안내를 빼고 배너를 눌러 들어간다.
+function coarsePointer() {
+  try { return window.matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
+}
+function IslandView({ entries, seed, seaTone, onBack, onGo }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [err, setErr] = useState("");
   const [vocab, setVocab] = useState(0);
   const [stats, setStats] = useState(null);
   const [dbg, setDbg] = useState("");
+  const [nearLm, setNearLm] = useState(null);   // 다가간 랜드마크
+  const [wipe, setWipe] = useState(null);       // 전환 연출: "down" | "side"
+  const [soon, setSoon] = useState(null);       // 아직 없는 화면
+  const goRef = useRef(null);
+  const touch = coarsePointer();
   const fleetN = fleetCount();
   useEffect(function () {
     var host = hostRef.current;
@@ -5990,37 +6180,16 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       setVocab(st.length);
       // ③-6 준비. 조작은 아직 없다. 크기 감을 보려고 세워만 둔다.
       // 1층 카메라 앞쪽(각도 π/4)이 카메라 (14,12,14) 기준 화면 아래쪽이다.
-      var chSpot = tierSpot(isleGrp, Math.PI / 4, 0);
+      var chSpot = CHAR_LAST[seed] || tierSpot(isleGrp, Math.PI / 4, 0);
       if (chSpot) {
         charGrp = buildCharacter();
-        charGrp.position.set(chSpot.x, chSpot.y, chSpot.z);
+        charGrp.position.set(chSpot.x, walkY(isleGrp, chSpot.x, chSpot.z), chSpot.z);
         scene.add(charGrp);
       }
       theIsle = isleGrp;
     }
-    // 빛은 화면 기준 왼쪽 위에서. 카메라가 (14,12,14)라 이 방향이면
-    // 그림자가 화면 오른쪽 아래로 일관되게 깔린다.
-    // 빛을 낮게 눕힌다(고도 약 33도). 높으면 그림자가 짧아 형태가 안 드러난다.
-    // 세기는 2.6이면 잔디의 초록 채널이 255에서 잘려 네온색이 된다.
-    var key = new THREE.DirectionalLight(0xffe9c4, 1.85);
-    key.position.set(-12, 8.2, 3); key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    // 그림자 카메라를 섬에 딱 맞춘다. 넓게 잡으면 해상도가 흩어져 흐려진다.
-    // 함대 모드에서는 그림자 카메라를 전체에 맞춘다. 해상도가 흩어져
-    // 그림자가 흐려지지만, 여기서 재려는 것은 화질이 아니라 부하다.
-    var SH = FLEET > 0 ? Math.max(d * 1.5, 40 * ISLE_K) : 7 * ISLE_K;
-    key.shadow.camera.left = -SH; key.shadow.camera.right = SH;
-    key.shadow.camera.top = SH; key.shadow.camera.bottom = -SH;
-    key.shadow.camera.near = 1; key.shadow.camera.far = FLEET > 0 ? SH * 4 : 42 * ISLE_K;
-    key.shadow.bias = -0.0004;
-    key.shadow.normalBias = 0.018;
-    scene.add(key);
-    // 채움광은 낮게. 높으면 그늘이 떠서 대비가 죽는다.
-    scene.add(new THREE.HemisphereLight(0xbfe4f2, 0x6b5b45, 0.24));
-    // 반대편에서 아주 약한 찬 빛. 그늘이 새까맣게 죽는 것만 막는다.
-    var fill = new THREE.DirectionalLight(0x9fc6e0, 0.16);
-    fill.position.set(9, 5, -8);
-    scene.add(fill);
+    addIsleLights(scene, FLEET > 0 ? Math.max(d * 1.5, 40 * ISLE_K) : 7 * ISLE_K,
+                  FLEET > 0 ? Math.max(d * 6, 160 * ISLE_K) : 42 * ISLE_K);
 
     // ③-6 걷기. 방향키/WASD만. 탭 이동은 나중에.
     // 이동은 화면 기준이다. 아이소메트릭이라 월드 좌표를 그대로 쓰면
@@ -6045,6 +6214,37 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       // 높이는 매 프레임 지면에서 다시 잡는다.
       charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
     }
+    // ③-8 랜드마크. 가까이 가면 디딤판이 밝아지고 화면 아래에 한 줄이 뜬다.
+    var nearLmRef = null, going = null;
+    function updateNear() {
+      if (!charGrp || !theIsle) return;
+      var L = theIsle.userData.landmarks || [], best = null, bestD = 1e9;
+      for (var i = 0; i < L.length; i++) {
+        var d = Math.hypot(charGrp.position.x - L[i].x, charGrp.position.z - L[i].z);
+        if (d <= L[i].near && d < bestD) { best = L[i]; bestD = d; }
+      }
+      for (var j = 0; j < L.length; j++) {
+        // 세계 안에서 먼저 반응한다. 화면 문구는 그다음이다.
+        L[j].mat.emissiveIntensity = (best && L[j].id === best.id) ? 0.55 : 0;
+      }
+      if ((best && best.id) !== (nearLmRef && nearLmRef.id)) {
+        nearLmRef = best;
+        setNearLm(best ? { id: best.id, name: best.name, hint: best.hint } : null);
+      }
+    }
+    // 전환. 축이 뜻을 말한다 — 잠수는 아래로, 부두·광장은 수평으로(DESIGN.md §3).
+    goRef.current = function () {
+      if (going || !nearLmRef) return;
+      var lm = nearLmRef, dive = lm.id === "dive";
+      going = { dive: dive, t0: performance.now(), y0: charGrp ? charGrp.position.y : 0 };
+      setWipe(dive ? "down" : "side");
+      window.setTimeout(function () {
+        if (dive) { if (onGo) onGo("diary"); return; }   // 이 경우 화면이 바뀐다
+        setWipe(null);
+        setSoon(lm.name);
+        going = null;
+      }, dive ? 620 : 480);
+    };
     function jumpToNarrow() {
       if (!charGrp || !theIsle) return;
       var n = narrowestTier(theIsle, 1);   // 2층
@@ -6063,6 +6263,9 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     function onKeyDown(e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = 1; e.preventDefault(); }
+      else if (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter") {
+        if (nearLmRef && goRef.current) { goRef.current(); e.preventDefault(); }
+      }
       else if (e.code === "KeyG" && devMode()) { jumpToNarrow(); e.preventDefault(); }
     }
     function onKeyUp(e) { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = 0; }
@@ -6075,7 +6278,16 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       raf = requestAnimationFrame(tick);
       var t0 = performance.now();
       // 탭을 다시 열면 dt가 몇 초로 튄다. 그대로 쓰면 캐릭터가 순간이동한다.
-      walk(Math.min(0.05, (t0 - lastT) / 1000));
+      if (going) {
+        // 잠수 중에는 조작을 막고 캐릭터를 물로 가라앉힌다.
+        if (going.dive && charGrp) {
+          var u = Math.min(1, (t0 - going.t0) / 380);
+          charGrp.position.y = going.y0 - 0.75 * u * u;
+        }
+      } else {
+        walk(Math.min(0.05, (t0 - lastT) / 1000));
+        updateNear();
+      }
       lastT = t0;
       renderer.render(scene, cam);
       frames++;
@@ -6101,6 +6313,7 @@ function IslandView({ entries, seed, seaTone, onBack }) {
     window.addEventListener("resize", onResize);
     return function () {
       disposed = true;
+      if (charGrp) CHAR_LAST[seed] = { x: charGrp.position.x, z: charGrp.position.z };
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKeyDown);
@@ -6115,6 +6328,10 @@ function IslandView({ entries, seed, seaTone, onBack }) {
   }, [seed, seaTone, entries]);
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "min(70vh, 560px)", borderRadius: 16, overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    // 잠수는 물이 아래에서 차오르고(내려간다), 항해는 옆으로 지나간다(건너간다).
+    React.createElement("style", null,
+      "@keyframes isleDive{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0 0 0 0)}}" +
+      "@keyframes isleSail{from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0 0 0 0)}}"),
     err ? React.createElement("div", {
       style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 }
     }, err) : null,
@@ -6140,6 +6357,45 @@ function IslandView({ entries, seed, seaTone, onBack }) {
       onClick: onBack,
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13 }
     }, "돌아가기"),
+    // ③-8 랜드마크 배너. 배너 자체가 버튼이라 터치 기기에서도 한 번에 들어간다.
+    nearLm && !wipe && !soon ? React.createElement("button", {
+      onClick: function () { if (goRef.current) goRef.current(); },
+      style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)",
+               display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
+               padding: "10px 18px", borderRadius: 14, border: "none", cursor: "pointer",
+               background: "rgba(255,255,255,0.94)", boxShadow: "0 3px 14px rgba(0,0,0,0.18)",
+               fontSize: 15, color: "#28444f", fontFamily: "inherit" }
+    },
+      React.createElement("b", { style: { color: "#0e7490" } }, nearLm.name),
+      React.createElement("span", null, nearLm.hint),
+      // 터치 기기에는 스페이스 안내를 띄우지 않는다. 누를 키가 없다.
+      touch ? null : React.createElement("span", {
+        style: { fontSize: 12, color: "#6b8792", border: "1px solid #cfdde3",
+                 borderRadius: 7, padding: "2px 7px" } }, "스페이스")) : null,
+    // 전환 연출. 잠수는 물이 아래에서 차오르고, 부두·광장은 옆으로 지나간다.
+    wipe ? React.createElement("div", {
+      style: Object.assign({
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: wipe === "down"
+          ? "linear-gradient(180deg, rgba(31,92,110,0.75), rgba(17,63,79,0.98))"
+          : "linear-gradient(90deg, rgba(99,195,204,0.85), rgba(59,163,187,0.98))",
+        animation: (wipe === "down" ? "isleDive" : "isleSail") + " "
+                   + (wipe === "down" ? 620 : 480) + "ms ease-in forwards"
+      }) }) : null,
+    // 아직 만들지 않은 화면
+    soon ? React.createElement("div", {
+      style: { position: "absolute", inset: 0, display: "flex", alignItems: "center",
+               justifyContent: "center", background: "rgba(12,40,50,0.55)" }
+    }, React.createElement("div", {
+      style: { background: "#fff", borderRadius: 16, padding: "22px 26px", textAlign: "center",
+               maxWidth: 320, boxShadow: "0 6px 24px rgba(0,0,0,0.25)" }
+    },
+      React.createElement("div", { style: { fontSize: 16, color: "#0e7490", fontWeight: 700, marginBottom: 8 } }, soon),
+      React.createElement("div", { style: { fontSize: 14, color: "#5b7684", lineHeight: 1.7 } }, "아직 준비 중이에요.", React.createElement("br"), "곧 갈 수 있어요."),
+      React.createElement("button", {
+        onClick: function () { setSoon(null); },
+        style: { ...bSoft, marginTop: 14, padding: "7px 18px", fontSize: 14, color: "#0e7490" }
+      }, "돌아가기"))) : null,
     // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
     React.createElement("div", {
       style: { position: "absolute", left: 12, bottom: 12, width: 104, height: 104, borderRadius: "50%",
@@ -9896,7 +10152,8 @@ function App() {
   }, React.createElement(IslandView, {
     entries: myEntries,
     seed: String(currentUser.id || currentUser.name || "island"),
-    onBack: function () { setPage("studentDiary"); }
+    onBack: function () { setPage("studentDiary"); },
+    onGo: function (where) { if (where === "diary") setPage("studentDiary"); }
   })));
   if (page === "studentDiary" && currentUser) return React.createElement("div", {
     style: shell
