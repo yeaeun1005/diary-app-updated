@@ -4906,10 +4906,13 @@ function hashSeed(str) {
 var ISLE = {
   grassLow:  [0.44, 0.62, 0.27],   // 노란기 있는 선명한 잔디
   grassHigh: [0.61, 0.75, 0.36],   // 볕 드는 능선
-  sand:      [0.91, 0.80, 0.56],   // 따뜻한 모래
+  // 모래는 팔레트에서 가장 밝은 색이다. 계단식으로 바꾸면서 해변이 완만해져
+  // 볕을 정면으로 받게 되었고, 그 상태로는 붉은 채널이 255에서 잘린다(③-2 목표).
+  sand:      [0.84, 0.75, 0.53],   // 따뜻한 모래
   cliff:     [0.50, 0.41, 0.31],   // 진한 흙벽
   foam:      [0.70, 0.89, 0.89],   // 물가 파도선. 순백이 아니라 물색이 섞인 옅은 청록
   wood:      0x8a6742,
+  step:      0x877a63,             // 계단 돌. 흙벽보다 밝되 모래·잔디에 묻히지 않게
   seaDeep:   0x3ba3bb,             // 보통 날 기준값. buildSea(r, tone)이 밝기·채도를 조절한다
   seaShallow:0x63c3cc
 };
@@ -4918,94 +4921,196 @@ function lerp3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1])
 // 위 팔레트는 sRGB로 적었으니 여기서 직접 선형으로 바꾼다.
 function s2l(c) { return [Math.pow(c[0], 2.2), Math.pow(c[1], 2.2), Math.pow(c[2], 2.2)]; }
 
+// 모서리가 둥근 단위 상자(1×1×1). 클레이 인상은 형태가 아니라 모서리에서 난다
+// (DESIGN.md §4 — 각진 로우폴리가 아니다). 계단이 이걸 인스턴스로 늘려 쓰고,
+// ③-8 랜드마크도 같은 것을 쓴다.
+// 섬마다 새로 만든다. IslandView가 언마운트 때 지오메트리를 전부 dispose하므로
+// 모듈 수준에 캐시해두면 두 번째 진입에서 지워진 것을 쓰게 된다.
+function roundedSlab() {
+  var H = 0.42, r = 0.12, bt = 0.08;   // 베벨이 XY로 bt만큼 더 나가므로 H+bt=0.5
+  var sh = new THREE.Shape();
+  sh.moveTo(-H + r, -H);
+  sh.lineTo(H - r, -H);
+  sh.quadraticCurveTo(H, -H, H, -H + r);
+  sh.lineTo(H, H - r);
+  sh.quadraticCurveTo(H, H, H - r, H);
+  sh.lineTo(-H + r, H);
+  sh.quadraticCurveTo(-H, H, -H, H - r);
+  sh.lineTo(-H, -H + r);
+  sh.quadraticCurveTo(-H, -H, -H + r, -H);
+  var g = new THREE.ExtrudeGeometry(sh, {
+    depth: 1 - 2 * bt, bevelEnabled: true, bevelSize: bt, bevelThickness: bt,
+    bevelSegments: 1, curveSegments: 2, steps: 1
+  });
+  g.translate(0, 0, -(1 - 2 * bt) / 2);
+  g.rotateX(-Math.PI / 2);   // 압출 축을 y로 돌린다. 이제 x·y·z 모두 1이다.
+  g.computeVertexNormals();
+  return g;
+}
+// 1층 · 2층 · 3층 평지 높이. 아래가 넓고 위로 갈수록 좁다.
+// 단 높이가 낮으면 벽이 얇아져 계단이 아니라 완만한 경사로 읽힌다.
+var TIER_Y = [0.34, 0.90, 1.46];
+
 // 섬 하나를 만들어 Group으로 돌려준다. ③-4에서 이걸 30개 복제해 성능을 잰다.
 // detail을 낮추면 폴리곤이 줄어든다(멀리 있는 섬용).
+//
+// ③-5부터 지형은 계단식 3층이다. 구릉을 쓰지 않는다.
+// 캐릭터가 걸어다녀야 하는데 경사면은 걷기 어렵고 어디를 밟을 수 있는지도
+// 불분명하다(DESIGN.md §4, 2026-09-05 수정).
+// 지면 높이는 profileAt(r, th) 하나가 정한다. 메시도 식생도 계단도 걷기도
+// 전부 이 함수를 부르므로, 보이는 지면과 판정이 어긋날 수 없다.
 function buildIsland(seedStr, opts) {
   opts = opts || {};
   var detail = opts.detail == null ? 1 : opts.detail;
-  var rings = Math.max(8, Math.round(28 * detail));
   // 8의 배수로 맞춘다. 안쪽 링에서 분할 수를 정확히 절반씩 줄여야 이음매가 맞는다.
   var SEGS = Math.max(24, Math.round(96 * detail / 8) * 8);
-  // 극좌표 격자는 중심으로 갈수록 정점이 몰려 삼각형이 바늘처럼 얇아지고,
-  // 그 결과 가운데에 부챗살 같은 음영 자국이 생긴다.
-  // 안쪽일수록 분할 수를 절반씩 줄여 삼각형 모양을 고르게 유지한다.
-  function segAt(t) {
-    if (t < 0.14) return Math.max(6, SEGS >> 3);
-    if (t < 0.30) return Math.max(6, SEGS >> 2);
-    if (t < 0.55) return Math.max(6, SEGS >> 1);
-    return SEGS;
-  }
-  var R0 = 4.2, PEAK = 1.30, SKIRT = 1.8;
+  var TAU = 6.283185307;
+  var R0 = 4.2, SKIRT = 1.8;
+  // 베벨은 있어야 점토가 되지만, 크면 계단이 물러져 경사면처럼 보인다.
+  // 단 높이(0.56)에 견주어 충분히 작게 잡는다.
+  var B = 0.075;     // 층 어깨를 깎는 반지름. 여기가 없으면 각진 로우폴리가 된다
+  var BAT = 0.05;    // 벽이 내려가면서 바깥으로 눕는 정도. 완전 수직이면 기계처럼 보인다
+  var FIL = 0.085;   // 벽 밑동 필렛
+  var BEACH_Y = -0.34;
+  var TY = TIER_Y;
+
   var rnd = mulberry32(hashSeed(seedStr || "island"));
-  var p1 = rnd() * 6.283, p2 = rnd() * 6.283, p3 = rnd() * 6.283;
+  // 난수는 메시를 만들기 전에 전부 뽑아둔다. 정점 색 얼룩에도 rnd를 쓰므로
+  // 뒤에서 뽑으면 detail이 달라질 때 부두와 계단 방향까지 달라진다.
+  var p1 = rnd() * TAU, p2 = rnd() * TAU, p3 = rnd() * TAU;
   var a1 = 0.15 + rnd() * 0.06, a2 = 0.08 + rnd() * 0.05, a3 = 0.04 + rnd() * 0.03;
+  var q2a = rnd() * TAU, q2b = rnd() * TAU, q3a = rnd() * TAU, q3b = rnd() * TAU;
+  var dockTh = rnd() * TAU;
+  // 계단은 부두 근처에서 올라가기 시작해 한 바퀴 돌아 정상으로 간다.
+  // 두 계단을 같은 방향에 두면 걸어다닐 이유가 없어진다(DESIGN.md §3).
+  var stairA = dockTh + 0.55 + rnd() * 0.55;
+  var stairB = stairA + 1.9 + rnd() * 0.9;
+
   // 해안선: 낮은 주파수 셋을 겹쳐 자연스러운 굴곡을 만든다. 정사각형이 아니다.
   function coast(th) { return R0 * (1 + a1 * Math.sin(3 * th + p1) + a2 * Math.sin(5 * th + p2) + a3 * Math.sin(7 * th + p3)); }
 
-  // 높이는 중심 거리가 아니라 월드 좌표(x,z)로 정한다.
-  // 중심 거리만 쓰면 한 점이 유일한 최고점이 되어 원뿔·천막처럼 보이고,
-  // 중심에서 각도별로 높이가 갈리면 꼭대기에 접힌 자국이 생긴다.
-  // 낮은 구릉 두셋을 중심에서 비켜 놓고 겹친다. 화산섬이 아니라 구릉섬이다.
-  var hills = [];
-  var nH = 2 + (rnd() < 0.45 ? 1 : 0);
-  var baseAng = rnd() * 6.283185307;
-  for (var hI = 0; hI < nH; hI++) {
-    // 봉우리끼리 각도를 벌린다. 가까우면 하나로 뭉쳐 다시 원뿔이 된다.
-    var hAng = baseAng + hI * (6.283185307 / nH) + (rnd() - 0.5) * 0.7;
-    var hRad = (0.37 + rnd() * 0.13) * R0;      // 정가운데를 피하되 섬 안에 둔다
-    hills.push({
-      x: Math.cos(hAng) * hRad,
-      z: Math.sin(hAng) * hRad,
-      h: hI === 0 ? 1 : 0.62 + rnd() * 0.22,     // 첫 봉우리가 주봉
-      s: (1.22 + rnd() * 0.30) * (hI === 0 ? 1.10 : 1),
-      flat: 0.52 + rnd() * 0.20                  // 꼭대기 평탄 구간. 넓을수록 능선이 평평하다
-    });
+  // 층 윤곽. 해안선을 그대로 축소하면 웨딩케이크가 되므로, 해안선 굴곡을
+  // 층마다 조금씩 눌러 담고 그 위에 층 고유의 잔굴곡을 얹는다.
+  // 사각 화단이 아니라 여전히 자연스러운 섬 모양이어야 한다(DESIGN.md §4).
+  function edgesAt(th) {
+    var C = coast(th);
+    var E1 = 0.82 * C;
+    var E2 = 0.585 * (R0 + 0.95 * (C - R0)) * (1 + 0.040 * Math.sin(2 * th + q2a) + 0.025 * Math.sin(5 * th + q2b));
+    var E3 = 0.320 * (R0 + 0.85 * (C - R0)) * (1 + 0.040 * Math.sin(3 * th + q3a) + 0.025 * Math.sin(4 * th + q3b));
+    // 층 위는 걸어다니는 곳이다(DESIGN.md §3). 해안선이 안쪽으로 파인 방향에서
+    // 층이 실 같은 띠로 줄어들면 캐릭터가 지나갈 수 없다. 최소 폭을 확보한다.
+    // 굴곡이 보통인 방향에서는 걸리지 않으므로 윤곽은 그대로 자연스럽다.
+    var NEED = 0.62, T = BAT + FIL;
+    if (E1 - (E2 + T) < NEED) E2 = E1 - NEED - T;
+    if ((E2 - B) - (E3 + T) < NEED) E3 = E2 - B - NEED - T;
+    if (E3 < 0.55) E3 = 0.55;                                  // 3층이 사라지면 안 된다
+    if (E3 > E2 - B - T - 0.18) E3 = E2 - B - T - 0.18;        // 층이 뒤집히는 것만은 막는다
+    return [E1, E2, E3];
   }
-  function terrain(x, z) {
-    // 합이 아니라 부드러운 합집합(p-노름)으로 겹친다.
-    // 그냥 더하면 겹치는 곳이 두 배로 솟아 산맥이 되고, max를 쓰면 이음매가 각진다.
-    var acc = 0;
-    for (var i = 0; i < hills.length; i++) {
-      var H = hills[i], dx = x - H.x, dz = z - H.z;
-      var dd = Math.sqrt(dx * dx + dz * dz) / H.s;
-      // flat 안쪽은 평평한 능선, 바깥으로 완만히 떨어진다. 꼭대기가 뾰족하지 않다.
-      var u = Math.max(0, dd - H.flat);
-      var c = H.h * Math.exp(-u * u);
-      acc += c * c * c * c;
+
+  // 반지름 r에서의 지면. 안쪽 층부터 바깥으로 훑는다.
+  // zone은 색과 식생 가드가 쓰고, lv는 그 지점이 속한 층이다(0 = 1층).
+  function profileAt(r, th) {
+    var E = edgesAt(th);
+    for (var k = 0; k < 2; k++) {
+      var Ek = E[2 - k];                          // 3층 벽, 그다음 2층 벽
+      var hi = TY[2 - k], lo = TY[1 - k];
+      if (r <= Ek - B) return { y: hi, zone: "top", u: 0, lv: 2 - k };
+      if (r <= Ek) {
+        // 어깨 — 평지에 접했다가 벽으로 떨어지는 사분원. 양 끝에서 접선이 맞는다.
+        var a = (r - (Ek - B)) / B;
+        return { y: hi - B * (1 - Math.sqrt(Math.max(0, 1 - a * a))), zone: "shoulder", u: a, lv: 2 - k };
+      }
+      if (r <= Ek + BAT) {
+        var uw = (r - Ek) / BAT;
+        return { y: (hi - B) + ((lo + FIL) - (hi - B)) * uw, zone: "wall", u: uw, lv: 2 - k };
+      }
+      if (r <= Ek + BAT + FIL) {
+        // 밑동 필렛 — 벽에서 아래층 평지로 이어지는 사분원
+        var b = (r - Ek - BAT) / FIL, ib = 1 - b;
+        return { y: lo + FIL * (1 - Math.sqrt(Math.max(0, 1 - ib * ib))), zone: "foot", u: b, lv: 1 - k };
+      }
     }
-    return Math.pow(acc, 0.25);
+    var E1v = E[0], C = coast(th);
+    if (r <= E1v) return { y: TY[0], zone: "top", u: 0, lv: 0 };
+    // 해변 — 양 끝 접선이 평평해야 1층 평지와 수면에 모두 자연스럽게 붙는다.
+    var ub = Math.min(1, (r - E1v) / Math.max(0.001, C - E1v));
+    var sm = ub * ub * (3 - 2 * ub);
+    return { y: TY[0] + (BEACH_Y - TY[0]) * sm, zone: "beach", u: ub, lv: 0 };
   }
-  function height(t, th, x, z) {
-    // 안쪽 절반은 감쇠하지 않는다. 여기서 깎으면 능선 전체가 바깥으로 기울어
-    // 평평해야 할 꼭대기가 비스듬해진다.
-    var te = t < 0.5 ? 0 : (t - 0.5) / 0.5;
-    var edge = Math.pow(Math.max(0, 1 - Math.pow(te, 2.4)), 1.15);
-    var micro = 0.024 * Math.sin(x * 1.6 + p1) * Math.sin(z * 1.8 + p3);
-    var beach = t > 0.84 ? -0.62 * Math.pow((t - 0.84) / 0.16, 2) : 0;
-    return (PEAK * terrain(x, z) + micro) * edge + beach + 0.14;
+  function height(t, th) { return profileAt(coast(th) * t, th).y; }
+
+  // 평지는 잔디, 벽은 드러난 흙, 물가는 모래. 층이 색으로도 구분된다.
+  function zoneColor(p) {
+    var g = lerp3(ISLE.grassLow, ISLE.grassHigh, 0.14 + 0.28 * p.lv);
+    if (p.zone === "top") return g;
+    // 잔디가 턱을 살짝 덮고 밑동에서 곧 잔디로 돌아온다. 흙은 벽에만 드러난다.
+    // 어깨·밑동까지 갈색으로 칠하면 갈색 띠가 넓어져 다시 경사처럼 보인다.
+    if (p.zone === "shoulder") return lerp3(g, ISLE.cliff, p.u * p.u * 0.85);
+    if (p.zone === "wall") return ISLE.cliff;
+    if (p.zone === "foot") return lerp3(ISLE.cliff, g, Math.sqrt(p.u));
+    var bb = Math.min(1, Math.max(0, (p.u - 0.16) / 0.34));
+    return lerp3(g, ISLE.sand, bb * bb * (3 - 2 * bb));
   }
+
   var pos = [], col = [], idx = [];
-  function pushVert(t, th, r) {
-    var vx = Math.cos(th) * r, vz = Math.sin(th) * r;
-    var y = height(t, th, vx, vz);
-    pos.push(vx, y, vz);
-    // 높이와 해안 거리로 색을 섞는다. 모래 -> 잔디 -> 밝은 잔디.
-    var c;
-    if (t > 0.80) c = lerp3(ISLE.grassLow, ISLE.sand, Math.min(1, (t - 0.80) / 0.16));
-    else c = lerp3(ISLE.grassLow, ISLE.grassHigh, Math.min(1, Math.max(0, y / (PEAK * 0.95))));
-    var n = 0.965 + rnd() * 0.07; // 미세한 얼룩. 텍스처 없이 단조로움을 깬다.
-    var cl = s2l(c);
+  function pushVert(r, th) {
+    var p = profileAt(r, th);
+    pos.push(Math.cos(th) * r, p.y, Math.sin(th) * r);
+    var n = 0.965 + rnd() * 0.07;   // 미세한 얼룩. 텍스처 없이 단조로움을 깬다.
+    var cl = s2l(zoneColor(p));
     col.push(cl[0] * n, cl[1] * n, cl[2] * n);
   }
-  pos.push(0, height(0, 0, 0, 0), 0); col.push.apply(col, s2l(ISLE.grassHigh));
-  var ringInfo = [];
-  for (var i = 1; i <= rings; i++) {
-    var t = i / rings, sc = segAt(t), base = pos.length / 3;
-    for (var j = 0; j < sc; j++) {
-      var th = j / sc * 6.283185307;
-      pushVert(t, th, coast(th) * t);
+
+  // 표본 반지름 계획. 높이와 색은 profileAt이 정하므로 여기서는 어디를 자를지만
+  // 정한다. 어깨·벽·필렛은 profileAt과 같은 지점을 찍어야 모서리가 둥글게 나온다.
+  var E1f = function (th) { return edgesAt(th)[0]; };
+  var E2f = function (th) { return edgesAt(th)[1]; };
+  var E3f = function (th) { return edgesAt(th)[2]; };
+  var ringR = [];
+  function plateauRings(fromF, toF) {
+    // 층 위는 완전히 평평하다. 링을 나누는 것은 색과 그림자 계조 때문이지
+    // 높이 때문이 아니다.
+    var w = Math.max(0.06, toF(0) - fromF(0));
+    var nP = Math.max(2, Math.round(w / (0.30 / Math.max(0.4, detail))));
+    for (var i = 1; i <= nP; i++) {
+      (function (t) { ringR.push(function (th) { var A = fromF(th), Z = toF(th); return A + (Z - A) * t; }); })(i / nP);
     }
+  }
+  function edgeRings(edgeF) {
+    var i;
+    for (i = 1; i <= 3; i++) (function (al) { ringR.push(function (th) { return edgeF(th) - B + B * Math.sin(al); }); })(i / 3 * Math.PI / 2);
+    // 벽은 링 셋으로 뜬다. 둘이면 벽면 노멀이 위아래 필렛과 평균되어 뭉개진다.
+    for (i = 1; i <= 3; i++) (function (u) { ringR.push(function (th) { return edgeF(th) + BAT * u; }); })(i / 3);
+    for (i = 1; i <= 3; i++) (function (al) { ringR.push(function (th) { return edgeF(th) + BAT + FIL * (1 - Math.cos(al)); }); })(i / 3 * Math.PI / 2);
+  }
+  plateauRings(function () { return 0; }, function (th) { return E3f(th) - B; });
+  edgeRings(E3f);
+  plateauRings(function (th) { return E3f(th) + BAT + FIL; }, function (th) { return E2f(th) - B; });
+  edgeRings(E2f);
+  plateauRings(function (th) { return E2f(th) + BAT + FIL; }, E1f);
+  for (var bi = 1; bi <= 5; bi++) (function (u) { ringR.push(function (th) { return E1f(th) + (coast(th) - E1f(th)) * u; }); })(bi / 5);
+
+  // 극좌표 격자는 중심으로 갈수록 정점이 몰려 삼각형이 바늘처럼 얇아지고,
+  // 그 결과 가운데에 부챗살 같은 음영 자국이 생긴다.
+  // 안쪽일수록 분할 수를 절반씩 줄여 삼각형 모양을 고르게 유지한다.
+  function segAt(f) {
+    if (f < 0.14) return Math.max(6, SEGS >> 3);
+    if (f < 0.30) return Math.max(6, SEGS >> 2);
+    if (f < 0.55) return Math.max(6, SEGS >> 1);
+    return SEGS;
+  }
+  pushVert(0, 0);
+  var ringInfo = [], prevSeg = 0, c0 = coast(0);
+  for (var ri = 0; ri < ringR.length; ri++) {
+    var rf = ringR[ri];
+    var sc = segAt(rf(0) / c0);
+    // 분할은 정확히 한 단계씩만 바뀌어야 한다. 두 배를 건너뛰면 링 잇기가 깨진다.
+    if (prevSeg) sc = Math.max(prevSeg, Math.min(sc, prevSeg * 2));
+    var base = pos.length / 3;
+    for (var j = 0; j < sc; j++) { var th = j / sc * TAU; pushVert(rf(th), th); }
     ringInfo.push({ base: base, n: sc });
+    prevSeg = sc;
   }
   // 중심 부채꼴 — 가장 안쪽 링은 분할이 적어 삼각형이 통통하다.
   var r1 = ringInfo[0];
@@ -5014,39 +5119,38 @@ function buildIsland(seedStr, opts) {
     var In = ringInfo[i2], Out = ringInfo[i2 + 1];
     if (Out.n === In.n) {
       for (var j3 = 0; j3 < In.n; j3++) {
-        var A = In.base + j3, B = In.base + (j3 + 1) % In.n;
+        var A = In.base + j3, Bv = In.base + (j3 + 1) % In.n;
         var C = Out.base + j3, D = Out.base + (j3 + 1) % Out.n;
-        idx.push(A, B, C, B, D, C);
+        idx.push(A, Bv, C, Bv, D, C);
       }
     } else {
       // 바깥 링이 두 배로 촘촘한 경계. 안쪽 한 칸에 삼각형 세 개로 잇는다.
       for (var j4 = 0; j4 < In.n; j4++) {
         var a = In.base + j4, b = In.base + (j4 + 1) % In.n;
-        var c0 = Out.base + (2 * j4) % Out.n;
-        var c1 = Out.base + (2 * j4 + 1) % Out.n;
-        var c2 = Out.base + (2 * j4 + 2) % Out.n;
-        idx.push(a, c1, c0, a, b, c1, b, c2, c1);
+        var c0i = Out.base + (2 * j4) % Out.n;
+        var c1i = Out.base + (2 * j4 + 1) % Out.n;
+        var c2i = Out.base + (2 * j4 + 2) % Out.n;
+        idx.push(a, c1i, c0i, a, b, c1i, b, c2i, c1i);
       }
     }
   }
   var segs = SEGS; // 스커트는 바깥 링과 같은 좌표를 다시 만들어 색 경계를 준다
   // 옆면(스커트). 없으면 종잇장처럼 보인다.
   var skirtStart = pos.length / 3;
-  for (var j4 = 0; j4 < segs; j4++) {
-    var th4 = j4 / segs * 6.283185307, r4 = coast(th4);
-    var sx = Math.cos(th4) * r4, sz = Math.sin(th4) * r4;
-    pos.push(sx, height(1, th4, sx, sz), sz);
+  for (var j5 = 0; j5 < segs; j5++) {
+    var th5 = j5 / segs * TAU, r5 = coast(th5);
+    pos.push(Math.cos(th5) * r5, BEACH_Y, Math.sin(th5) * r5);
     col.push.apply(col, s2l(lerp3(ISLE.sand, ISLE.cliff, 0.35)));
   }
   var skirtLow = pos.length / 3;
-  for (var j5 = 0; j5 < segs; j5++) {
-    var th5 = j5 / segs * 6.283185307, r5 = coast(th5) * 0.9;
-    pos.push(Math.cos(th5) * r5, -SKIRT, Math.sin(th5) * r5);
+  for (var j6 = 0; j6 < segs; j6++) {
+    var th6 = j6 / segs * TAU, r6 = coast(th6) * 0.9;
+    pos.push(Math.cos(th6) * r6, -SKIRT, Math.sin(th6) * r6);
     col.push.apply(col, s2l(ISLE.cliff));
   }
-  for (var j6 = 0; j6 < segs; j6++) {
-    var A2 = skirtStart + j6, B2 = skirtStart + (j6 + 1) % segs;
-    var C2 = skirtLow + j6, D2 = skirtLow + (j6 + 1) % segs;
+  for (var j7 = 0; j7 < segs; j7++) {
+    var A2 = skirtStart + j7, B2 = skirtStart + (j7 + 1) % segs;
+    var C2 = skirtLow + j7, D2 = skirtLow + (j7 + 1) % segs;
     idx.push(A2, C2, B2, B2, C2, D2);
   }
   var g = new THREE.BufferGeometry();
@@ -5061,13 +5165,49 @@ function buildIsland(seedStr, opts) {
   var grp = new THREE.Group();
   grp.add(land);
 
-  // 부두 — 배를 타고 나가는 곳. 해안선에서 바깥으로 뻗는다.
-  var dockTh = rnd() * 6.283185307;
+  // 계단 — 층을 잇는 이동 경로이자 시각 요소다(DESIGN.md §4).
+  // ③-6에서 층 사이 걷기를 시험하려면 지형과 함께 있어야 한다.
+  // 단위 상자 하나를 인스턴스로 늘려 쓴다. 섬당 드로우콜 하나다.
+  var stairInfo = [];
+  if (detail >= 0.6) {
+    var NST = 5, sMat = [];
+    var qT = new THREE.Quaternion(), eT = new THREE.Euler(), vT = new THREE.Vector3(), sT = new THREE.Vector3();
+    [{ th: stairA, ef: E2f, lo: TY[0], hi: TY[1] },
+     { th: stairB, ef: E3f, lo: TY[1], hi: TY[2] }].forEach(function (fl) {
+      var Ek = fl.ef(fl.th);
+      var rOut = Ek + BAT + FIL + 0.40;   // 아래층 평지에서 시작한다
+      var rIn = Ek - B - 0.06;            // 위층 평지에 살짝 물린다
+      var run = (rOut - rIn) / NST;
+      stairInfo.push({ th: fl.th, rOut: rOut, rIn: rIn, yLo: fl.lo, yHi: fl.hi, halfW: 0.31 });
+      for (var s = 0; s < NST; s++) {
+        // 단마다 얇은 판을 세우면 계단이 아니라 울타리가 된다.
+        // 각 단은 자기 앞면에서 위층까지 통째로 이어지는 상자다. 아래 단이
+        // 위 단 밑으로 파고들어, 밖에서는 디딤면만 run 만큼씩 보인다.
+        var frontR = rOut - run * s;
+        var topY = fl.lo + (fl.hi - fl.lo) * (s + 1) / NST;
+        var botY = fl.lo - 0.16;          // 지면에 묻어 뜬 것처럼 보이지 않게 한다
+        // rotation.y = -th 로 두면 상자의 로컬 x가 반지름 방향, z가 접선 방향이다.
+        eT.set(0, -fl.th, 0); qT.setFromEuler(eT);
+        vT.set(Math.cos(fl.th) * (frontR + rIn) / 2, (topY + botY) / 2, Math.sin(fl.th) * (frontR + rIn) / 2);
+        sT.set(frontR - rIn, topY - botY, 0.62);
+        sMat.push(new THREE.Matrix4().compose(vT, qT, sT));
+      }
+    });
+    var stairMesh = new THREE.InstancedMesh(roundedSlab(),
+      new THREE.MeshStandardMaterial({ color: ISLE.step, roughness: 1, metalness: 0 }), sMat.length);
+    for (var mi = 0; mi < sMat.length; mi++) stairMesh.setMatrixAt(mi, sMat[mi]);
+    stairMesh.instanceMatrix.needsUpdate = true;
+    stairMesh.castShadow = true; stairMesh.receiveShadow = true;
+    grp.add(stairMesh);
+  }
+
+  // 부두 — 배를 타고 나가는 곳. 1층 물가에서 바깥으로 뻗는다.
   var dock = new THREE.Group();
   var wood = new THREE.MeshStandardMaterial({ color: ISLE.wood, roughness: 0.95, metalness: 0 });
   var rC = coast(dockTh);
   for (var k = 0; k < 5; k++) {
-    var rr = rC - 0.35 + k * 0.42;
+    // 첫 판자를 모래 위에 얹는다. 해변이 완만해져서 예전 시작점은 물속이었다.
+    var rr = rC - 0.55 + k * 0.42;
     // 폭 0.52에 간격 0.42면 판자끼리 0.10씩 겹치고, 모두 같은 높이라
     // 겹친 부분이 동일 평면이 되어 z-파이팅과 그림자 얼룩이 생긴다.
     // 폭을 줄여 판자 사이에 틈을 둔다. 실제 부두처럼 보이기도 한다.
@@ -5095,15 +5235,15 @@ function buildIsland(seedStr, opts) {
   // 각도마다 이분법으로 찾아 그 위를 따라 밝은 띠를 두른다.
   function waterT(th) {
     var lo = 0.55, hi = 1.0;
-    for (var k = 0; k < 16; k++) {
-      var mid = (lo + hi) * 0.5, rr = coast(th) * mid;
-      if (height(mid, th, Math.cos(th) * rr, Math.sin(th) * rr) > 0) lo = mid; else hi = mid;
+    for (var kk = 0; kk < 16; kk++) {
+      var mid = (lo + hi) * 0.5;
+      if (height(mid, th) > 0) lo = mid; else hi = mid;
     }
     return (lo + hi) * 0.5;
   }
   var fPos = [], fIdx = [];
   for (var fj = 0; fj < segs; fj++) {
-    var fth = fj / segs * 6.283185307;
+    var fth = fj / segs * TAU;
     var fr = coast(fth) * waterT(fth);
     var w = 0.085 + 0.045 * Math.sin(fth * 5 + p2) + 0.025 * Math.sin(fth * 9 + p1);
     fPos.push(Math.cos(fth) * (fr - 0.02), 0.03, Math.sin(fth) * (fr - 0.02));
@@ -5111,8 +5251,8 @@ function buildIsland(seedStr, opts) {
   }
   for (var fk = 0; fk < segs; fk++) {
     var i0 = fk * 2, i1 = fk * 2 + 1;
-    var i2 = ((fk + 1) % segs) * 2, i3 = ((fk + 1) % segs) * 2 + 1;
-    fIdx.push(i0, i2, i1, i1, i2, i3);
+    var i2f = ((fk + 1) % segs) * 2, i3 = ((fk + 1) % segs) * 2 + 1;
+    fIdx.push(i0, i2f, i1, i1, i2f, i3);
   }
   var fg = new THREE.BufferGeometry();
   fg.setAttribute("position", new THREE.Float32BufferAttribute(fPos, 3));
@@ -5129,6 +5269,11 @@ function buildIsland(seedStr, opts) {
   grp.userData.coast = coast;
   grp.userData.height = height;
   grp.userData.dockTh = dockTh;
+  // ③-6 걷기 · ③-7 식생 · ③-8 랜드마크가 전부 이걸 쓴다.
+  grp.userData.profileAt = profileAt;
+  grp.userData.edgesAt = edgesAt;
+  grp.userData.tierY = TY;
+  grp.userData.stairs = stairInfo;
   return grp;
 }
 // 감정 어휘 -> 섬 상태. 종류만 센다. 횟수는 쓰지 않는다(양치기 방지).
@@ -5170,9 +5315,26 @@ var VEGCOL = {
 };
 // 섬 표면 높이. 식생을 지면에 붙이려면 필요하다.
 function surfaceY(isle, x, z) {
+  return isle.userData.profileAt(Math.hypot(x, z), Math.atan2(z, x)).y;
+}
+// 벽·어깨·필렛에 식생이 박히는 것을 막는다. 안쪽 평지로 밀어낸다.
+// ③-7에서 층별로 제대로 배치하면 이 가드는 없어진다. 지금은 나무가 벽에
+// 박힌 화면이 나오지 않게 하는 임시 조치다.
+// mrg는 그 식생이 지면에서 차지하는 반경이다. 웅덩이·파도는 납작한 원판이라
+// 가장자리에 걸치면 벽 밖 허공으로 통째로 삐져나온다. 나무·바위보다 넓게 잡는다.
+function flatSpot(isle, x, z, mrg) {
   var th = Math.atan2(z, x), r = Math.hypot(x, z);
-  var t = Math.min(1, r / isle.userData.coast(th));
-  return isle.userData.height(t, th, x, z);
+  var m = mrg == null ? 0.20 : mrg;
+  for (var i = 0; i < 24; i++) {
+    var p = isle.userData.profileAt(r, th);
+    // 물가 갈대는 해변에 있어도 된다. 다만 물에 잠기면 안 된다.
+    var ok = p.zone === "top" || (p.zone === "beach" && p.y > 0.06);
+    if (ok && isle.userData.profileAt(r + m, th).y > p.y - 0.03) break;
+    r -= 0.07;
+    if (r < 0.12) { r = 0.12; break; }
+  }
+  var fx = Math.cos(th) * r, fz = Math.sin(th) * r;
+  return { x: fx, z: fz, y: surfaceY(isle, fx, fz) };
 }
 // Russell 좌표 -> 섬 방위.
 // psi = 3π/2 - phi 로 두면 화면에서 활기가 위, 평온이 오른쪽,
@@ -5203,10 +5365,11 @@ function buildVegetation(isle, state, opts) {
       var ang = psi + (rnd() - 0.5) * 0.75;
       var frac = rule.band[0] + rnd() * (rule.band[1] - rule.band[0]);
       var rr = isle.userData.coast(ang) * frac;
-      var x = Math.cos(ang) * rr, z = Math.sin(ang) * rr;
-      var y = surfaceY(isle, x, z);
       var kind = rule.kinds[i % rule.kinds.length];
       var sc = 0.8 + rnd() * 0.5;
+      var sp = flatSpot(isle, Math.cos(ang) * rr, Math.sin(ang) * rr,
+                        (kind === "pond" || kind === "wave") ? 0.30 + 0.46 * sc : 0.20);
+      var x = sp.x, z = sp.z, y = sp.y;
       var rot = rnd() * 6.283185307;
       place(kind, x, y, z, sc, sc * (0.85 + rnd() * 0.4), rot, rnd());
     }
@@ -5216,8 +5379,8 @@ function buildVegetation(isle, state, opts) {
   for (var b = 0; b < 7; b++) {
     var ba = brnd() * 6.283185307;
     var br = isle.userData.coast(ba) * (0.30 + brnd() * 0.50);
-    var bx = Math.cos(ba) * br, bz = Math.sin(ba) * br;
-    place(brnd() < 0.45 ? "rock" : "tree", bx, surfaceY(isle, bx, bz), bz,
+    var bs = flatSpot(isle, Math.cos(ba) * br, Math.sin(ba) * br);
+    place(brnd() < 0.45 ? "rock" : "tree", bs.x, bs.y, bs.z,
           0.55 + brnd() * 0.35, 0.6 + brnd() * 0.3, brnd() * 6.283, brnd());
   }
   return items;
