@@ -5329,8 +5329,8 @@ function buildIsland(seedStr, opts) {
   // 그 층 식생이 통째로 사라진다.
   // 디딤판 반경이 0.64이므로 1.2면 판 둘레가 확실히 비고, 그 이상은
   // 식생이 놓일 자리만 잡아먹는다.
-  var LM_CLEAR = { dock: 1.2, dive: 1.2, plaza: 1.05 };
-  function addLandmark(id, name, hint, th, r, build) {
+  var LM_CLEAR = { dock: 1.3, dive: 1.5, plaza: 1.2 };
+  function addLandmark(id, name, sign, hint, th, r, build) {
     var x = Math.cos(th) * r, z = Math.sin(th) * r, y = profileAt(r, th).y;
     var lg = new THREE.Group();
     lg.position.set(x, y, z);
@@ -5342,12 +5342,17 @@ function buildIsland(seedStr, opts) {
       color: 0xd8c6a2, roughness: 1, metalness: 0,
       emissive: new THREE.Color(0xffd9a0), emissiveIntensity: 0
     });
-    var pr = id === "dive" ? 0.56 : 0.60;
+    var pr = id === "dive" ? 0.80 : 0.60;
     var plinth = new THREE.Mesh(new THREE.CylinderGeometry(pr, pr + 0.04, 0.07, 20), pmat);
     plinth.position.y = 0.035;
     plinth.castShadow = true; plinth.receiveShadow = true;
     lg.add(plinth);
-    build(lg);
+    build(lg, th);   // 각도를 넘긴다. 안 넘기면 buildIsland의 var th를 집는다
+    // 이름 팻말은 셋 다 같은 형태다. 잠수 지점은 웅덩이가 커서 판 밖에 세운다.
+    var sg = new THREE.Group();
+    sg.position.set(id === "dive" ? -0.72 : 0, 0, id === "dive" ? 0.30 : 0.30);
+    lg.add(sg);
+    addNameSign(sg, sign, th, 1);
     grp.add(lg);
     landmarks.push({ id: id, name: name, hint: hint, x: x, y: y, z: z, th: th, near: 1.3, mat: pmat });
     keepOuts.push({ x: x, z: z, r: LM_CLEAR[id] || 1.3, why: name });
@@ -5355,16 +5360,16 @@ function buildIsland(seedStr, opts) {
 
   // 부두 — 진입부에 디딤판만 놓는다. 부두 자체는 ③-1 그대로다.
   var dockIn = rC - 0.9 * ISLE_K;
-  addLandmark("dock", "부두", "바다로 나가요", dockTh, dockIn, function () {});
+  addLandmark("dock", "부두", "바다로", "바다로 나가요", dockTh, dockIn, function () {});
 
   // 잠수 지점 — "내려가는 물"로 읽혀야 한다. 우물이 아니다.
   // 돌로 두른 웅덩이 + 물에 잠긴 계단 두 단.
   var diveBand = bandAt(diveTh, 0);
   var diveR = diveBand ? Math.max(diveBand.lo + 0.7, diveBand.hi - 0.75) : coast(diveTh) * 0.72;
-  addLandmark("dive", "잠수 지점", "내 안으로 내려가요", diveTh, diveR, function (lg) {
+  addLandmark("dive", "잠수 지점", "내 안으로", "내 안으로 내려가요", diveTh, diveR, function (lg, lth) {
     // 테두리 돌은 디딤판보다 어둡게. 같은 톤이면 물이 안 보인다.
     var stoneM = new THREE.MeshStandardMaterial({ color: 0x7d7364, roughness: 1, metalness: 0 });
-    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.065, 6, 22), stoneM);
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.64, 0.075, 6, 24), stoneM);
     rim.rotation.x = -Math.PI / 2; rim.position.y = 0.09;
     rim.castShadow = true; rim.receiveShadow = true;
     lg.add(rim);
@@ -5373,40 +5378,63 @@ function buildIsland(seedStr, opts) {
       var sl = new THREE.Mesh(roundedSlab(), new THREE.MeshStandardMaterial({
         color: d === 0 ? 0x7f7768 : 0x5d5850, roughness: 1, metalness: 0
       }));
-      sl.scale.set(0.34, 0.07, 0.46);
-      sl.position.set(0.10 + d * 0.13, 0.02 - d * 0.07, 0);
+      sl.scale.set(0.34, 0.07, 0.50);
+      sl.position.set(0.16 + d * 0.15, 0.02 - d * 0.07, 0);
       lg.add(sl);
     }
     // 물. 섬 둘레 바다보다 짙게 — 여기는 깊다.
-    // 물은 섬 둘레 바다보다 훨씬 짙다. 여기는 깊다는 뜻이다.
-    var wat = new THREE.Mesh(new THREE.CircleGeometry(0.47, 22).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x14495c, roughness: 0.55, metalness: 0,
-        transparent: true, opacity: 0.9 }));
+    // 물은 섬 둘레 바다보다 훨씬 짙고, 평온 영역 물웅덩이보다 확실히 크다.
+    // 위에서 봤을 때 둘이 같은 둥근 물로 보이면 안 된다.
+    var wat = new THREE.Mesh(new THREE.CircleGeometry(0.64, 24).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x0f3a4c, roughness: 0.55, metalness: 0,
+        transparent: true, opacity: 0.93 }));
     wat.position.y = 0.086;
     lg.add(wat);
-    var deep = new THREE.Mesh(new THREE.CircleGeometry(0.27, 18).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x092b3a, roughness: 0.55, metalness: 0 }));
-    deep.position.set(-0.05, 0.090, 0);
+    var deep = new THREE.Mesh(new THREE.CircleGeometry(0.36, 20).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x061f2c, roughness: 0.55, metalness: 0 }));
+    deep.position.set(-0.06, 0.090, 0);
     lg.add(deep);
+    // 사다리 — 위에서 봐도 원판이 아니고, "내려간다"를 형태가 말한다.
+    var ladM = new THREE.MeshStandardMaterial({ color: 0x8a7048, roughness: 1, metalness: 0 });
+    var lad = new THREE.Group();
+    lad.position.set(0.34, 0.02, 0);           // 물 안에 발을 담근다
+    lad.rotation.z = 0.42;                     // 웅덩이 쪽으로 눕는다
+    for (var sd = -1; sd <= 1; sd += 2) {
+      var rail = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.78, 6), ladM);
+      rail.position.set(0, 0.39, sd * 0.15);
+      rail.castShadow = true;
+      lad.add(rail);
+    }
+    for (var rg = 0; rg < 3; rg++) {
+      var rung = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.30, 5), ladM);
+      rung.rotation.x = Math.PI / 2;
+      rung.position.set(0, 0.20 + rg * 0.24, 0);
+      rung.castShadow = true;
+      lad.add(rung);
+    }
+    lg.add(lad);
   });
 
   // 광장 표지 — 3층. 섬에서 가장 높다. 계단을 올라올 이유가 된다.
   var plazaBand = bandAt(plazaTh, 2);
   var plazaR = plazaBand ? (plazaBand.lo + plazaBand.hi) * 0.5 : 0.5;
-  addLandmark("plaza", "광장 표지", "우리 반 광장으로 가요", plazaTh, plazaR, function (lg) {
+  addLandmark("plaza", "광장 표지", "우리 반 광장", "우리 반 광장으로 가요", plazaTh, plazaR, function (lg, lth) {
     var stoneM2 = new THREE.MeshStandardMaterial({ color: 0x9a8f7d, roughness: 1, metalness: 0 });
     var base = new THREE.Mesh(roundedSlab(), stoneM2);
     base.scale.set(0.46, 0.16, 0.46); base.position.y = 0.12;
     base.castShadow = true; base.receiveShadow = true;
     lg.add(base);
-    // 기둥 높이 1.45. 나무 꼭대기(3층에서 약 1.3)보다 깃발이 살짝 위에 온다.
-    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 1.45, 8),
+    // 깃대는 팻말과 별개다. 팻말은 가까이서 읽고, 깃발은 멀리서 보라고 있다.
+    // 1.45로는 나무들 사이에 파묻혔다. 2.05로 올려 나무 꼭대기 위로 확실히 뺀다.
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 2.05, 8),
       new THREE.MeshStandardMaterial({ color: 0x8a7048, roughness: 1, metalness: 0 }));
-    pole.position.y = 0.20 + 1.45 / 2; pole.castShadow = true;
+    pole.position.set(0.30, 0.20 + 2.05 / 2, -0.16); pole.castShadow = true;
     lg.add(pole);
-    var flag = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.30, 0.035),
+    var flag = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.54, 0.04),
       new THREE.MeshStandardMaterial({ color: 0xd6883c, roughness: 1, metalness: 0 }));
-    flag.position.set(0.24, 1.20, 0); flag.rotation.y = Math.PI / 2;
+    flag.rotation.y = Math.PI / 4 + lth;    // 팻말과 같은 방향. 화면을 본다
+    flag.position.set(0.30, 1.70, -0.16);
+    flag.translateX(0.41);                  // 기둥에 붙여 편다
     flag.castShadow = true;
     lg.add(flag);
   });
@@ -5839,6 +5867,65 @@ function buildVegMeshes(items) {
     grp.add(im);
   });
   return grp;
+}
+// 팻말 글자. 텍스처를 거의 안 쓰는 프로젝트지만(DESIGN.md §4) 이름은 읽혀야 한다.
+// 256×64 세 장뿐이고 문구가 세 가지라 모듈 수준에 캐시해 섬마다 다시 만들지 않는다.
+// IslandView의 정리는 재질만 dispose하고 텍스처는 건드리지 않으므로 안전하다.
+var LABEL_TEX = {};
+function labelTexture(text) {
+  if (LABEL_TEX[text]) return LABEL_TEX[text];
+  // 자동 검사는 브라우저 없이 돌아간다. 캔버스가 없으면 글자 없는 판으로 둔다.
+  if (typeof document === "undefined") return null;
+  var c = document.createElement("canvas");
+  c.width = 256; c.height = 96;
+  var g = c.getContext("2d");
+  g.fillStyle = "#f2e3c2"; g.fillRect(0, 0, 256, 96);
+  g.fillStyle = "#4a3a24";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  // 문구가 길면 글자를 줄여 판 안에 담는다. 판을 늘리면 팻말끼리 크기가 달라진다.
+  var px = 46;
+  do {
+    g.font = "bold " + px + "px 'Jua', 'Apple SD Gothic Neo', sans-serif";
+    if (g.measureText(text).width <= 226) break;
+    px -= 2;
+  } while (px > 22);
+  g.fillText(text, 128, 52);
+  var t = new THREE.Texture(c);
+  t.needsUpdate = true;
+  if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
+  LABEL_TEX[text] = t;
+  return t;
+}
+// 이름 팻말. 셋 다 같은 형태다 — 팻말이 있는 곳이 갈 수 있는 곳이라는
+// 규칙 하나로 아이가 셋을 다 알아본다. 다가가지 않아도 멀리서 보인다.
+// 판은 항상 카메라 쪽을 본다. 아이소메트릭이 고정이라 각도가 상수다.
+function addNameSign(lg, text, th, scale) {
+  var k = scale || 1;
+  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.035 * k, 0.042 * k, 0.66 * k, 7),
+    new THREE.MeshStandardMaterial({ color: 0x8a7048, roughness: 1, metalness: 0 }));
+  post.position.y = 0.07 + 0.66 * k / 2;
+  post.castShadow = true;
+  lg.add(post);
+  var board = new THREE.Mesh(new THREE.BoxGeometry(0.66 * k, 0.25 * k, 0.045 * k), [
+    null, null, null, null,
+    (function () {
+      var tx = labelTexture(text);
+      // 판은 카메라를 보게 세우는데, 빛은 화면 왼쪽 위에서 온다.
+      // 그대로 두면 글자면이 늘 그늘이라 읽히지 않는다.
+      // 약하게 자체 발광시켜 각도와 무관하게 읽히게 한다.
+      return new THREE.MeshStandardMaterial(tx
+        ? { map: tx, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.45,
+            roughness: 1, metalness: 0 }
+        : { color: 0xe8d9b8, roughness: 1, metalness: 0 });
+    })(),
+    new THREE.MeshStandardMaterial({ color: 0xe8d9b8, roughness: 1, metalness: 0 })
+  ].map(function (m) {
+    return m || new THREE.MeshStandardMaterial({ color: 0xd8c49c, roughness: 1, metalness: 0 });
+  }));
+  board.position.y = 0.07 + 0.54 * k;
+  board.rotation.y = Math.PI / 4 + th;   // 그룹이 -th로 돌아 있으니 이걸 더하면 화면을 본다
+  board.castShadow = true;
+  lg.add(board);
 }
 // 조명. ③-2에서 정한 값이고 확인용 하네스도 이 함수를 부른다.
 // 두 군데에 적어두면 하네스로 잰 수치가 앱 화면과 달라진다(실제로 겪었다).
