@@ -5351,6 +5351,8 @@ var VEG_FOOT = {
   tuft: 0.14, pebble: 0.12, shrub: 0.24, outcrop: 0.30
 };
 var VEG_NEUTRAL = { tuft: 1, pebble: 1, shrub: 1, outcrop: 1 };
+// 가늘고 세로로 긴 것은 서로 더 떨어뜨린다. 가까이 모이면 병정처럼 줄지어 선다.
+var VEG_GAP = { reed: 1.05, wflower: 0.85 };
 var VEGCOL = {
   flowerA: 0xef8fa8, flowerB: 0xf3c05a, flowerC: 0xd98cd0,
   fruitLeaf: 0x6ea444, fruit: 0xe0603f,
@@ -5363,9 +5365,10 @@ var VEGCOL = {
   rock: 0x8a8578, rockMoss: 0x6f8455,
   wave: 0xbfe2e6, waveRim: 0xe4f2f4, pondRim: 0x4f9aa8,
   // 중립 식생. 전부 채도 0.22 이하라 자란 것과 섞이지 않는다.
-  // 노두는 분노의 바위와 회색이 겹치지 않게 더 어둡고 차갑게 간다.
-  // 크기로도 갈리지만(바위 0.31~0.5 대 노두 0.07) 색까지 벌려두는 편이 안전하다.
-  tuft: 0x8a9678, shrub: 0x707d66, pebble: 0x9c9890, outcrop: 0x74736e
+  // 중립 식생. 채도만 낮추고 명도를 안 봐서 잔디보다 어두웠고, 그래서
+  // 풀밭의 결이 아니라 때 얼룩처럼 보였다. 잔디(grassHigh, 명도 약 177)보다
+  // 밝은 쪽으로 올리고 노란기를 준다. 자갈·노두도 검은 돌이 아니라 회백색이다.
+  tuft: 0xc3d18a, shrub: 0xaec37e, pebble: 0xd8d5c8, outcrop: 0xcfcbbd
 };
 // 섬 표면 높이. 식생을 지면에 붙이려면 필요하다.
 function surfaceY(isle, x, z) {
@@ -5437,33 +5440,35 @@ function buildVegetation(isle, state, opts) {
   var list = state || [], TAU = 6.283185307;
   var items = [];
 
-  function fits(x, z, foot) {
+  function fits(x, z, foot, kind) {
     if (keepOutHit(isle, x, z) > 0) return false;
+    var own = VEG_GAP[kind] || 0;
     for (var i = 0; i < items.length; i++) {
-      var need = Math.max(VEG_MIN_GAP, foot + items[i].foot);
+      var need = Math.max(VEG_MIN_GAP, foot + items[i].foot, own, VEG_GAP[items[i].kind] || 0);
       if (Math.hypot(x - items[i].x, z - items[i].z) < need) return false;
     }
     return true;
   }
   // lv층 평지 안에서 자리를 찾는다. 층 가장자리에서 발자국만큼 물러나므로
   // 잎이나 원판이 허공으로 걸치지 않는다.
-  function spotOnTier(rnd, ang, lv, foot) {
-    for (var t = 0; t < 24; t++) {
+  function spotOnTier(rnd, ang, lv, foot, kind) {
+    // 갈대처럼 넓게 떨어뜨리는 종류가 있어 시도를 넉넉히 준다.
+    for (var t = 0; t < 40; t++) {
       // 자리가 없으면 각도를 점점 넓게 벌린다. 제 방위는 지키되 붙어 있지는 않게.
-      var a = ang + (rnd() - 0.5) * (0.5 + 1.2 * (t / 24));
+      var a = ang + (rnd() - 0.5) * (0.5 + 1.2 * (t / 40));
       var bd = tierBand(isle, a, lv);
       if (!bd) continue;
       var lo = bd.lo + foot + 0.08, hi = bd.hi - foot - 0.08;
       if (hi <= lo) continue;
       var r = lo + rnd() * (hi - lo);
       var x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (fits(x, z, foot)) return { x: x, z: z };
+      if (fits(x, z, foot, kind)) return { x: x, z: z };
     }
     return null;
   }
   // 파도는 물가에만 둔다. 잔디 위에 흰 원판이 떠 있으면 그게 뭔지 알 수 없다.
   // 수면 바로 위 띠를 실제 지면 높이로 찾는다.
-  function spotOnShore(rnd, ang, foot) {
+  function spotOnShore(rnd, ang, foot, kind) {
     for (var t = 0; t < 12; t++) {
       var a = ang + (rnd() - 0.5) * 1.1, C = isle.userData.coast(a);
       var lo = -1, hi = -1;
@@ -5474,7 +5479,7 @@ function buildVegetation(isle, state, opts) {
       if (lo < 0) continue;
       var rr = lo + rnd() * Math.max(0, hi - lo);
       var x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      if (fits(x, z, foot)) return { x: x, z: z };
+      if (fits(x, z, foot, kind)) return { x: x, z: z };
     }
     return null;
   }
@@ -5505,7 +5510,7 @@ function buildVegetation(isle, state, opts) {
         var kinds = rule.tiers[lv];
         var kind = kinds[i % kinds.length];
         var foot = (VEG_FOOT[kind] || 0.2) * sc;
-        var sp = kind === "wave" ? spotOnShore(rnd, psi, foot) : spotOnTier(rnd, psi, lv, foot);
+        var sp = kind === "wave" ? spotOnShore(rnd, psi, foot, kind) : spotOnTier(rnd, psi, lv, foot, kind);
         if (sp) { push(kind, sp, sc, rnd, lv, em.q, em.label); placed = true; }
       }
       if (!placed) { rnd(); rnd(); rnd(); }   // 못 놓아도 난수 소비를 맞춘다
@@ -5514,13 +5519,14 @@ function buildVegetation(isle, state, opts) {
 
   // 중립 식생. 섬 면적에 비례해 깐다. 층 면적이 다르므로 층별 비중도 면적에 맞춘다.
   var brnd = mulberry32(hashSeed("neutral-" + (opts.seed || "island")));
-  var want = Math.round(ISLE_R * ISLE_R * 2.4);
+  // 빈 데가 거의 없으면 숨 쉴 자리가 없다. 2.4에서 1.8로 낮췄다.
+  var want = Math.round(ISLE_R * ISLE_R * 1.8);
   for (var b = 0; b < want; b++) {
     var kind2 = NEU_KINDS[Math.floor(brnd() * NEU_KINDS.length)];
     var sc2 = 0.85 + brnd() * 0.6;
     var u = brnd();
     var lv2 = u < 0.49 ? 0 : u < 0.85 ? 1 : 2;
-    var sp2 = spotOnTier(brnd, brnd() * TAU, lv2, (VEG_FOOT[kind2] || 0.2) * sc2);
+    var sp2 = spotOnTier(brnd, brnd() * TAU, lv2, (VEG_FOOT[kind2] || 0.2) * sc2, kind2);
     if (sp2) push(kind2, sp2, sc2, brnd, lv2, null, null);
     else { brnd(); brnd(); brnd(); }
   }
@@ -5573,11 +5579,18 @@ function buildVegMeshes(items) {
   };
   var v3 = new THREE.Vector3(), q = new THREE.Quaternion(), sv = new THREE.Vector3();
   var eu = new THREE.Euler();
-  function add(part, x, y, z, sx, sy, sz, rot, col) {
-    eu.set(0, rot, 0); q.setFromEuler(eu);
+  // tx·tz는 기울기(라디안). 지오메트리 밑동이 y=0이라 밑동을 축으로 눕는다.
+  function add(part, x, y, z, sx, sy, sz, rot, col, tx, tz) {
+    eu.set(tx || 0, rot, tz || 0); q.setFromEuler(eu);
     v3.set(x, y, z); sv.set(sx, sy, sz);
     var m = new THREE.Matrix4().compose(v3, q, sv);
     parts[part].list.push({ m: m, c: col });
+  }
+  // 그 기울기로 세운 높이 h짜리 줄기의 끝 위치. 이삭을 끝에 얹을 때 쓴다.
+  var tipE = new THREE.Euler(), tipQ = new THREE.Quaternion(), tipV = new THREE.Vector3();
+  function tipOf(h, rot, tx, tz) {
+    tipE.set(tx || 0, rot, tz || 0); tipQ.setFromEuler(tipE);
+    return tipV.set(0, h, 0).applyQuaternion(tipQ).clone();
   }
   items.forEach(function (it) {
     var s = it.s, y = it.y, c = it.col;
@@ -5604,13 +5617,20 @@ function buildVegMeshes(items) {
       add("pondRim", it.x, y + 0.025, it.z, 0.44 * s, 1, 0.36 * s, it.rot, null);
     } else if (it.kind === "reed") {
       // 막대 몇 개면 앙상해 보인다. 무리를 늘리고 끝에 이삭을 단다.
-      for (var k = 0; k < 6; k++) {
-        var ka = it.rot + k * 1.05;
-        var ox = Math.cos(ka) * (0.05 + 0.055 * (k % 3)) * s;
-        var oz = Math.sin(ka) * (0.05 + 0.055 * (k % 3)) * s;
-        var rh = (0.32 + 0.13 * ((k * 7 % 5) / 5)) * it.sy;
-        add("stem", it.x + ox, y, it.z + oz, s * 0.9, rh, s * 0.9, ka, null);
-        add("reedTop", it.x + ox, y + rh, it.z + oz, 0.042 * s, 0.115 * s, 0.042 * s, 0, null);
+      // 다만 같은 키로 곧게 세우면 병정처럼 줄지어 선다.
+      // 개체마다 키·퍼짐·기울기를 크게 달리한다.
+      var rn = 6 + Math.floor(c * 3);
+      for (var k = 0; k < rn; k++) {
+        var ka = it.rot + k * 2.399;                       // 황금각. 겹치지 않게 흩어진다
+        var rr2 = (0.05 + 0.21 * ((k * 5 % 7) / 7)) * s;   // 퍼짐을 넓게
+        var ox = Math.cos(ka) * rr2, oz = Math.sin(ka) * rr2;
+        var rh = (0.26 + 0.30 * ((k * 7 % 5) / 5)) * it.sy;
+        var tl = 0.10 + 0.22 * ((k * 3 % 4) / 4);          // 바깥쪽일수록 더 눕는다
+        var tx2 = Math.sin(ka) * tl, tz2 = -Math.cos(ka) * tl;
+        add("stem", it.x + ox, y, it.z + oz, s * 0.9, rh, s * 0.9, ka, null, tx2, tz2);
+        var tp = tipOf(rh, ka, tx2, tz2);
+        add("reedTop", it.x + ox + tp.x, y + tp.y, it.z + oz + tp.z,
+            0.042 * s, 0.115 * s, 0.042 * s, 0, null, tx2, tz2);
       }
     } else if (it.kind === "lamp") {
       // 기둥 위 가로등처럼 서 있으면 대낮에 어색하다.
@@ -5620,13 +5640,17 @@ function buildVegMeshes(items) {
     } else if (it.kind === "wflower") {
       // 흰 들꽃 무리. 차분하지만 예뻐야 한다(§5 절대 원칙).
       for (var w = 0; w < 5; w++) {
-        var wa = it.rot + w * 1.257;
-        var wx = it.x + Math.cos(wa) * (0.045 + 0.05 * (w % 2)) * s;
-        var wz = it.z + Math.sin(wa) * (0.045 + 0.05 * (w % 2)) * s;
+        var wa = it.rot + w * 2.399;
+        var wr = (0.045 + 0.13 * ((w * 3 % 5) / 5)) * s;
+        var wx = it.x + Math.cos(wa) * wr, wz = it.z + Math.sin(wa) * wr;
         // 흰 들꽃은 색이 거의 없으므로 키로 구분한다. 0.14 → 0.30.
-        var wh = (0.30 + 0.06 * (w % 3)) * it.sy;
-        add("stem", wx, y, wz, s * 0.75, wh, s * 0.75, wa, null);
-        add("wpetal", wx, y + wh + 0.018 * s, wz, 0.048 * s, 0.032 * s, 0.048 * s, 0, null);
+        var wh = (0.28 + 0.16 * ((w * 7 % 4) / 4)) * it.sy;
+        var wt = 0.08 + 0.18 * ((w % 3) / 3);
+        var wtx = Math.sin(wa) * wt, wtz = -Math.cos(wa) * wt;
+        add("stem", wx, y, wz, s * 0.75, wh, s * 0.75, wa, null, wtx, wtz);
+        var wp = tipOf(wh, wa, wtx, wtz);
+        add("wpetal", wx + wp.x, y + wp.y + 0.018 * s, wz + wp.z,
+            0.048 * s, 0.032 * s, 0.048 * s, 0, null);
       }
     } else if (it.kind === "rock") {
       // 낮은 자갈만 하면 중립 식생과 구분이 안 된다(채도도 낮은 종류라 더 그렇다).
