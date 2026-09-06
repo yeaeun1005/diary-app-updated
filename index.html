@@ -862,15 +862,17 @@ function safeEntries(arr) {
     };
   });
 }
+// 사분면 색. HV는 나침반의 "떨림"과 같은 보라 계열이다(2026-09-06). 같은 영역이 화면마다
+// 다른 색이면 아이가 헷갈린다. 아래 "#e07070"들은 사분면이 아니라 부정/경고 색이라 그대로다.
 const QC = {
   HA: "#e8873c",
-  HV: "#e07070",
+  HV: "#9b7fc4",
   LV: "#6b9cc2",
   LA: "#5bb5a6"
 };
 const QB = {
   HA: "#fef3e6",
-  HV: "#fde8e8",
+  HV: "#efe9f7",
   LV: "#e8f1f8",
   LA: "#e8f5f1"
 };
@@ -3617,7 +3619,7 @@ function ShellMatchGame({
   })));
 }
 var EMO_REPORT_SCRIPT = `
-var QM={HA:{name:"활기",tname:"활기·흥분",color:"#e8873c",bg:"#fbede0",tx:"#c96a1f"},HV:{name:"떨림",tname:"떨림(분노·불안)",color:"#e07070",bg:"#fbe4e4",tx:"#c14d4d"},LV:{name:"슬픔",tname:"슬픔·피로",color:"#6b9cc2",bg:"#e7eef6",tx:"#4a72a0"},LA:{name:"평온",tname:"평온·만족",color:"#5bb5a6",bg:"#e6f4f0",tx:"#3d8b78"}};
+var QM={HA:{name:"활기",tname:"활기·흥분",color:"#e8873c",bg:"#fbede0",tx:"#c96a1f"},HV:{name:"떨림",tname:"떨림(분노·불안)",color:"#9b7fc4",bg:"#efe8f7",tx:"#7d5ba6"},LV:{name:"슬픔",tname:"슬픔·피로",color:"#6b9cc2",bg:"#e7eef6",tx:"#4a72a0"},LA:{name:"평온",tname:"평온·만족",color:"#5bb5a6",bg:"#e6f4f0",tx:"#3d8b78"}};
 // 사분면 이름. 학생 리포트는 나침반 단어만, 교사 리포트는 병기.
 function qn(q){return (typeof MODE!=="undefined"&&MODE==="teacher")?QM[q].tname:qn(q);}
 function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
