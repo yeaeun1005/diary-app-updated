@@ -5546,6 +5546,8 @@ function buildIsland(seedStr, opts) {
     lg.add(flag);
   });
 
+  grp.userData.boat = boat;        // ⑥-1이 이 배를 이어받아 바다를 건넌다
+  grp.userData.boatDir = dockTh;   // 출항 방향(섬 바깥). 항해도 이 방향에서 시작한다
   grp.userData.landmarks = landmarks;
   grp.userData.coast = coast;
   grp.userData.height = height;
@@ -6184,37 +6186,48 @@ function buildCharacter() {
   for (var i = -1; i <= 1; i += 2) {
     var hip = new THREE.Group();
     hip.name = i < 0 ? "hipL" : "hipR";
-    hip.position.set(i * 0.088, 0.34, 0);
-    hip.add(put(limb(0.060, 0.16), mPants, 0, -0.14, 0));
+    // 초등학생이라 다리가 짧지만, 몸통이 더 길면 안 된다.
+    hip.position.set(i * 0.086, 0.44, 0);
+    hip.add(put(limb(0.058, 0.26), mPants, 0, -0.232, 0));
     body.add(hip); legs.push(hip);
   }
   // 몸통 — 아이 비율이라 짧고 통통하게
-  var torso = put(limb(0.150, 0.20), mShirt, 0, 0.56, 0, "torso");
+  var torso = put(limb(0.145, 0.13), mShirt, 0, 0.57, 0, "torso");
   torso.scale.set(1, 1, 0.88);
   body.add(torso);
   // 팔 — 어깨 그룹을 축으로 다리와 반대로 흔든다
   for (var a2 = -1; a2 <= 1; a2 += 2) {
     var sh = new THREE.Group();
     sh.name = a2 < 0 ? "armL" : "armR";
-    sh.position.set(a2 * 0.178, 0.72, 0);
-    sh.add(put(limb(0.045, 0.14), mShirt, 0, -0.12, 0));
+    sh.position.set(a2 * 0.172, 0.71, 0);
+    sh.add(put(limb(0.044, 0.15), mShirt, 0, -0.115, 0));
     body.add(sh);
   }
   // 머리 — 아이는 머리가 크다. 목은 짧게 붙여 뜨지 않게 한다.
-  body.add(put(new THREE.SphereGeometry(0.062, 10, 8), mSkin, 0, 0.80, 0));
-  var head = put(new THREE.SphereGeometry(0.155, 18, 14), mSkin, 0, 0.94, 0, "head");
+  body.add(put(new THREE.SphereGeometry(0.062, 10, 8), mSkin, 0, 0.79, 0));
+  var head = put(new THREE.SphereGeometry(0.155, 18, 14), mSkin, 0, 0.925, 0, "head");
   head.scale.set(1, 1.04, 0.95);
   body.add(head);
-  // 머리카락 — 얼굴 없이도 사람으로 읽히게 하는 부분.
-  // 위와 뒤를 덮는 모자 모양이라 뒷모습에서 특히 잘 보인다.
-  var hair = new THREE.Mesh(new THREE.SphereGeometry(0.166, 18, 14,
-    0, Math.PI * 2, 0, Math.PI * 0.60), mHair);
-  hair.position.set(0, 0.948, -0.010);
-  hair.name = "hair";
-  body.add(hair);
-  var hback = put(new THREE.SphereGeometry(0.128, 14, 11), mHair, 0, 0.925, -0.062);
-  hback.scale.set(1.02, 0.88, 0.72);
-  body.add(hback);
+  // 머리카락 — 정수리와 뒤통수만 덮는다. 머리 전체를 감싸면 앞뒤가 똑같이
+  // 보인다(실제로 그랬다). 앞에서는 이마와 얼굴 면이 드러나야 한다.
+  // 얼굴 디테일은 넣지 않는다 — 머리카락과 살색이 나뉘는 것만으로 구분된다.
+  // 모델은 +Z를 보고 서므로 phi를 [π, 2π]로 잡으면 -Z(뒤통수)만 덮인다.
+  var hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.167, 18, 14,
+    0, Math.PI * 2, 0, Math.PI * 0.32), mHair);
+  hairTop.position.copy(head.position);
+  hairTop.scale.copy(head.scale);
+  hairTop.name = "hairTop";
+  body.add(hairTop);
+  var hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.167, 18, 14,
+    Math.PI, Math.PI, 0, Math.PI * 0.74), mHair);
+  hairBack.position.copy(head.position);
+  hairBack.scale.copy(head.scale);
+  hairBack.name = "hairBack";
+  body.add(hairBack);
+  // 뒷머리 볼륨
+  var hnape = put(new THREE.SphereGeometry(0.118, 14, 11), mHair, 0, 0.905, -0.070);
+  hnape.scale.set(1.0, 0.86, 0.70);
+  body.add(hnape);
 
   // renderOrder는 Group에 걸어도 자식에 전파되지 않는다. 메시마다 걸어야
   // 실루엣이 본체 위로 덮이지 않는다.
@@ -6620,13 +6633,25 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     // 덮개만 방향을 달리하는 것으로는 모자라서 카메라 자체를 움직인다.
     //  · 잠수 — 카메라가 아래로 내려간다. 세상이 화면 위로 흐른다
     //  · 항해 — 카메라가 옆으로 미끄러진다. 세상이 옆으로 흐른다
-    var DIVE_MS = 1400, SAIL_MS = 950;
+    var DIVE_MS = 1400, SAIL_MS = 950, DOCK_MS = 2100;
     var camHome = cam.position.clone();
     goRef.current = function () {
       if (going || !nearLmRef) return;
-      var lm = nearLmRef, dive = lm.id === "dive";
-      going = { dive: dive, t0: performance.now(), dur: dive ? DIVE_MS : SAIL_MS,
+      var lm = nearLmRef, dive = lm.id === "dive", sail = lm.id === "dock";
+      going = { dive: dive, sail: sail, t0: performance.now(),
+                dur: dive ? DIVE_MS : sail ? DOCK_MS : SAIL_MS,
                 y0: charGrp ? charGrp.position.y : 0 };
+      if (sail && charGrp && theIsle.userData.boat) {
+        // 부두 판자를 걸어 나가 배에 타고, 배가 섬을 떠난다.
+        // 잠수가 "아래로"라면 이건 "옆으로 건너간다"이다(DESIGN.md §3).
+        going.boat = theIsle.userData.boat;
+        going.boatHome = going.boat.position.clone();
+        going.bdir = theIsle.userData.boatDir;
+        going.from = charGrp.position.clone();
+        going.board = going.boat.position.clone();
+        going.board.y += 0.19;                       // 뱃바닥에 선다
+        going.face = Math.atan2(Math.cos(going.bdir), Math.sin(going.bdir));
+      }
       if (dive && charGrp) {
         // 웅덩이 한가운데로 뛰어든다. 카메라만 내려가면 무엇이 일어났는지 모른다.
         going.from = charGrp.position.clone();
@@ -6636,11 +6661,15 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
         going.splash.visible = false;
         scene.add(going.splash);
       }
-      setWipe({ dir: dive ? "down" : "side", ms: going.dur });
+      // 부두는 배가 떠나는 것을 보여준 뒤에 덮는다. 처음부터 덮으면 승선이 안 보인다.
+      setWipe({ dir: dive ? "down" : "side", ms: going.dur,
+                run: sail ? Math.round(going.dur * 0.34) : going.dur,
+                delay: sail ? Math.round(going.dur * 0.62) : 0 });
       window.setTimeout(function () {
         if (dive) { if (onGo) onGo("diary"); return; }   // 이 경우 화면이 바뀐다
         setWipe(null);
         setSoon(lm.name);
+        if (going.boat) going.boat.position.copy(going.boatHome);
         going = null;
         cam.position.copy(camHome);      // 되돌아오면 카메라도 제자리로
         cam.updateMatrixWorld();
@@ -6702,6 +6731,27 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
             if (going.splash.visible) going.splash.userData.at(sp);
           }
           cam.position.y = camHome.y - 4.2 * ease;
+        } else if (going.sail && going.boat) {
+          // 0~42% 부두를 걸어 나간다 · 42~55% 배에 오른다 · 55~100% 출항
+          var w = Math.min(1, u / 0.42);
+          var onBoat = Math.max(0, Math.min(1, (u - 0.42) / 0.13));
+          var away = Math.max(0, (u - 0.55) / 0.45);
+          away = away * away * (3 - 2 * away) * 7.0;        // 처음엔 천천히 미끄러진다
+          going.boat.position.set(going.boatHome.x + Math.cos(going.bdir) * away,
+                                  going.boatHome.y,
+                                  going.boatHome.z + Math.sin(going.bdir) * away);
+          if (charGrp) {
+            var bx = going.from.x + (going.board.x - going.from.x) * w;
+            var bz = going.from.z + (going.board.z - going.from.z) * w;
+            var by = going.from.y + (going.board.y - going.from.y) * (w * 0.7 + onBoat * 0.3);
+            charGrp.position.set(bx + Math.cos(going.bdir) * away,
+                                 by, bz + Math.sin(going.bdir) * away);
+            if (charGrp.userData.step) charGrp.userData.step(t0 / 1000, u < 0.42, going.face);
+          }
+          // 카메라가 배를 따라 옆으로 간다. 배보다 조금 느리게 따라가야
+          // 배가 멀어지는 것이 보인다.
+          cam.position.x = camHome.x + Math.cos(going.bdir) * away * 0.62;
+          cam.position.z = camHome.z + Math.sin(going.bdir) * away * 0.62;
         } else {
           cam.position.x = camHome.x + scrR.x * 5.5 * ease;
           cam.position.z = camHome.z + scrR.z * 5.5 * ease;
@@ -6815,7 +6865,8 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
           ? "linear-gradient(180deg, rgba(31,92,110,0.7), rgba(9,43,58,0.99))"
           : "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
         animation: (wipe.dir === "down" ? "isleDive" : "isleSail") + " "
-                   + wipe.ms + "ms cubic-bezier(0.55,0,0.85,0.6) forwards"
+                   + (wipe.run || wipe.ms) + "ms cubic-bezier(0.55,0,0.85,0.6) "
+                   + (wipe.delay || 0) + "ms forwards"
       } }) : null,
     // 아직 만들지 않은 화면
     soon ? React.createElement("div", {
