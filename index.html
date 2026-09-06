@@ -5417,7 +5417,9 @@ function buildIsland(seedStr, opts) {
   // 그 층 식생이 통째로 사라진다.
   // 디딤판 반경이 0.64이므로 1.2면 판 둘레가 확실히 비고, 그 이상은
   // 식생이 놓일 자리만 잡아먹는다.
-  var LM_CLEAR = { dock: 1.3, dive: 1.5, plaza: 1.2 };
+  // 팻말 앞을 따로 비우므로 랜드마크 자체 여유는 구조물 둘레만 지키면 된다.
+  // 둘을 다 넉넉히 잡으면 겹쳐서 식생 자리만 크게 잡아먹는다.
+  var LM_CLEAR = { dock: 1.05, dive: 1.3, plaza: 0.9 };
   function addLandmark(id, name, sign, hint, th, r, build) {
     var x = Math.cos(th) * r, z = Math.sin(th) * r, y = profileAt(r, th).y;
     var lg = new THREE.Group();
@@ -5446,7 +5448,9 @@ function buildIsland(seedStr, opts) {
     lg.add(sg);
     addNameSign(sg, sign, th, 1);
     // 팻말 앞을 비운다. 랜드마크 여유 구역만으로는 팻말이 가려질 수 있다.
-    keepOuts.push({ x: x + 0.7071 * sd, z: z + 0.7071 * sd, r: 0.95, why: name + " 팻말" });
+    // 3층은 좁아서 팻말 여유를 넉넉히 주면 그 층 식생이 통째로 사라진다.
+    keepOuts.push({ x: x + 0.7071 * sd, z: z + 0.7071 * sd,
+                    r: id === "plaza" ? 0.95 : 1.45, why: name + " 팻말" });
     grp.add(lg);
     landmarks.push({ id: id, name: name, hint: hint, x: x, y: y, z: z, th: th, near: 1.3, mat: pmat });
     keepOuts.push({ x: x, z: z, r: LM_CLEAR[id] || 1.3, why: name });
@@ -5984,19 +5988,19 @@ function labelTexture(text) {
   // 자동 검사는 브라우저 없이 돌아간다. 캔버스가 없으면 글자 없는 판으로 둔다.
   if (typeof document === "undefined") return null;
   var c = document.createElement("canvas");
-  c.width = 384; c.height = 138;
+  c.width = 512; c.height = 184;
   var g = c.getContext("2d");
-  g.fillStyle = "#f2e3c2"; g.fillRect(0, 0, 384, 138);
+  g.fillStyle = "#f2e3c2"; g.fillRect(0, 0, 512, 184);
   g.fillStyle = "#4a3a24";
   g.textAlign = "center"; g.textBaseline = "middle";
   // 문구가 길면 글자를 줄여 판 안에 담는다. 판을 늘리면 팻말끼리 크기가 달라진다.
-  var px = 70;
+  var px = 94;
   do {
     g.font = "bold " + px + "px 'Jua', 'Apple SD Gothic Neo', sans-serif";
-    if (g.measureText(text).width <= 342) break;
+    if (g.measureText(text).width <= 458) break;
     px -= 2;
-  } while (px > 34);
-  g.fillText(text, 192, 75);
+  } while (px > 46);
+  g.fillText(text, 256, 100);
   var t = new THREE.Texture(c);
   t.needsUpdate = true;
   if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
@@ -6008,12 +6012,12 @@ function labelTexture(text) {
 // 판은 항상 카메라 쪽을 본다. 아이소메트릭이 고정이라 각도가 상수다.
 function addNameSign(lg, text, th, scale) {
   var k = scale || 1;
-  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * k, 0.055 * k, 0.90 * k, 7),
+  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * k, 0.062 * k, 1.14 * k, 7),
     new THREE.MeshStandardMaterial({ color: ISLE.wood, roughness: 1, metalness: 0 }));
-  post.position.y = 0.07 + 0.90 * k / 2;
+  post.position.y = 0.07 + 1.14 * k / 2;
   post.castShadow = true;
   lg.add(post);
-  var board = new THREE.Mesh(new THREE.BoxGeometry(1.00 * k, 0.36 * k, 0.055 * k), [
+  var board = new THREE.Mesh(new THREE.BoxGeometry(1.42 * k, 0.51 * k, 0.06 * k), [
     null, null, null, null,
     (function () {
       var tx = labelTexture(text);
@@ -6029,7 +6033,7 @@ function addNameSign(lg, text, th, scale) {
   ].map(function (m) {
     return m || new THREE.MeshStandardMaterial({ color: 0xd8c49c, roughness: 1, metalness: 0 });
   }));
-  board.position.y = 0.07 + 0.76 * k;
+  board.position.y = 0.07 + 0.97 * k;
   board.rotation.y = Math.PI / 4 + th;   // 그룹이 -th로 돌아 있으니 이걸 더하면 화면을 본다
   board.castShadow = true;
   lg.add(board);
@@ -6042,17 +6046,27 @@ function isleCamHalf(cam, isle, aspect) {
   cam.updateMatrixWorld();
   var inv = new THREE.Matrix4().copy(cam.matrixWorld).invert();
   var v = new THREE.Vector3(), hx = 0, hy = 0, TAU = 6.283185307;
-  // 부두가 해안선 밖으로 뻗으므로 반지름에 여유를 준다. 위로는 깃대 끝까지.
-  var yLo = -0.5, yHi = TIER_Y[2] + 2.4;
+  // 섬을 원기둥으로 잡으면 안 된다. 가장자리에 깃대 높이 기둥이 서 있다고
+  // 가정하게 되어 세로 반폭이 크게 부풀고, 결국 화면이 물러난다.
+  // 실제 실루엣에 가깝게 층별로 나눠 잰다 — 가장자리는 낮고 가운데가 높다.
+  //   [해안선 배(부두까지), 그 높이] 식으로 읽는다.
+  var BANDS = [
+    [1.10, 0.55],                  // 물가·해변·부두
+    [0.72, TIER_Y[1] + 1.5],       // 2층 나무 꼭대기
+    [0.38, TIER_Y[2] + 2.6]        // 3층과 깃대
+  ];
   for (var a = 0; a < 48; a++) {
-    var th = a / 48 * TAU, r = isle.userData.coast(th) * 1.10;
-    for (var k = 0; k < 2; k++) {
-      v.set(Math.cos(th) * r, k ? yHi : yLo, Math.sin(th) * r).applyMatrix4(inv);
-      if (Math.abs(v.x) > hx) hx = Math.abs(v.x);
-      if (Math.abs(v.y) > hy) hy = Math.abs(v.y);
+    var th = a / 48 * TAU, C = isle.userData.coast(th);
+    for (var b = 0; b < BANDS.length; b++) {
+      var r = C * BANDS[b][0];
+      for (var k = 0; k < 2; k++) {
+        v.set(Math.cos(th) * r, k ? BANDS[b][1] : -0.55, Math.sin(th) * r).applyMatrix4(inv);
+        if (Math.abs(v.x) > hx) hx = Math.abs(v.x);
+        if (Math.abs(v.y) > hy) hy = Math.abs(v.y);
+      }
     }
   }
-  return Math.max(hy, hx / aspect) * 1.04;
+  return Math.max(hy, hx / aspect) * 1.03;
 }
 // 조명. ③-2에서 정한 값이고 확인용 하네스도 이 함수를 부른다.
 // 두 군데에 적어두면 하네스로 잰 수치가 앱 화면과 달라진다(실제로 겪었다).
@@ -6100,24 +6114,79 @@ var CHAR_H = 1.1, CHAR_D = 0.4;
 // 반투명 패스보다 먼저 통째로 그려지므로, 섞어두면 순서가 뒤집힌다.
 function buildCharacter() {
   var grp = new THREE.Group();
-  var geo = new THREE.CylinderGeometry(CHAR_D / 2, CHAR_D / 2, CHAR_H, 16);
-  geo.translate(0, CHAR_H / 2, 0);   // 밑동이 y=0. 지면 높이를 그대로 넣으면 된다
-  // 실루엣은 본체(0xdd6b4f)와 같은 색상(약 12도)에 밝기만 올린 것이다.
-  // 전에 쓰던 살구색은 모래·계단 돌과 겹쳐 돌기둥처럼 보였다.
-  // 불투명도도 0.55 → 0.7로 올린다. 낮으면 잔디 초록이 섞여 다시 흙색이 된다.
-  var sil = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+  // 부품을 하나의 Group에 담고 그 Group을 두 번 그린다.
+  // 실루엣은 ③-6과 같은 방식이다 — 부품이 늘어도 방식은 그대로다.
+  var body = new THREE.Group();
+
+  var skin = new THREE.MeshStandardMaterial({ color: 0xdd6b4f, roughness: 1, metalness: 0,
+    transparent: true, opacity: 1 });
+  var dark = new THREE.MeshStandardMaterial({ color: 0x8a3524, roughness: 1, metalness: 0,
+    transparent: true, opacity: 1 });
+  var tank = new THREE.MeshStandardMaterial({ color: 0xe8d9b8, roughness: 1, metalness: 0,
+    transparent: true, opacity: 1 });
+
+  // 몸통 — 아래가 조금 넓은 구. 얼굴은 넣지 않는다(DESIGN.md §4 톤).
+  var torso = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), skin);
+  torso.scale.set(0.20, 0.26, 0.17);
+  torso.position.y = 0.52;
+  body.add(torso);
+  // 머리
+  var head = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), skin);
+  head.scale.set(0.155, 0.145, 0.145);
+  head.position.y = 0.90;
+  body.add(head);
+  // 등에 진 작은 공기통 — 뒷모습이 주로 보이므로 여기가 이 캐릭터의 특징이다.
+  // "마음 바다 탐험대"라는 이름, 그리고 잠수 지점과도 이어진다.
+  var pack = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.30, 8), tank);
+  pack.position.set(0, 0.60, -0.18);
+  body.add(pack);
+  // 다리 둘. 걸을 때 번갈아 흔든다.
+  var legs = [];
+  for (var i = -1; i <= 1; i += 2) {
+    var hip = new THREE.Group();
+    hip.position.set(i * 0.075, 0.30, 0);
+    var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.046, 0.30, 7), dark);
+    leg.position.y = -0.15;
+    hip.add(leg);
+    body.add(hip);
+    legs.push(hip);
+  }
+  // renderOrder는 Group에 걸어도 자식에 전파되지 않는다. 메시마다 걸어야
+  // 실루엣이 본체 위로 덮이지 않는다.
+  body.traverse(function (o) {
+    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.renderOrder = 999; }
+  });
+
+  // 실루엣 — 같은 부품을 색만 바꿔 한 벌 더. depthTest를 끄고 먼저 그린다.
+  var silMat = new THREE.MeshBasicMaterial({
     color: 0xef866c, depthTest: false, depthWrite: false, transparent: true, opacity: 0.7
-  }));
-  sil.renderOrder = 998;
+  });
+  var sil = body.clone(true);
+  sil.traverse(function (o) {
+    if (o.isMesh) { o.material = silMat; o.castShadow = false; o.receiveShadow = false; o.renderOrder = 998; }
+  });
+
   grp.add(sil);
-  var body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    color: 0xdd6b4f, roughness: 1, metalness: 0, transparent: true, opacity: 1
-  }));
-  body.renderOrder = 999;
-  body.castShadow = true; body.receiveShadow = true;
   grp.add(body);
   grp.userData.body = body;
   grp.userData.silhouette = sil;
+  // 걷기 동작. 뼈대 애니메이션은 쓰지 않는다 — 부품 몇 개를 흔드는 것으로
+  // 충분하고, 리깅된 모델을 들여오면 §4의 라이선스·톤 통일 문제가 생긴다.
+  // t는 누적 시간, moving은 지금 걷는 중인지.
+  grp.userData.step = function (t, moving, dir) {
+    var sw = moving ? Math.sin(t * 9.5) : 0;
+    var bob = moving ? Math.abs(Math.sin(t * 9.5)) * 0.035 : 0;
+    [body, sil].forEach(function (root) {
+      var ls = [];
+      root.children.forEach(function (c) { if (c.isGroup) ls.push(c); });
+      if (ls[0]) ls[0].rotation.x = sw * 0.40;
+      if (ls[1]) ls[1].rotation.x = -sw * 0.40;
+      root.position.y = bob;
+      // 가는 쪽을 바라본다. 뒷모습이 기본이라 방향만 맞으면 충분하다.
+      if (dir != null) root.rotation.y = dir;
+      root.rotation.z = sw * 0.045;
+    });
+  };
   return grp;
 }
 // 어느 각도에서 그 층 평지의 한가운데를 찾는다. 캐릭터를 세우거나
@@ -6329,6 +6398,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
   const [nearLm, setNearLm] = useState(null);   // 다가간 랜드마크
   const [wipe, setWipe] = useState(null);       // 전환 연출: "down" | "side"
   const [soon, setSoon] = useState(null);       // 아직 없는 화면
+  const [vocabTip, setVocabTip] = useState(false);
   const goRef = useRef(null);
   const touch = coarsePointer();
   // 폰 세로 화면에서는 나침반·배너·어휘 수가 서로 겹친다. 작게 줄이고 자리를 옮긴다.
@@ -6434,15 +6504,20 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
     var keys = {}, dbgMarks = null;
+    var walkT = 0, faceDir = Math.PI * 0.75;
     function walk(dt) {
       if (!charGrp || !theIsle) return;
       var mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
       var mz = (keys.up ? 1 : 0) - (keys.down ? 1 : 0);
-      if (mx || mz) {
+      var moving = !!(mx || mz);
+      if (moving) {
         var v = new THREE.Vector3().addScaledVector(scrR, mx).addScaledVector(scrF, mz);
         v.normalize().multiplyScalar(WALK_SPEED * dt);
         walkMove(theIsle, charGrp.position, v.x, v.z);
+        faceDir = Math.atan2(v.x, v.z);
+        walkT += dt;
       }
+      if (charGrp.userData.step) charGrp.userData.step(walkT, moving, faceDir);
       // 높이는 매 프레임 지면에서 다시 잡는다. 지금 높이를 함께 넘겨야
       // 다리 밑을 걸을 때 상판으로 끌려 올라가지 않는다.
       charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z, charGrp.position.y);
@@ -6656,6 +6731,14 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
         onClick: function () { setSoon(null); },
         style: { ...bSoft, marginTop: 14, padding: "7px 18px", fontSize: 14, color: "#0e7490" }
       }, "돌아가기"))) : null,
+    // 나침반 제목 — 네 단어만 있으면 무엇을 보라는 건지 알 수 없다.
+    // §5의 "어느 영역이 무성한지가 눈에 보인다"를 아이 말로 옮긴 것이다.
+    fleetN > 0 ? null : React.createElement("div", {
+      style: { position: "absolute", left: 12, bottom: 12 + compass + 6, width: compass,
+               textAlign: "center", fontSize: small ? 10 : 11, color: "#4a6672",
+               background: "rgba(255,255,255,0.72)", borderRadius: 8, padding: "3px 4px",
+               lineHeight: 1.3, userSelect: "none" }
+    }, "어느 마음이", React.createElement("br"), "많이 자랐나요?"),
     // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
     React.createElement("div", {
       style: { position: "absolute", left: 12, bottom: 12, width: compass, height: compass, borderRadius: "50%",
@@ -6671,7 +6754,16 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
                borderRadius: 10, background: "rgba(255,255,255,0.82)",
                fontSize: small ? 12 : 13, color: "#3f5560" }
-    }, fleetN > 0 ? "합성 어휘 " : "감정 어휘 ", React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"));
+      , onClick: function () { if (fleetN === 0) setVocabTip(function (v) { return !v; }); }
+    }, fleetN > 0 ? "합성 어휘 " : "내가 쓴 마음 말 ",
+       React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"),
+    // 무엇을 세는 숫자인지 눌렀을 때만 알려준다. 늘 띄우면 섬을 가린다.
+    vocabTip && fleetN === 0 ? React.createElement("div", {
+      style: { position: "absolute", right: 12, bottom: 52, maxWidth: 210,
+               padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.94)",
+               boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, color: "#4a6672",
+               lineHeight: 1.6 }
+    }, "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요.") : null);
 }
 function DiaryView({
   entries,
