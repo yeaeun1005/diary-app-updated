@@ -7884,7 +7884,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
                dur: Math.max(1400, Math.min(3000, len / 22 * 1000)),
                head0: boat.rotation.y, headEnd: -th };
       setSel(null); setArrived(null);
-      setSailing({ name: e.home ? "내 섬" : e.name });
+      setSailing({ label: e.home ? "내 섬" : e.name + "의 섬" });
       if (hi) { hi = null; hiRing.visible = false; }
     }
     function sailHome() { sailTo({ home: true, x: 0, z: 0, name: "내 섬", isle: mine }); }
@@ -8216,7 +8216,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     sailing ? React.createElement("div", {
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)", whiteSpace: "nowrap",
                padding: "9px 18px", borderRadius: 14, background: "rgba(255,255,255,0.9)", fontSize: 15, color: "#28444f" }
-    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.name === "내 섬" ? "내 섬" : sailing.name + "의 섬"), "으로 가는 중…") : null,
+    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.label), "으로 가는 중…") : null,
     // 도착. ⑥-2 친구 섬 방문은 아직이라 여기서 멈춘다.
     arrived ? React.createElement("div", {
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 24, transform: "translateX(-50%)",
@@ -10869,6 +10869,15 @@ function App() {
   // ⑥-2 "나도 그래"를 최근 7일 받지 못한 / 보내지 않은 학생. 소외는 양쪽에서 시작된다.
   // 개수는 교사에게도 보여주지 않는다 — 이름만. §9의 선대로 정보까지만.
   const [empGap, setEmpGap] = useState(null);
+  var EMP_GAP_MAX = 8;
+  function empGapText(names, total, verb) {
+    var n = names.length;
+    if (n === 0) return "없어요";
+    if (n * 2 <= total && n <= EMP_GAP_MAX) return names.join(", ");
+    if (n === total) return "아직 아무도 " + verb + " 않았어요";
+    if (n * 2 > total) return "아직 대부분 " + verb + " 않았어요";
+    return "아직 여러 명이 " + verb + " 않았어요";
+  }
   useEffect(function () {
     var cancelled = false;
     (async function () {
@@ -10882,6 +10891,8 @@ function App() {
           silent: myStudents.filter(function (s) { return !c.sent[String(s.id)]; }).map(nm),
           total: myStudents.length
         });
+        // 이름은 소수일 때만 정보다. 29명이 나열되면 명단이지 정보가 아니다(2026-09-06).
+        // 기준선: 반의 절반 이하이면서 8명 이하. 넘으면 한 줄로 대신한다.
       } catch (e) { if (!cancelled) setEmpGap(null); }
     })();
     return function () { cancelled = true; };
@@ -12748,10 +12759,8 @@ function App() {
     React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 10, lineHeight: 1.6 } },
       "친구 섬에서 주고받는 공감이에요. 최근 7일 기준이고, 개수는 세지 않아요."),
     React.createElement("div", { style: { fontSize: 14, color: "#3f5560", lineHeight: 1.8 } },
-      React.createElement("div", null, React.createElement("b", null, "받지 못한 학생"), " · ",
-        empGap.none.length === 0 ? "없어요" : empGap.none.length === empGap.total ? "아직 아무도 받지 않았어요" : empGap.none.join(", ")),
-      React.createElement("div", null, React.createElement("b", null, "보내지 않은 학생"), " · ",
-        empGap.silent.length === 0 ? "없어요" : empGap.silent.length === empGap.total ? "아직 아무도 보내지 않았어요" : empGap.silent.join(", ")))) : null,
+      React.createElement("div", null, React.createElement("b", null, "받지 못한 학생"), " · ", empGapText(empGap.none, empGap.total, "받지")),
+      React.createElement("div", null, React.createElement("b", null, "보내지 않은 학생"), " · ", empGapText(empGap.silent, empGap.total, "보내지")))) : null,
   React.createElement("div", {
     style: {
       ...crd,
