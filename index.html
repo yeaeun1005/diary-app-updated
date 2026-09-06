@@ -418,6 +418,50 @@ const STRENGTH = {
   strong: ["매우", "아주", "정말", "너무", "완전", "굉장히", "대단히", "진짜", "참으로", "엄청", "무척", "몹시", "극도로", "상당히"],
   weak: ["조금", "약간", "살짝", "다소", "그럭저럭", "조금은", "살짝은", "좀"]
 };
+// 마음 말 뜻. 친구 섬에서 식생에 다가가면 배너에 뜨는 한 줄이다(⑥-2).
+// 원본은 WORDS.md다. 거기서 고친 뒤 여기로 옮긴다. 학생이 직접 입력한 어휘는 없다.
+var EMO_MEANINGS = {
+  "신남": "좋은 일이 생겨서 몸이 가만있지 못하는 마음",
+  "희열": "너무 기뻐서 마음이 터질 것 같은 마음",
+  "열정": "하고 싶은 게 있어서 온 힘을 다하고 싶은 마음",
+  "행복": "지금 이대로가 좋아서 마음이 환해지는 마음",
+  "즐거움": "재미있어서 저절로 웃음이 나오는 마음",
+  "뿌듯": "내가 해낸 게 있어서 마음이 꽉 차는 마음",
+  "감사": "누가 나에게 잘해 줘서 고마운 마음",
+  "만족": "더 바랄 게 없어서 마음이 편한 마음",
+  "편안": "걱정이 없어서 마음이 느긋한 마음",
+  "차분": "마음이 흔들리지 않고 고요한 마음",
+  "온화": "마음이 따뜻하고 부드러워지는 마음",
+  "안정": "안전한 곳에 있는 것처럼 마음이 놓이는 마음",
+  "분노": "너무 화가 나서 참기 어려운 마음",
+  "짜증": "뭔가 자꾸 거슬려서 마음이 뾰족해지는 마음",
+  "긴장": "무슨 일이 생길까 봐 몸과 마음이 굳는 마음",
+  "스트레스": "해야 할 것이 많아서 마음이 눌리는 마음",
+  "두려움": "무서운 것 앞에서 몸이 움츠러드는 마음",
+  "불안": "나쁜 일이 생길까 봐 마음이 조마조마한 마음",
+  "죄책감": "내가 잘못한 것 같아서 마음이 무거운 마음",
+  "부끄러움": "얼굴이 빨개지고 어디론가 숨고 싶은 마음",
+  "슬픔": "마음이 아파서 눈물이 날 것 같은 마음",
+  "우울": "아무것도 하기 싫고 마음이 가라앉는 마음",
+  "피곤": "힘이 다 빠져서 쉬고 싶은 마음",
+  "지루함": "재미가 없어서 시간이 안 가는 마음",
+  "외로움": "혼자인 것 같아서 누가 곁에 있었으면 하는 마음",
+  "실망": "기대했던 것이 안 돼서 마음이 내려앉는 마음",
+  "놀람(+)": "생각지도 못한 좋은 일에 마음이 번쩍 뛰는 마음",
+  "경악": "너무 놀라서 숨이 멎을 것 같은 마음",
+  "흥미": "더 알고 싶고 해 보고 싶어서 마음이 끌리는 마음",
+  "희망": "앞으로 좋아질 거라고 믿어서 마음이 밝아지는 마음"
+};
+function emoMeaning(label) { return EMO_MEANINGS[label] || null; }
+// 이름 뒤 조사. 받침이 있으면 "이가/이는", 없으면 "가/는". 이름이 비면 조사만.
+function josa(name, pair) {   // pair: "이가" | "이는" | "이에게"
+  var t = String(name || ""), c = t.charCodeAt(t.length - 1);
+  var bat = c >= 0xAC00 && c <= 0xD7A3 ? (c - 0xAC00) % 28 !== 0 : false;
+  if (pair === "이가") return t + (bat ? "이가" : "가");
+  if (pair === "이는") return t + (bat ? "이는" : "는");
+  return t + pair;
+}
+var Q_NAME = { HA: "활기", LA: "평온", LV: "슬픔", HV: "분노" };
 const EMOTIONS_28 = [{
   name: "excited",
   label: "신남",
@@ -1038,7 +1082,7 @@ async function isleLoad(id) {
   if (!o || !o.v) return { name: (o && o.name) || "", state: [] };
   var st = Object.keys(o.v).map(function (k) {
     var e = o.v[k] || {};
-    return { label: e.l || labelUnkey(k), q: e.q || "LA", valStd: e.vs || 0, aroStd: e.as || 0 };
+    return { label: e.l || labelUnkey(k), q: e.q || "LA", valStd: e.vs || 0, aroStd: e.as || 0, hidden: !!e.h };
   });
   return { name: o.name || "", state: st };
 }
@@ -1083,10 +1127,13 @@ async function dayTone(code) {
 // "나도 그래". 키가 <날짜>_<보낸사람>이라 같은 날 같은 사람에게는
 // 다시 눌러도 늘지 않는다. 하루 한 번 제한이 데이터 차원에서 강제된다.
 // 개수를 세는 필드는 만들지 않는다(DESIGN.md §7).
-async function empSend(fromStu, toId, q) {
-  if (!fromStu || !fromStu.id || !toId || fromStu.id === toId) return false;
+// l = 공감한 어휘의 키(labelKey). ⑥-2에서 어휘 단위로 공감한다.
+// 읽지 않고 쓴다. 키가 <날짜>_<보낸사람>이라 두 아이가 같은 순간 같은 친구에게
+// 보내도 서로 다른 키라 둘 다 남고, 같은 아이가 두 번 누르면 같은 키를 덮는다.
+async function empSend(fromStu, toId, q, l) {
+  if (!fromStu || !fromStu.id || !toId || String(fromStu.id) === String(toId)) return false;
   var o = {};
-  o[dayStamp() + "_" + fromStu.id] = { n: fromStu.name || "", q: q || "LA", ts: Date.now() };
+  o[dayStamp() + "_" + fromStu.id] = { n: fromStu.name || "", q: q || "LA", l: l || "", ts: Date.now() };
   await firebase.database().ref("app/" + empKey(toId)).update(o);
   return true;
 }
@@ -1095,9 +1142,32 @@ async function empLoad(id) {
   var o = await sGet(empKey(id));
   if (!o) return [];
   return Object.keys(o).map(function (k) {
-    var e = o[k] || {};
-    return { key: k, name: e.n || "", q: e.q || "LA", ts: e.ts || 0, from: k.slice(k.indexOf("_") + 1) };
+    var e = o[k] || {}, us = k.indexOf("_");
+    return { key: k, name: e.n || "", q: e.q || "LA", l: e.l || "", ts: e.ts || 0,
+             from: k.slice(us + 1), date: k.slice(0, us) };
   }).sort(function (x, y) { return x.ts - y.ts; });
+}
+// 어휘 가리기. 친구에게만 안 보인다. 내 노드의 자식 하나만 update하므로
+// 다른 기기에서 일기를 써서 isleSync가 도는 중이어도 겹치지 않는다.
+async function isleHide(stu, label, hidden) {
+  if (!stu || !stu.id || !label) return;
+  var o = {}; o["v/" + labelKey(label) + "/h"] = hidden ? true : null;
+  await firebase.database().ref("app/" + isleKey(stu.id)).update(o);
+}
+// 최근 days일 동안 받은·보낸 공감이 있는지. 교사 대시보드와 "오늘의 섬" 추첨이 쓴다.
+// 개수는 저장하지 않는다 — 읽는 쪽이 셀 뿐이고, 아이 화면은 세지 않는다.
+async function empCounts(ids, days) {
+  var since = Date.now() - (days || 7) * 86400000, recv = {}, sent = {};
+  ids.forEach(function (id) { recv[String(id)] = 0; sent[String(id)] = 0; });
+  var lists = await Promise.all(ids.map(function (id) { return empLoad(id).catch(function () { return []; }); }));
+  lists.forEach(function (list, i) {
+    list.forEach(function (e) {
+      if (!e.ts || e.ts < since) return;
+      recv[String(ids[i])]++;
+      if (sent[e.from] != null) sent[e.from]++;
+    });
+  });
+  return { recv: recv, sent: sent };
 }
 // 일기 읽기. 새 경로가 마이그레이션 완료 상태면 그쪽을, 아니면 옛 경로를 읽는다.
 // 어느 쪽이든 예전과 똑같은 모양의 배열을 돌려준다(소비 코드는 손대지 않는다).
@@ -5603,6 +5673,7 @@ function buildIsland(seedStr, opts) {
     // 사다리 — 위에서 봐도 원판이 아니고, "내려간다"를 형태가 말한다.
     var ladM = new THREE.MeshStandardMaterial({ color: ISLE.wood, roughness: 1, metalness: 0 });
     var lad = new THREE.Group();
+    lad.name = "ladder";                       // 친구 섬에서는 걷어 올린다(⑥-2)
     lad.position.set(0.34, 0.02, 0);           // 물 안에 발을 담근다
     lad.rotation.z = 0.42;                     // 웅덩이 쪽으로 눕는다
     for (var sd = -1; sd <= 1; sd += 2) {
@@ -6759,6 +6830,54 @@ function seaPath(a, b, obstacles) {
   return pts;
 }
 
+// 반딧불(⑥-2). 공감받은 어휘의 식생 위에 떠다닌다. 움직여서 세어지지 않고,
+// 하나만 있어도 예쁘다. 어휘당 최대 3개, 섬당 최대 8개, 최근 7일 것만.
+// 등불은 슬픔 3층의 표식이라 공감 표식으로 못 쓴다.
+var FF_PER_WORD = 3, FF_PER_ISLE = 8, FF_DAYS = 7;
+function buildFireflies(spots) {
+  var n = spots.length;
+  if (!n) return null;
+  var g = new THREE.Group();
+  var core = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 6, 5),
+    new THREE.MeshBasicMaterial({ color: 0xfff1a6, transparent: true, opacity: 0.95, depthWrite: false }), n);
+  var halo = new THREE.InstancedMesh(new THREE.SphereGeometry(0.15, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, opacity: 0.22, depthWrite: false }), n);
+  [core, halo].forEach(function (m) { m.frustumCulled = false; m.renderOrder = 950; g.add(m); });
+  var mm = new THREE.Matrix4();
+  g.userData.at = function (t) {
+    for (var i = 0; i < n; i++) {
+      var p = spots[i], ph = i * 1.7 + (p.ph || 0);
+      var x = p.x + Math.cos(t * 1.1 + ph) * 0.28, z = p.z + Math.sin(t * 0.9 + ph) * 0.28;
+      var y = p.top + 0.12 + Math.sin(t * 2.3 + ph) * 0.10;
+      mm.makeTranslation(x, y, z);
+      core.setMatrixAt(i, mm); halo.setMatrixAt(i, mm);
+    }
+    core.instanceMatrix.needsUpdate = true; halo.instanceMatrix.needsUpdate = true;
+  };
+  g.userData.at(0);
+  return g;
+}
+// 받은 공감 목록 → 반딧불 자리. 최근 것부터, 어휘당 3개·섬당 8개.
+function fireflySpots(list, plants) {
+  var since = Date.now() - FF_DAYS * 86400000, byKey = {}, order = [];
+  list.slice().sort(function (a, b) { return b.ts - a.ts; }).forEach(function (e) {
+    if (!e.ts || e.ts < since || !e.l) return;
+    if (!byKey[e.l]) { byKey[e.l] = 0; order.push(e.l); }
+    byKey[e.l]++;
+  });
+  var out = [];
+  order.forEach(function (k) {
+    var ps = plants.filter(function (p) { return p.key === k; });
+    if (!ps.length) return;
+    var m = Math.min(FF_PER_WORD, byKey[k]);
+    for (var i = 0; i < m && out.length < FF_PER_ISLE; i++) {
+      var p = ps[i % ps.length];
+      out.push({ x: p.x, z: p.z, top: p.top, ph: i * 2.1 });
+    }
+  });
+  return out;
+}
+
 // 순수 Three.js. 이 앱은 빌드 단계가 없어(React가 createElement로 작성됨)
 // React Three Fiber를 쓰지 않는다. React는 마운트/언마운트만 관여한다.
 // 화면을 다녀와도 캐릭터가 그 자리에 있어야 한다. 랜드마크 앞에서 일기를
@@ -6768,7 +6887,10 @@ var CHAR_LAST = {};
 function coarsePointer() {
   try { return window.matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
 }
-function IslandView({ entries, seed, seaTone, onBack, onGo }) {
+// ⑥-2: friend = { id, name } 이면 친구 섬이다. state는 isleLoad가 준 어휘 목록(가림 표시 포함),
+// me는 지금 학생, myState는 내 어휘(공감 조건 판정), arrive = { boatDir } 면 배로 도착한다.
+// onHome은 친구 섬의 "내 섬으로".
+function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [err, setErr] = useState("");
@@ -6779,7 +6901,18 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
   const [wipe, setWipe] = useState(null);       // 전환 연출: "down" | "side"
   const [soon, setSoon] = useState(null);       // 아직 없는 화면
   const [vocabTip, setVocabTip] = useState(false);
+  const [nearPlant, setNearPlant] = useState(null);   // 다가간 어휘 식생
+  const [sentTo, setSentTo] = useState(null);         // 오늘 이 친구에게 보낸 공감 {label}
+  const [toast, setToast] = useState("");
+  const [reveal, setReveal] = useState(!!arrive);     // 배로 도착: 덮개가 걷힌다
   const goRef = useRef(null);
+  const actRef = useRef(null);                        // 식생 배너의 동작(나도 그래 / 가리기)
+  const arriveRef = useRef(arrive);
+  const isFriend = !!friend;
+  useEffect(function () {
+    var tm = reveal ? window.setTimeout(function () { setReveal(false); }, 800) : 0;
+    return function () { if (tm) window.clearTimeout(tm); };
+  }, []);
   const touch = coarsePointer();
   // 폰 세로 화면에서는 나침반·배너·어휘 수가 서로 겹친다. 작게 줄이고 자리를 옮긴다.
   const [small, setSmall] = useState(function () {
@@ -6853,9 +6986,26 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       scene.add(buildSea(15 * ISLE_K, seaTone == null ? 0.5 : seaTone));
       var isleGrp = buildIsland(seed || "island");
       scene.add(isleGrp);
-      var st = islandState(entries);
-      scene.add(buildVegMeshes(buildVegetation(isleGrp, st, { seed: seed })));
-      setVocab(st.length);
+      var st = state || islandState(entries);
+      // 식생은 어휘 전체로 놓고, 가린 어휘는 친구에게만 뺀다. 놓기 전에 빼면
+      // 나머지 어휘가 자리를 옮긴다(어휘를 얻어도 기존 어휘가 안 움직여야 한다 §5).
+      var vegItems = buildVegetation(isleGrp, st, { seed: seed });
+      var hiddenSet = {};
+      st.forEach(function (em) { if (em.hidden) hiddenSet[em.label] = 1; });
+      var shownItems = friend ? vegItems.filter(function (it) { return !it.label || !hiddenSet[it.label]; }) : vegItems;
+      scene.add(buildVegMeshes(shownItems));
+      setVocab(friend ? st.filter(function (em) { return !em.hidden; }).length : st.length);
+      // 어휘 식생 목록. 다가가면 배너에 어휘가 뜬다(⑥-2).
+      var plants = shownItems.filter(function (it) { return it.label; }).map(function (it) {
+        return { x: it.x, y: it.y, z: it.z, label: it.label, q: it.q || "LA", key: labelKey(it.label),
+                 top: it.y + 0.30 + it.s * 0.55 };
+      });
+      var myQuads = {}, myLabels = {};
+      (myState || (friend ? [] : st)).forEach(function (em) { myQuads[em.q] = 1; myLabels[em.label] = 1; });
+      if (friend) {
+        // 친구의 안으로는 들어갈 수 없다(§2 수면 아래 = 안에 있는 나). 사다리를 걷어 올린다.
+        isleGrp.traverse(function (o) { if (o.name === "ladder") o.visible = false; });
+      }
       // ③-6 준비. 조작은 아직 없다. 크기 감을 보려고 세워만 둔다.
       // 1층 카메라 앞쪽(각도 π/4)이 카메라 (14,12,14) 기준 화면 아래쪽이다.
       // 시작 자리가 랜드마크나 팻말 여유 구역 안이면 캐릭터가 구조물에 묻혀
@@ -6868,17 +7018,32 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
         }
         return tierSpot(isleGrp, Math.PI / 4, 0);
       }
-      var chSpot = CHAR_LAST[seed] || freeStart();
+      var chSpot = (!friend && CHAR_LAST[seed]) || freeStart();
       if (chSpot) {
         charGrp = buildCharacter();
         charGrp.position.set(chSpot.x, walkY(isleGrp, chSpot.x, chSpot.z), chSpot.z);
         scene.add(charGrp);
       }
       theIsle = isleGrp;
+      // 배로 도착(⑥-2). 출항의 거꾸로 — 배가 들어오고, 내려서, 부두 판 앞까지 걷는다.
+      var docking = null;
+      if (arriveRef.current && charGrp && isleGrp.userData.boat) {
+        var dkLm = (isleGrp.userData.landmarks || []).filter(function (l) { return l.id === "dock"; })[0];
+        var bt = isleGrp.userData.boat, bdir0 = isleGrp.userData.boatDir;
+        docking = { t0: performance.now(), dur: 2100, boat: bt, home: bt.position.clone(), dir: bdir0,
+                    to: dkLm ? new THREE.Vector3(dkLm.x, dkLm.y, dkLm.z) : chSpot,
+                    board: bt.position.clone() };
+        docking.board.y += 0.19;
+        docking.face = Math.atan2(-Math.cos(bdir0), -Math.sin(bdir0));   // 섬 쪽을 본다
+        bt.position.set(docking.home.x + Math.cos(bdir0) * 7, docking.home.y, docking.home.z + Math.sin(bdir0) * 7);
+        charGrp.position.set(bt.position.x, bt.position.y + 0.19, bt.position.z);
+      }
       // 섬 크기와 화면 비율에 맞춰 카메라를 다시 잡는다.
       d = isleCamHalf(cam, isleGrp, aspect);
       cam.left = -d * aspect; cam.right = d * aspect; cam.top = d; cam.bottom = -d;
       cam.updateProjectionMatrix();
+      // 배로 도착할 때의 카메라 오프셋은 tick의 docking 분기가 camHome 기준으로 준다.
+      // 여기서 옮기면 뒤에서 잡는 camHome에 오프셋이 섞여 카메라가 제자리로 못 돌아온다.
     }
     addIsleLights(scene, FLEET > 0 ? Math.max(d * 1.5, 40 * ISLE_K) : 7 * ISLE_K,
                   FLEET > 0 ? Math.max(d * 6, 160 * ISLE_K) : 42 * ISLE_K);
@@ -6927,9 +7092,90 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       }
       if ((best && best.id) !== (nearLmRef && nearLmRef.id)) {
         nearLmRef = best;
-        setNearLm(best ? { id: best.id, name: best.name, hint: best.hint } : null);
+        var inert = friend && best && best.id === "dive";
+        setNearLm(best ? { id: best.id, name: best.name, inert: inert,
+                           hint: inert ? "친구의 안으로는 들어갈 수 없어요" : best.hint } : null);
+      }
+      // 어휘 식생. 랜드마크가 먼저다.
+      var bp = null, bpd = 1e9;
+      if (!best && plants) {
+        for (var pi = 0; pi < plants.length; pi++) {
+          var pd = Math.hypot(charGrp.position.x - plants[pi].x, charGrp.position.z - plants[pi].z);
+          if (pd <= 0.95 && pd < bpd) { bp = plants[pi]; bpd = pd; }
+        }
+      }
+      if ((bp && bp.key + bp.x) !== (nearPlantRef && nearPlantRef.key + nearPlantRef.x)) {
+        nearPlantRef = bp;
+        setNearPlant(bp ? plantInfo(bp) : null);
       }
     }
+    var nearPlantRef = null, plantsRef = plants || [], sentToday = false, hiddenLocal = {};
+    var namesToday = {}, ffGrp = null, empList = [];
+    if (theIsle) plants.forEach(function (p) { if (hiddenSet[p.label]) hiddenLocal[p.label] = 1; });
+    function plantInfo(p) {
+      return { label: p.label, q: p.q, key: p.key, x: p.x, meaning: emoMeaning(p.label),
+               mine: !!myLabels[p.label], can: !!myQuads[p.q], hidden: !!hiddenLocal[p.label],
+               names: namesToday[p.key] || [] };
+    }
+    function refreshFireflies() {
+      if (ffGrp) { scene.remove(ffGrp); ffGrp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); ffGrp = null; }
+      ffGrp = buildFireflies(fireflySpots(empList, plantsRef));
+      if (ffGrp) scene.add(ffGrp);
+    }
+    // 받은 공감 — 반딧불과 (내 섬이면) 오늘 보낸 친구 이름. 한 번만 읽는다.
+    // 실시간 리스너를 달지 않는다. 섬을 보는 중에 반딧불이 늘면 그게 알림이 되고, 알림은 기다리게 만든다.
+    if (theIsle && (friend || me)) {
+      var whoId = friend ? friend.id : me.id, today = dayStamp();
+      empLoad(whoId).then(function (list) {
+        if (disposed) return;
+        empList = list;
+        list.forEach(function (e) {
+          if (friend) { if (me && String(e.from) === String(me.id) && e.date === today) { sentToday = true; setSentTo({ label: labelUnkey(e.l) }); } }
+          else if (e.date === today && e.name) { (namesToday[e.l] = namesToday[e.l] || []).push(e.name); }
+        });
+        refreshFireflies();
+        if (nearPlantRef) setNearPlant(plantInfo(nearPlantRef));
+      }).catch(function () {});
+    }
+    if (devMode()) window.__isle = {   // #dev: 콘솔·하네스에서 조작
+      warp: function (label) {
+        var p = (plants || []).filter(function (q) { return q.label === label; })[0];
+        if (!p || !charGrp) return false;
+        charGrp.position.set(p.x + 0.4, 0, p.z); charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
+        return true;
+      },
+      labels: function () { return (plants || []).map(function (p) { return p.label; }); },
+      act: function () { if (actRef.current) actRef.current(); },
+      go: function () { if (goRef.current) goRef.current(); },
+      skip: function () { if (docking) { docking.t0 -= 99999; } },
+      warpLm: function (id) {
+        var L = (theIsle.userData.landmarks || []).filter(function (l) { return l.id === id; })[0];
+        if (!L || !charGrp) return false;
+        charGrp.position.set(L.x + 0.5, 0, L.z); charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
+        return true;
+      }
+    };
+    // 식생 배너의 동작. 친구 섬 = 나도 그래, 내 섬 = 친구에게 안 보이게.
+    actRef.current = function () {
+      var p = nearPlantRef;
+      if (!p || going || docking) return;
+      if (friend) {
+        if (!me || sentToday || !myQuads[p.q]) return;
+        sentToday = true;
+        setSentTo({ label: p.label });
+        // 반딧불을 바로 하나 띄운다. 저장이 돌아오길 기다리게 하지 않는다.
+        empList = empList.concat([{ ts: Date.now(), l: p.key, from: String(me.id), date: dayStamp(), name: me.name || "" }]);
+        refreshFireflies();
+        setToast(friend.name + "에게 나도 그래를 보냈어요");
+        window.setTimeout(function () { if (!disposed) setToast(""); }, 2600);
+        empSend(me, friend.id, p.q, p.key).catch(function (e) { console.error("empSend:", e); });
+      } else if (me) {
+        var nowHidden = !hiddenLocal[p.label];
+        if (nowHidden) hiddenLocal[p.label] = 1; else delete hiddenLocal[p.label];
+        setNearPlant(plantInfo(p));
+        isleHide(me, p.label, nowHidden).catch(function (e) { console.error("isleHide:", e); });
+      }
+    };
     // 전환. 축이 뜻을 말한다 — 잠수는 아래로, 부두·광장은 수평으로(DESIGN.md §3).
     // 시간이 짧으면 뭔가 쉭 지나간 느낌만 남고 방향이 안 읽힌다.
     // 덮개만 방향을 달리하는 것으로는 모자라서 카메라 자체를 움직인다.
@@ -6938,8 +7184,9 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     var DIVE_MS = 1400, SAIL_MS = 950, DOCK_MS = 2100;
     var camHome = cam.position.clone();
     goRef.current = function () {
-      if (going || !nearLmRef) return;
+      if (going || docking || !nearLmRef) return;
       var lm = nearLmRef, dive = lm.id === "dive", sail = lm.id === "dock";
+      if (friend && dive) return;   // 친구의 안으로는 들어갈 수 없다
       going = { dive: dive, sail: sail, t0: performance.now(),
                 dur: dive ? DIVE_MS : sail ? DOCK_MS : SAIL_MS,
                 y0: charGrp ? charGrp.position.y : 0 };
@@ -6973,8 +7220,8 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
           // ⑥-1 바다 화면이 이 방향에서 항해를 이어받는다.
           // 돌아오면 캐릭터는 부두 앞에 선다 — 배에서 내린 자리다.
           var dk = (theIsle.userData.landmarks || []).filter(function (l) { return l.id === "dock"; })[0];
-          if (dk) CHAR_LAST[seed] = { x: dk.x, z: dk.z };
-          onGo("sea", { boatDir: going.bdir });
+          if (dk && !friend) CHAR_LAST[seed] = { x: dk.x, z: dk.z };
+          onGo("sea", { boatDir: going.bdir, fromId: friend ? friend.id : null });
           return;
         }
         setWipe(null);
@@ -7005,6 +7252,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = 1; e.preventDefault(); }
       else if (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter") {
         if (nearLmRef && goRef.current) { goRef.current(); e.preventDefault(); }
+        else if (nearPlantRef && friend && actRef.current) { actRef.current(); e.preventDefault(); }
       }
       else if (e.code === "KeyG" && devMode()) { jumpToNarrow(); e.preventDefault(); }
     }
@@ -7018,7 +7266,34 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       raf = requestAnimationFrame(tick);
       var t0 = performance.now();
       // 탭을 다시 열면 dt가 몇 초로 튄다. 그대로 쓰면 캐릭터가 순간이동한다.
-      if (going) {
+      if (ffGrp) ffGrp.userData.at(t0 / 1000);
+      if (docking) {
+        // 0~48% 배가 들어온다 · 48~62% 내린다 · 62~100% 부두 판 앞까지 걷는다
+        var du = Math.min(1, (t0 - docking.t0) / docking.dur);
+        var inA = Math.min(1, du / 0.48), away = (1 - inA) * (1 - inA) * 7.0;
+        docking.boat.position.set(docking.home.x + Math.cos(docking.dir) * away, docking.home.y,
+                                  docking.home.z + Math.sin(docking.dir) * away);
+        if (charGrp) {
+          if (du < 0.48) {
+            charGrp.position.set(docking.boat.position.x, docking.boat.position.y + 0.19, docking.boat.position.z);
+            if (charGrp.userData.step) charGrp.userData.step(t0 / 1000, false, docking.face);
+          } else {
+            var w2 = Math.min(1, (du - 0.48) / 0.52);
+            var wx = docking.board.x + (docking.to.x - docking.board.x) * w2;
+            var wz = docking.board.z + (docking.to.z - docking.board.z) * w2;
+            var wy = docking.board.y + (docking.to.y - docking.board.y) * Math.min(1, w2 / 0.27);
+            charGrp.position.set(wx, wy, wz);
+            if (charGrp.userData.step) charGrp.userData.step(t0 / 1000, true, Math.atan2(docking.to.x - docking.board.x, docking.to.z - docking.board.z));
+          }
+        }
+        cam.position.x = camHome.x + Math.cos(docking.dir) * away * 0.62;
+        cam.position.z = camHome.z + Math.sin(docking.dir) * away * 0.62;
+        cam.updateMatrixWorld();
+        if (du >= 1) {
+          docking = null;
+          if (charGrp) charGrp.position.y = walkY(theIsle, charGrp.position.x, charGrp.position.z);
+        }
+      } else if (going) {
         // 전환 중에는 조작을 막는다.
         var u = Math.min(1, (t0 - going.t0) / going.dur);
         var ease = u * u;                 // 처음엔 천천히, 갈수록 빨리
@@ -7107,7 +7382,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     return function () {
       disposed = true;
       // 출항 중이면 캐릭터가 바다 위에 있다. 그 자리를 남기면 돌아왔을 때 물 위에 선다.
-      if (charGrp && !(going && going.sail)) CHAR_LAST[seed] = { x: charGrp.position.x, z: charGrp.position.z };
+      if (charGrp && !friend && !(going && going.sail) && !docking) CHAR_LAST[seed] = { x: charGrp.position.x, z: charGrp.position.z };
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
@@ -7121,9 +7396,15 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
-  }, [seed, seaTone, entries]);
+  }, [seed, seaTone, entries, state]);
+  var bannerBottom = small ? 100 : 18;
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    React.createElement("style", null, "@keyframes isleReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
+    reveal ? React.createElement("div", {
+      style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5,
+               background: "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
+               animation: "isleReveal 720ms cubic-bezier(0.2,0.4,0.4,1) 0ms forwards" } }) : null,
     // 잠수는 물이 아래에서 차오르고(내려간다), 항해는 옆으로 지나간다(건너간다).
     React.createElement("style", null,
       "@keyframes isleDive{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0 0 0 0)}}" +
@@ -7150,9 +7431,45 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
                fontVariantNumeric: "tabular-nums" }
     }, dbg) : null,
     React.createElement("button", {
-      onClick: onBack,
-      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13 }
-    }, "돌아가기"),
+      onClick: isFriend ? (onHome || onBack) : onBack,
+      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13,
+               color: isFriend ? "#0e7490" : undefined, border: isFriend ? "1px solid #99d8c9" : undefined }
+    }, isFriend ? "내 섬으로" : "돌아가기"),
+    toast ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", top: 52, transform: "translateX(-50%)", padding: "7px 14px",
+               borderRadius: 10, background: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 13, whiteSpace: "nowrap" }
+    }, toast) : null,
+    // ⑥-2 어휘 식생 배너. 친구 섬 = 뜻 + 나도 그래. 내 섬 = 뜻 + 친구에게 안 보이게.
+    nearPlant && !nearLm && !wipe && !soon ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", bottom: bannerBottom, transform: "translateX(-50%)",
+               display: "flex", alignItems: "center", gap: 12, maxWidth: "min(94vw, 560px)",
+               padding: "10px 14px 10px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
+               boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 15, color: "#28444f" }
+    },
+      React.createElement("div", { style: { minWidth: 0, flex: "1 1 auto" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+          React.createElement("b", { style: { color: "#0e7490", fontSize: 16 } }, nearPlant.label),
+          React.createElement("span", { style: { fontSize: 11, color: "#7a8f9a", border: "1px solid #dbe6ea", borderRadius: 6, padding: "1px 6px" } }, Q_NAME[nearPlant.q] || ""),
+          isFriend && !nearPlant.mine ? React.createElement("span", {
+            style: { fontSize: 11, color: "#b45309", background: "#fff4dc", borderRadius: 6, padding: "1px 6px" } }, "내 섬에는 아직 없는 말") : null,
+          !isFriend && nearPlant.hidden ? React.createElement("span", {
+            style: { fontSize: 11, color: "#6b7f8a", background: "#eef3f5", borderRadius: 6, padding: "1px 6px" } }, "친구에게 안 보임") : null),
+        React.createElement("div", { style: { fontSize: 13, color: "#5b7684", marginTop: 3, lineHeight: 1.5 } },
+          nearPlant.meaning || (isFriend ? josa(friend.name, "이가") + " 직접 쓴 마음 말이에요" : "내가 직접 쓴 마음 말이에요")),
+        !isFriend && nearPlant.names.length ? React.createElement("div", { style: { fontSize: 13, color: "#b45309", marginTop: 3 } },
+          "오늘 " + nearPlant.names.slice(0, -1).concat([josa(nearPlant.names[nearPlant.names.length - 1], "이가")]).join(", ") + " 나도 그래 했어요") : null),
+      isFriend ? (sentTo ? React.createElement("span", { style: { fontSize: 12, color: "#6b8792", whiteSpace: "nowrap" } },
+          "오늘은 이미", React.createElement("br"), friend.name + "에게 했어요")
+        : nearPlant.can ? React.createElement("button", {
+            onClick: function () { if (actRef.current) actRef.current(); },
+            style: { ...bPri, padding: "8px 14px", fontSize: 14, whiteSpace: "nowrap", flexShrink: 0 }
+          }, "나도 그래", touch ? null : React.createElement("span", { style: { fontSize: 11, opacity: 0.8, marginLeft: 6 } }, "스페이스"))
+        : React.createElement("span", { style: { fontSize: 12, color: "#6b8792", maxWidth: 150, lineHeight: 1.4 } },
+            "이 마음은 아직 써 본 적이 없어요. 써 본 뒤에 누를 수 있어요"))
+      : React.createElement("button", {
+          onClick: function () { if (actRef.current) actRef.current(); },
+          style: { ...bSoft, padding: "7px 12px", fontSize: 13, color: "#0e7490", whiteSpace: "nowrap", flexShrink: 0 }
+        }, nearPlant.hidden ? "친구에게 보이게" : "친구에게 안 보이게")) : null,
     // ③-8 랜드마크 배너. 배너 자체가 버튼이라 터치 기기에서도 한 번에 들어간다.
     nearLm && !wipe && !soon ? React.createElement("button", {
       onClick: function () { if (goRef.current) goRef.current(); },
@@ -7165,7 +7482,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       React.createElement("b", { style: { color: "#0e7490" } }, nearLm.name),
       React.createElement("span", null, nearLm.hint),
       // 터치 기기에는 스페이스 안내를 띄우지 않는다. 누를 키가 없다.
-      touch ? null : React.createElement("span", {
+      touch || nearLm.inert ? null : React.createElement("span", {
         style: { fontSize: 12, color: "#6b8792", border: "1px solid #cfdde3",
                  borderRadius: 7, padding: "2px 7px" } }, "스페이스")) : null,
     // 전환 연출. 잠수는 물이 아래에서 차오르고, 부두·광장은 옆으로 지나간다.
@@ -7195,7 +7512,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       }, "돌아가기"))) : null,
     // 나침반 제목 — 네 단어만 있으면 무엇을 보라는 건지 알 수 없다.
     // §5의 "어느 영역이 무성한지가 눈에 보인다"를 아이 말로 옮긴 것이다.
-    fleetN > 0 ? null : React.createElement("div", {
+    fleetN > 0 || isFriend ? null : React.createElement("div", {
       style: { position: "absolute", left: 12, bottom: 12 + compass + 6, width: compass,
                textAlign: "center", fontSize: small ? 10 : 11, color: "#4a6672",
                background: "rgba(255,255,255,0.72)", borderRadius: 8, padding: "3px 4px",
@@ -7217,7 +7534,7 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
                borderRadius: 10, background: "rgba(255,255,255,0.82)",
                fontSize: small ? 12 : 13, color: "#3f5560" }
       , onClick: function () { if (fleetN === 0) setVocabTip(function (v) { return !v; }); }
-    }, fleetN > 0 ? "합성 어휘 " : "내가 쓴 마음 말 ",
+    }, fleetN > 0 ? "합성 어휘 " : isFriend ? friend.name + "의 마음 말 " : "내가 쓴 마음 말 ",
        React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"),
     // 무엇을 세는 숫자인지 눌렀을 때만 알려준다. 늘 띄우면 섬을 가린다.
     vocabTip && fleetN === 0 ? React.createElement("div", {
@@ -7234,7 +7551,10 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
 //  · 친구 섬을 탭하면 배가 항해한다(직접 조작 아님, 3초 안에 도착 — §7)
 //  · 친구 찾기는 이름 검색과 명단 둘 다. 이름표는 기본 꺼짐(#tags=1)
 //  · 돌아오기는 어디서든 한 번 — "내 섬으로" 버튼이 항상 보인다
-function SeaView({ me, entries, arrive, onBack }) {
+// ⑥-2: arrive = { boatDir, fromId, autoHome }. fromId면 그 친구 섬 부두에서 출발한다.
+// autoHome이면 바로 내 섬으로 항해한다(친구 섬의 "내 섬으로"). onGo("friend", info)로 친구 섬에 내린다.
+// onBack(info)의 info에 boatDir이 있으면 내 섬에 배로 도착한다.
+function SeaView({ me, entries, arrive, onBack, onGo }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [stats, setStats] = useState(null);
@@ -7247,6 +7567,8 @@ function SeaView({ me, entries, arrive, onBack }) {
   const [sailing, setSailing] = useState(null);  // 항해 중 {name}
   const [arrived, setArrived] = useState(null);  // 도착 {id, name}
   const [reveal, setReveal] = useState(!!arrive);  // 부두 덮개가 걷히는 연출
+  const [cover, setCover] = useState(false);       // 친구 섬에 내릴 때 덮개
+  const [todayIsle, setTodayIsle] = useState(null); // 오늘의 섬 {id, name}
   const [small, setSmall] = useState(function () {
     try { return window.innerWidth < 560; } catch (e) { return false; }
   });
@@ -7332,6 +7654,7 @@ function SeaView({ me, entries, arrive, onBack }) {
     // 배. 부두에서 떼어 바다에 둔다. 캐릭터는 배에 타고 있다.
     var boat = mine.userData.boat, bdir = mine.userData.boatDir;
     var boatHome = boat.getWorldPosition(new THREE.Vector3());
+    var boatHome0 = boatHome.clone(), bdir0 = bdir;   // 내 부두. 돌아올 때 여기로
     scene.attach(boat);
     var ch = buildCharacter();
     ch.position.set(0, 0.19, 0);
@@ -7345,14 +7668,16 @@ function SeaView({ me, entries, arrive, onBack }) {
     boat.rotation.y = -bdir;
     // 출항 이어받기. 섬 화면 마지막 프레임과 같은 카메라(배 이동의 62%)에서 시작해
     // 배가 더 나아가며 카메라가 물러난다 — 화면이 바뀐 것을 배가 이어 말한다.
-    var intro = arriveRef.current ? { t0: performance.now(), dur: 1700, from: away0, to: 8.8 } : null;
-    if (intro) {
+    var fromFriend = arriveRef.current && arriveRef.current.fromId != null;
+    var intro = arriveRef.current && !fromFriend ? { t0: performance.now(), dur: 1700, from: away0, to: 8.8 } : null;
+    if (intro || fromFriend) {
       d = dGoal = D_ISLE;
-      tgt.set(Math.cos(bdir) * away0 * 0.62, 0, Math.sin(bdir) * away0 * 0.62);
+      tgt.set(boatHome.x + Math.cos(bdir) * away0 * 0.62, 0, boatHome.z + Math.sin(bdir) * away0 * 0.62);
     } else {
       d = dGoal = D_SEA;
       tgt.set(boat.position.x, 0, boat.position.z);
     }
+    if (fromFriend) boat.visible = false;   // 친구 섬 자리를 알기 전까지
     goal.copy(tgt);
     applyCam();
 
@@ -7497,6 +7822,37 @@ function SeaView({ me, entries, arrive, onBack }) {
                     .sort(function (a, b) { return a.name.localeCompare(b.name, "ko"); }));
       setLoading("");
       refreshNear(true);
+      // 친구 섬에서 나온 배. 그 섬 부두에서 출항을 이어받는다.
+      if (fromFriend) {
+        var fe = findIsle(arriveRef.current.fromId);
+        if (fe) {
+          ensureFull(fe, 1); showFull(fe); fe.keep = true;
+          var fb = fe.isle.userData.boat;
+          boatHome = new THREE.Vector3(fe.x + fb.position.x, fb.position.y, fe.z + fb.position.z);
+          bdir = fe.isle.userData.boatDir;
+          boat.rotation.y = -bdir;
+          fe.holder.position.y = 0;
+        }
+        boat.visible = true;
+        boatAt(7.0);
+        tgt.set(boatHome.x + Math.cos(bdir) * 7.0 * 0.62, 0, boatHome.z + Math.sin(bdir) * 7.0 * 0.62);
+        goal.copy(tgt); applyCam();
+        if (arriveRef.current.autoHome) sailHome();
+        else intro = { t0: performance.now(), dur: 1700, from: 7.0, to: 8.8 };
+      }
+      // 오늘의 섬 — 최근 7일 받은 공감이 적은 친구에게 기울여 뽑는다(가중 추첨).
+      // 아이는 개수를 못 보고, 아이마다 다른 섬이 뜨므로 "추천된 아이 = 못 받는 아이"로 읽히지 않는다.
+      // 하루 동안 같은 섬이 뜨도록 시드는 (나, 오늘)이다.
+      if (isles.length) {
+        empCounts(isles.map(function (e) { return e.id; }), 7).then(function (c) {
+          if (!alive) return;
+          var rnd = mulberry32(hashSeed("today:" + me.id + ":" + dayStamp())), tot = 0, ws = [];
+          isles.forEach(function (e) { var w = 1 / (1 + (c.recv[String(e.id)] || 0)); ws.push(w); tot += w; });
+          var pick = rnd() * tot, acc = 0, chosen = isles[0];
+          for (var i = 0; i < isles.length; i++) { acc += ws[i]; if (pick <= acc) { chosen = isles[i]; break; } }
+          setTodayIsle({ id: chosen.id, name: chosen.name });
+        }).catch(function () {});
+      }
     })();
     function findIsle(id) {
       for (var i = 0; i < isles.length; i++) if (String(isles[i].id) === String(id)) return isles[i];
@@ -7507,25 +7863,37 @@ function SeaView({ me, entries, arrive, onBack }) {
     var sail = null;
     function sailTo(e) {
       if (!e || sail || intro) return;
-      e.keep = true;                     // 도착할 섬은 카드 C와 무관하게 온전히
-      ensureFull(e, 1); showFull(e);
-      var g = e.isle, th = g.userData.dockTh, rc = g.userData.coast(th) + 0.70;
-      // 그 섬 배의 반대편에 댄다. 같은 자리면 배 둘이 겹친다.
-      var to = new THREE.Vector3(e.x + Math.cos(th) * rc + Math.sin(th) * 1.3, 0,
-                                 e.z + Math.sin(th) * rc - Math.cos(th) * 1.3);
+      var to, th;
+      if (e.home) {
+        // 내 부두로. 섬 화면의 도착 연출이 여기서 이어받는다
+        to = new THREE.Vector3(boatHome0.x, 0, boatHome0.z); th = bdir0;
+      } else {
+        e.keep = true;                     // 도착할 섬은 카드 C와 무관하게 온전히
+        ensureFull(e, 1); showFull(e);
+        var g = e.isle; th = g.userData.dockTh;
+        var bl = g.userData.boat.position;   // 그 섬 부두에 댄다
+        to = new THREE.Vector3(e.x + bl.x, 0, e.z + bl.z);
+      }
       var from = new THREE.Vector3(boat.position.x, 0, boat.position.z);
-      var obs = [new THREE.Vector3(0, 0, 0)];
+      var obs = e.home ? [] : [new THREE.Vector3(0, 0, 0)];
       isles.forEach(function (o) { if (o !== e) obs.push(new THREE.Vector3(o.x, 0, o.z)); });
       var pts = seaPath(from, to, obs);
       var curve = new THREE.CatmullRomCurve3(pts, false, "centripetal", 0.5);
       var len = curve.getLength();
       sail = { e: e, curve: curve, t0: performance.now(),
                dur: Math.max(1400, Math.min(3000, len / 22 * 1000)),
-               head0: boat.rotation.y, headEnd: -(th + Math.PI) };
+               head0: boat.rotation.y, headEnd: -th };
       setSel(null); setArrived(null);
-      setSailing({ name: e.name });
+      setSailing({ name: e.home ? "내 섬" : e.name });
       if (hi) { hi = null; hiRing.visible = false; }
     }
+    function sailHome() { sailTo({ home: true, x: 0, z: 0, name: "내 섬", isle: mine }); }
+    // 배가 이미 내 부두 옆이면 바로, 멀면 배로 돌아간다(3초 안).
+    api.current.homeSail = function () {
+      if (sail || intro) return;
+      if (Math.hypot(boat.position.x - boatHome0.x, boat.position.z - boatHome0.z) < 3) { onBack(null); return; }
+      sailHome();
+    };
     function angLerp(a, b, t) {
       var dlt = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
       return a + dlt * t;
@@ -7657,11 +8025,22 @@ function SeaView({ me, entries, arrive, onBack }) {
         goal.set(boat.position.x, 0, boat.position.z);
         if (su >= 1) {
           var e = sail.e; sail = null;
-          goal.set(e.x, 0, e.z); dGoal = D_ISLE * 1.25;   // 도착한 섬을 화면에 담는다
-          follow = false;
           setSailing(null);
-          setArrived({ id: e.id, name: e.name });
-          refreshNear(true);
+          if (e.home) {
+            // 내 섬 화면이 배로 도착하는 연출을 이어받는다
+            setCover(true);
+            window.setTimeout(function () { if (!disposed) onBack({ boatDir: bdir0 }); }, 480);
+          } else if (onGo) {
+            // 친구 섬 화면이 이어받는다. 덮개가 옆에서 들어온다(수평으로 건너간다 §3)
+            setCover(true);
+            var info = { id: e.id, name: e.name, state: e.state, boatDir: e.isle.userData.boatDir };
+            window.setTimeout(function () { if (!disposed) onGo("friend", info); }, 480);
+          } else {
+            goal.set(e.x, 0, e.z); dGoal = D_ISLE * 1.25;   // 도착한 섬을 화면에 담는다
+            follow = false;
+            setArrived({ id: e.id, name: e.name });
+            refreshNear(true);
+          }
         }
       } else {
         boat.position.y = boatHome.y + Math.sin(t0 / 380) * 0.025;
@@ -7761,8 +8140,13 @@ function SeaView({ me, entries, arrive, onBack }) {
     }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
         "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri") : null,
       React.createElement("div", { style: { fontSize: 11, color: "#7a8f9a", fontFamily: "ui-monospace, Menlo, monospace" } }, seaCardText(cards))),
+    React.createElement("style", null, "@keyframes seaCover{from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0 0 0 0)}}"),
+    cover ? React.createElement("div", {
+      style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6,
+               background: "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
+               animation: "seaCover 460ms cubic-bezier(0.55,0,0.85,0.6) 0ms forwards" } }) : null,
     React.createElement("button", {
-      onClick: onBack,
+      onClick: function () { if (api.current.homeSail) api.current.homeSail(); else onBack(null); },
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
     }, "내 섬으로"),
     // 친구 찾기 — 검색과 명단 둘 다.
@@ -7790,6 +8174,12 @@ function SeaView({ me, entries, arrive, onBack }) {
                      borderBottom: "1px solid #eef3f5", background: "transparent", cursor: "pointer", fontSize: 14, fontFamily: "inherit", color: "#28444f" }
           }, n.name);
         })) : null,
+      // 오늘의 섬. 강제가 아니다 — 눌러도 되고 안 눌러도 되고, 안 누른 것을 기록하지 않는다.
+      todayIsle && !matches.length && !listOpen ? React.createElement("button", {
+        onClick: function () { pick(todayIsle); },
+        style: { display: "block", margin: "6px auto 0", padding: "6px 14px", borderRadius: 12, border: "1px solid #ffe2a8",
+                 background: "rgba(255,248,230,0.94)", cursor: "pointer", fontSize: 13, color: "#8a5a12", fontFamily: "inherit" }
+      }, "오늘은 ", React.createElement("b", null, todayIsle.name), "의 섬에 놀러 가 볼까요?") : null,
       listOpen ? React.createElement("div", { style: { ...panel, marginTop: 6, maxHeight: "46vh", overflowY: "auto" } },
         names.length ? names.map(function (n) {
           return React.createElement("button", {
@@ -7826,7 +8216,7 @@ function SeaView({ me, entries, arrive, onBack }) {
     sailing ? React.createElement("div", {
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)", whiteSpace: "nowrap",
                padding: "9px 18px", borderRadius: 14, background: "rgba(255,255,255,0.9)", fontSize: 15, color: "#28444f" }
-    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.name + "의 섬"), "으로 가는 중…") : null,
+    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.name === "내 섬" ? "내 섬" : sailing.name + "의 섬"), "으로 가는 중…") : null,
     // 도착. ⑥-2 친구 섬 방문은 아직이라 여기서 멈춘다.
     arrived ? React.createElement("div", {
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 24, transform: "translateX(-50%)",
@@ -7840,7 +8230,7 @@ function SeaView({ me, entries, arrive, onBack }) {
           onClick: function () { if (api.current.leave) api.current.leave(); },
           style: { ...bSoft, padding: "7px 16px", fontSize: 14, color: "#0e7490" }
         }, "다른 섬 가기"),
-        React.createElement("button", { onClick: onBack, style: { ...bPri, padding: "7px 16px", fontSize: 14 } }, "내 섬으로"))) : null);
+        React.createElement("button", { onClick: function () { if (api.current.homeSail) api.current.homeSail(); else onBack(null); }, style: { ...bPri, padding: "7px 16px", fontSize: 14 } }, "내 섬으로"))) : null);
 }
 function DiaryView({
   entries,
@@ -10476,6 +10866,26 @@ function App() {
   const [myStudents, setMS] = useState([]);
   const [watchList, setWatchList] = useState([]);
   const [openPhr, setOpenPhr] = useState({}); // 대화 문구 펼침 상태. 기본은 접힘.
+  // ⑥-2 "나도 그래"를 최근 7일 받지 못한 / 보내지 않은 학생. 소외는 양쪽에서 시작된다.
+  // 개수는 교사에게도 보여주지 않는다 — 이름만. §9의 선대로 정보까지만.
+  const [empGap, setEmpGap] = useState(null);
+  useEffect(function () {
+    var cancelled = false;
+    (async function () {
+      if (!myStudents.length) { setEmpGap(null); return; }
+      try {
+        var c = await empCounts(myStudents.map(function (s) { return s.id; }), 7);
+        if (cancelled) return;
+        var nm = function (s) { return s.name || s.loginId || "학생"; };
+        setEmpGap({
+          none: myStudents.filter(function (s) { return !c.recv[String(s.id)]; }).map(nm),
+          silent: myStudents.filter(function (s) { return !c.sent[String(s.id)]; }).map(nm),
+          total: myStudents.length
+        });
+      } catch (e) { if (!cancelled) setEmpGap(null); }
+    })();
+    return function () { cancelled = true; };
+  }, [myStudents]);
   useEffect(function () {
     var cancelled = false;
     (async function () {
@@ -10533,6 +10943,8 @@ function App() {
   }, [myStudents]);
   const [myEntries, setME] = useState([]);
   const [seaFrom, setSeaFrom] = useState(null);   // ⑥-1 부두 출항 → 바다 화면에 넘길 것
+  const [isleFrom, setIsleFrom] = useState(null); // ⑥-2 배로 내 섬에 도착 { boatDir }
+  const [friendInfo, setFriendInfo] = useState(null); // ⑥-2 친구 섬 { id, name, state, boatDir }
   const [trialEntries, setTE] = useState([]);
   const [trialId] = useState("trial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8));
   const trialNoop = useCallback(async function (e) {}, []);
@@ -11589,8 +12001,12 @@ function App() {
     me: currentUser,
     entries: myEntries,
     arrive: page === "sea" ? seaFrom : null,
-    onBack: function () {
+    onGo: function (where, info) {
+      if (where === "friend" && info) { setSeaFrom(null); setFriendInfo(info); setPage("friend"); }
+    },
+    onBack: function (info) {
       setSeaFrom(null);
+      setIsleFrom(info && info.boatDir != null ? { boatDir: info.boatDir } : null);
       // #sea로 열었으면 해시를 지워야 섬 화면으로 돌아간다
       try {
         if (seaHash()) {
@@ -11615,10 +12031,40 @@ function App() {
   }, React.createElement(IslandView, {
     entries: myEntries,
     seed: String(currentUser.id || currentUser.name || "island"),
-    onBack: function () { setPage("studentDiary"); },
+    me: currentUser,
+    arrive: isleFrom,
+    onBack: function () { setIsleFrom(null); setPage("studentDiary"); },
     onGo: function (where, info) {
+      setIsleFrom(null);
       if (where === "diary") setPage("studentDiary");
       else if (where === "sea") { setSeaFrom(info || null); setPage("sea"); }
+    }
+  })));
+  // ⑥-2 친구 섬. 걸어다니고, 어휘를 발견하고, 나도 그래를 보낸다. 일기 본문은 없다.
+  if (page === "friend" && currentUser && friendInfo) return React.createElement("div", {
+    style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
+  }, React.createElement("div", {
+    style: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, pointerEvents: "none",
+             padding: "10px 16px", textAlign: "center",
+             background: "linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0))" }
+  }, React.createElement("h1", {
+    className: "diary-h1",
+    style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0, fontSize: "clamp(15px, 4vw, 22px)" }
+  }, friendInfo.name, "의 마음 섬")), React.createElement("div", {
+    style: { position: "absolute", inset: 0 }
+  }, React.createElement(IslandView, {
+    key: "friend-" + friendInfo.id,
+    entries: [],
+    state: friendInfo.state || [],
+    seed: String(friendInfo.id || friendInfo.name),
+    friend: { id: friendInfo.id, name: friendInfo.name },
+    me: currentUser,
+    myState: islandState(myEntries),
+    arrive: friendInfo.boatDir != null ? { boatDir: friendInfo.boatDir } : null,
+    onBack: function () { setPage("sea"); },
+    onHome: function () { setSeaFrom({ fromId: friendInfo.id, autoHome: true }); setPage("sea"); },
+    onGo: function (where, info) {
+      if (where === "sea") { setSeaFrom(info || null); setPage("sea"); }
     }
   })));
   if (page === "studentDiary" && currentUser) return React.createElement("div", {
@@ -12295,7 +12741,18 @@ function App() {
   }, "Wee·상담 연계 › 보호자 상담 › 필요시 1388·109"));
 }) : React.createElement("div", {
   style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
-}, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")), React.createElement("div", {
+}, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")),
+  // ⑥-2 나도 그래 — 받지 못한 / 보내지 않은 학생. 지시가 아니라 정보다(§9).
+  empGap ? React.createElement("div", { style: { ...crd, marginBottom: 16 } },
+    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "나도 그래"),
+    React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 10, lineHeight: 1.6 } },
+      "친구 섬에서 주고받는 공감이에요. 최근 7일 기준이고, 개수는 세지 않아요."),
+    React.createElement("div", { style: { fontSize: 14, color: "#3f5560", lineHeight: 1.8 } },
+      React.createElement("div", null, React.createElement("b", null, "받지 못한 학생"), " · ",
+        empGap.none.length === 0 ? "없어요" : empGap.none.length === empGap.total ? "아직 아무도 받지 않았어요" : empGap.none.join(", ")),
+      React.createElement("div", null, React.createElement("b", null, "보내지 않은 학생"), " · ",
+        empGap.silent.length === 0 ? "없어요" : empGap.silent.length === empGap.total ? "아직 아무도 보내지 않았어요" : empGap.silent.join(", ")))) : null,
+  React.createElement("div", {
     style: {
       ...crd,
       marginBottom: 16
