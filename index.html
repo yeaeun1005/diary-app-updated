@@ -1061,14 +1061,23 @@ async function dayMark(stu, entries) {
   await firebase.database().ref("app/" + dayKey(stu.schoolCode, today)).update(o);
 }
 // 학급 온도계 읽기 -> 바다 tone(0~1). 0.5가 보통이다.
+//  · 학생당 값(오늘 정서가 평균)의 **중앙값**을 쓴다. 평균이면 한 아이의 극단값이
+//    반 전체 바다 색을 흔든다.
+//  · 오늘 쓴 학생이 3명 미만이면 보통 날(0.5)로 둔다. 한두 명의 기분이 반 전체
+//    바다가 되면 그건 익명이 아니다(DESIGN.md §6).
+//  · 각성(a)은 쓰지 않는다. 빨강/파랑 온도계가 되어 화난 날과 신난 날이 같아진다.
+var DAY_TONE_MIN = 3;
 async function dayTone(code) {
   var o = await sGet(dayKey(code, dayStamp()));
   if (!o) return { tone: 0.5, n: 0 };
-  var ks = Object.keys(o), sum = 0, n = 0;
-  ks.forEach(function (k) { var e = o[k]; if (e && typeof e.v === "number") { sum += e.v; n++; } });
-  if (!n) return { tone: 0.5, n: 0 };
-  // 평균 정서가 -1~1 을 0~1 로. 극단으로 치우치지 않게 0.15~0.85 안에 둔다.
-  var t = 0.5 + (sum / n) * 0.35;
+  var vs = [];
+  Object.keys(o).forEach(function (k) { var e = o[k]; if (e && typeof e.v === "number" && isFinite(e.v)) vs.push(e.v); });
+  var n = vs.length;
+  if (n < DAY_TONE_MIN) return { tone: 0.5, n: n };
+  vs.sort(function (a, b) { return a - b; });
+  var med = n % 2 ? vs[(n - 1) / 2] : (vs[n / 2 - 1] + vs[n / 2]) / 2;
+  // 정서가 -1~1 을 0~1 로. 극단으로 치우치지 않게 0.15~0.85 안에 둔다.
+  var t = 0.5 + med * 0.35;
   return { tone: Math.max(0.15, Math.min(0.85, t)), n: n };
 }
 // "나도 그래". 키가 <날짜>_<보낸사람>이라 같은 날 같은 사람에게는
@@ -5470,6 +5479,9 @@ function buildIsland(seedStr, opts) {
   var dockIn = rC - 0.9 * ISLE_K;
   addLandmark("dock", "부두", "바다로", "바다로 나가요", dockTh, dockIn, function () {});
 
+  // 먼 섬(detail < 0.6)은 부두만 둔다. 잠수 지점·광장 표지는 작은 메시가 많고
+  // 멀리서는 안 보인다(⑥-1 성능 카드 A).
+  if (detail >= 0.6) {
   // 잠수 지점 — "내려가는 물"로 읽혀야 한다. 우물이 아니다.
   // 돌로 두른 웅덩이 + 물에 잠긴 계단 두 단.
   var diveBand = bandAt(diveTh, 0);
@@ -5546,6 +5558,8 @@ function buildIsland(seedStr, opts) {
     flag.castShadow = true;
     lg.add(flag);
   });
+
+  }
 
   grp.userData.boat = boat;        // ⑥-1이 이 배를 이어받아 바다를 건넌다
   grp.userData.boatDir = dockTh;   // 출항 방향(섬 바깥). 항해도 이 방향에서 시작한다
@@ -6458,6 +6472,161 @@ function buildSea(radius, tone) {
   return sea;
 }
 
+// ── ⑥-1 바다 화면 ─────────────────────────────────────────────
+// 성능 카드. 크롬북 측정용이다. 기본은 **전부 켠 상태**이고, 크롬북에서
+// URL 해시로 하나씩 끄면서 어디까지 감당되는지 잰다 (2026-09-06 결정).
+// 재배포 없이 그 자리에서 조합을 바꿔야 하므로 해시로 받는다.
+//
+//   카드              켬(기본)      끔               잃는 것
+//   A 먼 섬 단순화     lod=2        lod=0            먼 섬의 계단·다리·랜드마크가 빠진다
+//   B 안개            fog=1        fog=0            바다의 넓이가 안 보인다. 안개 뒤는 아예 안 그린다
+//   C 동시 렌더 제한   near=12      near=0           가까운 N개만 온전히, 나머지는 납작한 원판
+//   D 그림자          shadow=0     shadow=1&sm=2048 인상의 절반이 조명이다(§4). 마지막에 끈다
+//   E 이름표          tags=0       tags=1           친구 찾기가 어려워진다 → 검색·명단으로 보완
+//   F 픽셀비          dpr=1        dpr=2            가장자리가 거칠어진다. 잃는 게 제일 적다
+//
+//   전부 끈 것(최고 화질): #sea&lod=0&fog=0&near=0&shadow=1&sm=2048&tags=1&dpr=2
+var SEA_CARDS = { lod: 2, fog: 1, near: 12, shadow: 0, sm: 1024, tags: 0, dpr: 1 };
+function seaOpts() {
+  var o = {};
+  for (var k in SEA_CARDS) o[k] = SEA_CARDS[k];
+  try {
+    var h = window.location.hash || "", re = /(?:^|[#&])(lod|fog|near|shadow|sm|tags|dpr)=(\d+)/g, m;
+    while ((m = re.exec(h))) o[m[1]] = parseInt(m[2], 10);
+  } catch (e) {}
+  o.sm = Math.max(256, Math.min(4096, o.sm));
+  o.dpr = Math.max(1, Math.min(3, o.dpr));
+  return o;
+}
+function seaCardText(o) {
+  return "lod=" + o.lod + " fog=" + o.fog + " near=" + o.near + " shadow=" + o.shadow +
+         (o.shadow ? "/" + o.sm : "") + " tags=" + o.tags + " dpr=" + o.dpr;
+}
+// #sea — 부두를 거치지 않고 바다 화면을 바로 연다(측정용).
+function seaHash() {
+  try { return /(?:^|[#&])sea\b/.test(window.location.hash || ""); } catch (e) { return false; }
+}
+// 섬 30개 배치. 내 섬을 가운데 두고 거리순 고리 세 겹(반이 크면 더).
+// 격자는 어느 줄이 앞인지 화면에서 안 읽히고 30개면 뒤가 앞에 가려진다.
+// 고리는 아이소메트릭에서 자연히 앞뒤로 흩어진다.
+//  · 자리는 학생 id에서만 정해진다 — 매일 같은 자리여야 "저 섬이 누구 섬"이 기억된다
+//  · id가 작은(먼저 만든) 학생부터 놓아 나중에 들어온 학생이 비켜난다.
+//    ③-7의 "먼저 얻은 어휘부터 놓는다"와 같은 원칙이다
+//  · 해안선은 최대 ISLE_R×1.41≈8.5까지 나오므로 중심 간격 17이면 닿지 않는다
+// 첫 고리는 26. 부두 출항이 섬 밖 7.0(중심에서 약 16)에서 끝나는데, 21이면 그
+// 방향에 선 이웃 섬의 해안(최대 21-8.5=12.5)에 배가 얹힌다.
+var SEA_GAP = 18.5, SEA_R1 = 26, SEA_STEP = 19;
+function seaLayout(others) {
+  var TAU = Math.PI * 2, rings = [], cap = 0, r = SEA_R1;
+  while (cap < others.length) {
+    var n = Math.floor(TAU * r / SEA_GAP);
+    rings.push({ r: r, n: n, used: [] });
+    cap += n; r += SEA_STEP;
+  }
+  var sorted = others.slice().sort(function (a, b) {
+    var na = Number(a.id), nb = Number(b.id);
+    if (isFinite(na) && isFinite(nb) && na !== nb) return na - nb;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  var out = [];
+  sorted.forEach(function (s) {
+    var rnd = mulberry32(hashSeed("sea:" + s.id)), placed = null;
+    for (var ri = 0; ri < rings.length && !placed; ri++) {
+      var rg = rings[ri], start = Math.floor(rnd() * rg.n);
+      for (var k = 0; k < rg.n; k++) {
+        var slot = (start + k) % rg.n;
+        if (!rg.used[slot]) { rg.used[slot] = true; placed = { ring: ri + 1, r: rg.r, slot: slot, n: rg.n }; break; }
+      }
+    }
+    if (!placed) return;
+    // 정확한 격자는 주차장처럼 보인다. 겹치지 않을 만큼만(호 길이 ±0.7, 반지름 ±0.6) 흔든다.
+    var rr = placed.r + (rnd() - 0.5) * 1.2;
+    var th = (placed.slot + 0.5 * (placed.ring % 2)) / placed.n * TAU + (rnd() - 0.5) * 1.4 / rr;
+    out.push({ stu: s, ring: placed.ring, x: Math.cos(th) * rr, z: Math.sin(th) * rr });
+  });
+  out.mapR = rings.length ? rings[rings.length - 1].r + 10 : SEA_R1;
+  return out;
+}
+// 넓은 바다. 깊은 바다 한 장 + 섬마다 얕은 바다 원판(인스턴스 하나).
+// buildSea는 섬 하나 기준이라 얕은 바다가 가운데 한 장뿐이다.
+function buildSeaWide(tone, spots) {
+  var t = tone == null ? 0.5 : Math.max(0, Math.min(1, tone));
+  var sea = new THREE.Group();
+  var deepC = seaToned(ISLE.seaDeep, t);
+  var deep = new THREE.Mesh(new THREE.CircleGeometry(420, 48),
+    new THREE.MeshStandardMaterial({ color: deepC, roughness: 0.72, metalness: 0 }));
+  deep.rotation.x = -Math.PI / 2; deep.position.y = -0.02; deep.receiveShadow = true;
+  deep.frustumCulled = false;
+  sea.add(deep);
+  var sh = new THREE.InstancedMesh(new THREE.CircleGeometry(8.6, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaShallow, t), roughness: 0.78, metalness: 0,
+      transparent: true, opacity: 0.82 }), spots.length);
+  var mm = new THREE.Matrix4();
+  spots.forEach(function (p, i) { sh.setMatrixAt(i, mm.makeTranslation(p.x, 0.01, p.z)); });
+  sh.instanceMatrix.needsUpdate = true;
+  sh.receiveShadow = true; sh.frustumCulled = false;
+  sea.add(sh);
+  sea.userData.tone = t;
+  // 안개 색. 바다 재질은 조명을 받아 원색보다 밝게 나오므로 그만큼 올린다
+  // (키 1.85×cos + 반구 0.24 + 채움 ≈ 1.3배). 안 맞추면 먼 바다에 띠가 생긴다.
+  sea.userData.fogColor = deepC.clone().multiplyScalar(1.3);
+  return sea;
+}
+// 먼 섬 대용 원판(카드 C). 가까운 N개만 온전히 그리고 나머지는 이걸로 둔다.
+function buildIsleProxy() {
+  var g = new THREE.Group();
+  var col = function (c) { return new THREE.Color(c[0], c[1], c[2]).convertSRGBToLinear(); };
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 7.6, 0.9, 22),
+    new THREE.MeshStandardMaterial({ color: col(ISLE.sand), roughness: 1, metalness: 0 }));
+  base.position.y = 0.1; base.castShadow = true; base.receiveShadow = true;
+  g.add(base);
+  var top = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.4, 0.8, 20),
+    new THREE.MeshStandardMaterial({ color: col(ISLE.grassLow), roughness: 1, metalness: 0 }));
+  top.position.y = 0.9; top.castShadow = true; top.receiveShadow = true;
+  g.add(top);
+  return g;
+}
+// 이름표(카드 E). 섬 위에 떠 있는 판. 조명을 안 받는 재질이라 각도와 무관하게 읽힌다.
+// 캔버스 텍스처가 학생 수만큼 생기므로 기본은 꺼 둔다(#tags=1).
+function buildNameTag(text) {
+  var tx = labelTexture(text);
+  var mat = tx
+    ? new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false })
+    : new THREE.MeshBasicMaterial({ color: 0xf2e3c2, transparent: true, depthWrite: false });
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.3), mat);
+  m.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");   // 카메라 쪽. 아이소메트릭이 고정이라 상수다
+  m.position.y = TIER_Y[2] + 3.4;
+  m.renderOrder = 900;
+  m.frustumCulled = false;
+  return m;
+}
+// 항해 경로. 직선으로 가되 도중에 섬이 있으면 그 옆으로 돌아간다.
+// 배가 섬을 뚫고 지나가면 그림이 깨진다. 고리 배치라 한 번 비켜나면 대개 끝난다.
+function seaPath(a, b, obstacles) {
+  var AV = 11.5, pts = [a.clone()], cur = a.clone();
+  for (var guard = 0; guard < 6; guard++) {
+    var seg = b.clone().sub(cur), L = seg.length();
+    if (L < 1e-3) break;
+    var dir = seg.clone().divideScalar(L), best = null;
+    for (var i = 0; i < obstacles.length; i++) {
+      var c = obstacles[i], rel = c.clone().sub(cur), t = rel.dot(dir);
+      if (t <= 0.5 || t >= L - 0.5) continue;
+      var perp = rel.clone().sub(dir.clone().multiplyScalar(t)), pd = perp.length();
+      if (pd < AV && (!best || t < best.t)) best = { c: c, t: t, perp: perp };
+    }
+    if (!best) break;
+    var side = best.perp.clone();
+    if (side.length() < 1e-3) side.set(-dir.z, 0, dir.x);
+    side.normalize();
+    // 섬 중심이 선분의 어느 쪽에 있든, 선분 쪽으로 비켜 지나간다
+    var wp = best.c.clone().sub(side.multiplyScalar(AV + 1.5));
+    wp.y = 0;
+    pts.push(wp); cur = wp;
+  }
+  pts.push(b.clone());
+  return pts;
+}
+
 // 순수 Three.js. 이 앱은 빌드 단계가 없어(React가 createElement로 작성됨)
 // React Three Fiber를 쓰지 않는다. React는 마운트/언마운트만 관여한다.
 // 화면을 다녀와도 캐릭터가 그 자리에 있어야 한다. 랜드마크 앞에서 일기를
@@ -6668,6 +6837,14 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
                 delay: sail ? Math.round(going.dur * 0.62) : 0 });
       window.setTimeout(function () {
         if (dive) { if (onGo) onGo("diary"); return; }   // 이 경우 화면이 바뀐다
+        if (sail && onGo && theIsle) {
+          // ⑥-1 바다 화면이 이 방향에서 항해를 이어받는다.
+          // 돌아오면 캐릭터는 부두 앞에 선다 — 배에서 내린 자리다.
+          var dk = (theIsle.userData.landmarks || []).filter(function (l) { return l.id === "dock"; })[0];
+          if (dk) CHAR_LAST[seed] = { x: dk.x, z: dk.z };
+          onGo("sea", { boatDir: going.bdir });
+          return;
+        }
         setWipe(null);
         setSoon(lm.name);
         if (going.boat) going.boat.position.copy(going.boatHome);
@@ -6797,7 +6974,8 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
     }
     return function () {
       disposed = true;
-      if (charGrp) CHAR_LAST[seed] = { x: charGrp.position.x, z: charGrp.position.z };
+      // 출항 중이면 캐릭터가 바다 위에 있다. 그 자리를 남기면 돌아왔을 때 물 위에 선다.
+      if (charGrp && !(going && going.sail)) CHAR_LAST[seed] = { x: charGrp.position.x, z: charGrp.position.z };
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
@@ -6916,6 +7094,617 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
                boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, color: "#4a6672",
                lineHeight: 1.6 }
     }, "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요.") : null);
+}
+// ⑥-1 바다 화면. 내 섬이 가운데, 친구 섬이 고리로 둘러싼다.
+//  · 바다 색 = 학급 온도계(dayTone). 색상은 그대로, 밝기·채도만(DESIGN.md §6)
+//  · 부두 출항이 여기로 이어진다. arrive = { boatDir } 를 받으면 같은 카메라·
+//    같은 자리에서 배가 이미 움직이는 채로 시작한다. 배가 멈춰 있으면 연결이 끊긴다
+//  · 친구 섬을 탭하면 배가 항해한다(직접 조작 아님, 3초 안에 도착 — §7)
+//  · 친구 찾기는 이름 검색과 명단 둘 다. 이름표는 기본 꺼짐(#tags=1)
+//  · 돌아오기는 어디서든 한 번 — "내 섬으로" 버튼이 항상 보인다
+function SeaView({ me, entries, arrive, onBack }) {
+  const hostRef = useRef(null);
+  const [fps, setFps] = useState(0);
+  const [stats, setStats] = useState(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState("친구 섬을 찾는 중…");
+  const [names, setNames] = useState([]);        // [{id, name}] 명단(이름순)
+  const [q, setQ] = useState("");                // 검색어
+  const [listOpen, setListOpen] = useState(false);
+  const [sel, setSel] = useState(null);          // 고른 섬 {id, name}
+  const [sailing, setSailing] = useState(null);  // 항해 중 {name}
+  const [arrived, setArrived] = useState(null);  // 도착 {id, name}
+  const [reveal, setReveal] = useState(!!arrive);  // 부두 덮개가 걷히는 연출
+  const [small, setSmall] = useState(function () {
+    try { return window.innerWidth < 560; } catch (e) { return false; }
+  });
+  const api = useRef({});
+  const arriveRef = useRef(arrive);
+  const cards = seaOpts();
+  const touch = coarsePointer();
+  const seed = String(me.id || me.name || "island");
+  useEffect(function () {
+    function onR() { try { setSmall(window.innerWidth < 560); } catch (e) {} }
+    window.addEventListener("resize", onR);
+    window.addEventListener("orientationchange", onR);
+    // 섬 화면의 덮개가 오른쪽에서 들어왔으니 여기서는 같은 방향으로 걷힌다.
+    var tm = reveal ? window.setTimeout(function () { setReveal(false); }, 800) : 0;
+    return function () {
+      window.removeEventListener("resize", onR);
+      window.removeEventListener("orientationchange", onR);
+      if (tm) window.clearTimeout(tm);
+    };
+  }, []);
+  useEffect(function () {
+    var host = hostRef.current;
+    if (!host) return;
+    if (typeof THREE === "undefined") { setErr("3D 라이브러리를 불러오지 못했어요."); return; }
+    var O = seaOpts();
+    var renderer, raf = 0, disposed = false;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    } catch (e) {
+      setErr("이 기기에서는 3D를 표시할 수 없어요. (WebGL 미지원)");
+      return;
+    }
+    var W = host.clientWidth || 640, H = host.clientHeight || 420;
+    if (THREE.ColorManagement) THREE.ColorManagement.legacyMode = false;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, O.dpr));   // 카드 F
+    renderer.setSize(W, H);
+    renderer.shadowMap.enabled = O.shadow > 0;                                // 카드 D
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    host.appendChild(renderer.domElement);
+    host.style.touchAction = "none";
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcfe6ee);
+    var aspect = W / H;
+    // 섬 화면과 같은 방향(14,12,14)에서 본다. 정사영이라 거리는 상관없고,
+    // 안개·그림자 깊이를 넉넉히 잡으려고 멀리 둔다.
+    // 화면 아래쪽 바다는 카메라보다 앞에 온다(정사영이라 화면 반높이×1.66만큼).
+    // 가장 멀리 물러났을 때(72) 120이므로 그보다 멀리 둔다. 60이면 아래가 잘렸다.
+    var CAM_DIST = 160;
+    var CAM_OFF = new THREE.Vector3(14, 12, 14).normalize().multiplyScalar(CAM_DIST);
+    var VIEW_DIR = CAM_OFF.clone().negate().normalize();
+    var tgt = new THREE.Vector3(), goal = new THREE.Vector3();
+    var cam = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 600);
+    cam.position.copy(CAM_OFF); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+    var d = 12, dGoal = 12;
+    function applyCam() {
+      cam.left = -d * aspect; cam.right = d * aspect; cam.top = d; cam.bottom = -d;
+      cam.updateProjectionMatrix();
+      cam.position.copy(tgt).add(CAM_OFF);
+      cam.lookAt(tgt);
+      cam.updateMatrixWorld();
+    }
+    var UP = new THREE.Vector3(0, 1, 0);
+    var scrF = new THREE.Vector3(-1, 0, -1).normalize();                 // 화면 위쪽
+    var scrR = new THREE.Vector3().crossVectors(scrF, UP).normalize();   // 화면 오른쪽
+
+    // 내 섬 — 바다 한가운데. 섬 화면과 같은 함수·같은 시드라 같은 섬이다.
+    var mine = buildIsland(seed);
+    var myHolder = new THREE.Group();
+    myHolder.add(mine);
+    myHolder.add(buildVegMeshes(buildVegetation(mine, islandState(entries), { seed: seed })));
+    myHolder.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
+    scene.add(myHolder);
+    if (O.tags) myHolder.add(buildNameTag("내 섬"));
+    // 섬 화면과 같은 반폭. 부두 출항 장면이 끊기지 않고 이어지려면 같아야 한다.
+    var D_ISLE = isleCamHalf(cam, mine, aspect);
+    // 세로 화면에서는 반높이 대신 가로가 기준이다. 섬 화면 반폭의 2.4배면
+    // 가로 화면에서 내 섬과 이웃이 함께 들어온다.
+    var D_SEA = Math.max(D_ISLE * 2.4, 10.5 / aspect), D_MIN = D_ISLE * 1.05, D_MAX = 72;
+
+    // 배. 부두에서 떼어 바다에 둔다. 캐릭터는 배에 타고 있다.
+    var boat = mine.userData.boat, bdir = mine.userData.boatDir;
+    var boatHome = boat.getWorldPosition(new THREE.Vector3());
+    scene.attach(boat);
+    var ch = buildCharacter();
+    ch.position.set(0, 0.19, 0);
+    if (ch.userData.step) ch.userData.step(0, false, Math.PI / 2);   // 뱃머리(로컬 +x)를 본다
+    boat.add(ch);
+    var away0 = arriveRef.current ? 7.0 : 8.8;    // 섬 화면의 출항이 7.0에서 끝난다
+    function boatAt(away) {
+      boat.position.set(boatHome.x + Math.cos(bdir) * away, boatHome.y, boatHome.z + Math.sin(bdir) * away);
+    }
+    boatAt(away0);
+    boat.rotation.y = -bdir;
+    // 출항 이어받기. 섬 화면 마지막 프레임과 같은 카메라(배 이동의 62%)에서 시작해
+    // 배가 더 나아가며 카메라가 물러난다 — 화면이 바뀐 것을 배가 이어 말한다.
+    var intro = arriveRef.current ? { t0: performance.now(), dur: 1700, from: away0, to: 8.8 } : null;
+    if (intro) {
+      d = dGoal = D_ISLE;
+      tgt.set(Math.cos(bdir) * away0 * 0.62, 0, Math.sin(bdir) * away0 * 0.62);
+    } else {
+      d = dGoal = D_SEA;
+      tgt.set(boat.position.x, 0, boat.position.z);
+    }
+    goal.copy(tgt);
+    applyCam();
+
+    // 조명. 섬 화면과 같은 값(addIsleLights). 그림자는 카드 D가 켜져 있으면 안 그린다.
+    var key = addIsleLights(scene, 20, 130);
+    key.shadow.mapSize.set(O.sm, O.sm);
+    scene.add(key.target);
+    var KEY_OFF = new THREE.Vector3(LIGHT.keyDir[0], LIGHT.keyDir[1], LIGHT.keyDir[2]).normalize().multiplyScalar(60);
+    function placeLight() {
+      key.position.copy(tgt).add(KEY_OFF);
+      key.target.position.copy(tgt);
+      key.target.updateMatrixWorld();
+      var SH = d * 1.7;
+      if (key.shadow.camera.right !== SH) {
+        key.shadow.camera.left = -SH; key.shadow.camera.right = SH;
+        key.shadow.camera.top = SH; key.shadow.camera.bottom = -SH;
+        key.shadow.camera.updateProjectionMatrix();
+      }
+    }
+    placeLight();
+
+    // 바다. 학급 온도계 값이 오기 전에는 보통 날(0.5)로 그린다.
+    var seaGrp = null;
+    function setSea(tone, spots) {
+      if (seaGrp) { scene.remove(seaGrp); disposeObj(seaGrp); }
+      seaGrp = buildSeaWide(tone, spots);
+      scene.add(seaGrp);
+      if (O.fog) { scene.fog = new THREE.Fog(seaGrp.userData.fogColor, CAM_DIST + 8, CAM_DIST + 40); calibrateFog(); }   // 카드 B
+    }
+    // 안개 색은 조명을 받은 바다 색과 같아야 한다. 안 맞으면 먼 바다에 띠가 생긴다.
+    // 재질 색에 배율을 곱해 맞추려 했더니 반사광 때문에 톤마다 어긋났다.
+    // 섬이 없는 바다 한 조각을 4×4로 그려 읽어 오면 정확하다.
+    function calibrateFog() {
+      if (!scene.fog) return;
+      var f = scene.fog, rt = null;
+      try {
+        rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.FloatType });
+        var c2 = cam.clone();
+        c2.position.set(-200, 0, -200).add(CAM_OFF); c2.lookAt(-200, 0, -200); c2.updateMatrixWorld();
+        scene.fog = null;
+        renderer.setRenderTarget(rt);
+        renderer.render(scene, c2);
+        var px = new Float32Array(4 * 4 * 4);
+        renderer.readRenderTargetPixels(rt, 0, 0, 4, 4, px);
+        if (isFinite(px[0]) && (px[0] + px[1] + px[2]) > 0) f.color.setRGB(px[0], px[1], px[2]);
+      } catch (e) { console.warn("fog calibrate:", e); }
+      renderer.setRenderTarget(null);
+      scene.fog = f;
+      if (rt) rt.dispose();
+    }
+    function disposeObj(o) {
+      o.traverse(function (c) {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(function (m) { m.dispose(); });
+      });
+    }
+    setSea(0.5, [{ x: 0, z: 0 }]);
+
+    // 친구 섬. 데이터가 오면 물속에서 떠오른다. 그동안 출항 연출이 진행된다.
+    var isles = [], mapR = SEA_R1 + 10, alive = true;
+    var hiRing = new THREE.Mesh(new THREE.RingGeometry(9.0, 10.2, 48).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0, depthWrite: false }));
+    hiRing.position.y = 0.05; hiRing.visible = false; hiRing.frustumCulled = false;
+    scene.add(hiRing);
+    var hi = null;
+    function highlight(e) { hi = { e: e, t0: performance.now() }; hiRing.position.set(e.x, 0.05, e.z); hiRing.visible = true; }
+
+    function detailFor(e) {   // 카드 A
+      if (!O.lod) return 1;
+      return e.ring <= 1 ? 0.75 : e.ring === 2 ? 0.5 : 0.35;
+    }
+    function ensureFull(e, det) {
+      if (e.full && e.det >= det) return;
+      if (e.full) { e.holder.remove(e.full); disposeObj(e.full); e.full = null; }
+      var g = buildIsland(e.seed, { detail: det });
+      var h = new THREE.Group();
+      h.add(g);
+      h.add(buildVegMeshes(buildVegetation(g, e.state, { seed: e.seed })));
+      // 인스턴스 메시의 경계 구는 인스턴스 하나 크기라, 섬 중심이 화면을 벗어나는
+      // 순간 식생이 통째로 사라진다. 컬링은 아래 cull()이 섬 단위로 한다.
+      h.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
+      e.full = h; e.det = det; e.isle = g;
+      e.holder.add(h);
+    }
+    function showFull(e) {
+      ensureFull(e, detailFor(e));
+      e.full.visible = true;
+      if (e.proxy) e.proxy.visible = false;
+    }
+    function showProxy(e) {
+      if (!e.proxy) { e.proxy = buildIsleProxy(); e.holder.add(e.proxy); }
+      e.proxy.visible = true;
+      if (e.full) e.full.visible = false;
+    }
+    // 카드 C. 카메라 목표에서 가까운 N개만 온전히. 섬은 프레임당 하나씩 만들어
+    // 한꺼번에 30개를 만들 때 화면이 멎는 것을 피한다. 만들기 전에는 원판이 선다.
+    var buildQ = [], nearAt = new THREE.Vector3(1e9, 0, 1e9);
+    function refreshNear(force) {
+      if (!isles.length) return;
+      if (!force && goal.distanceTo(nearAt) < 6) return;
+      nearAt.copy(goal);
+      var order = isles.slice().sort(function (a, b) {
+        return Math.hypot(a.x - goal.x, a.z - goal.z) - Math.hypot(b.x - goal.x, b.z - goal.z);
+      });
+      buildQ = [];
+      order.forEach(function (e, i) {
+        var full = O.near <= 0 || i < O.near || e.keep;
+        if (!full) { showProxy(e); return; }
+        if (e.full && e.det >= detailFor(e)) showFull(e);
+        else { showProxy(e); buildQ.push(e); }
+      });
+    }
+    (async function () {
+      var code = me.schoolCode, list = [], tone = { tone: 0.5, n: 0 };
+      try {
+        var r = await Promise.all([sGet(stuKey(code)), dayTone(code)]);
+        list = Array.isArray(r[0]) ? r[0] : Object.keys(r[0] || {}).map(function (k) { return r[0][k]; });
+        tone = r[1] || tone;
+      } catch (e) { console.error("sea:", e); }
+      if (!alive) return;
+      var others = list.filter(function (s) { return s && s.id != null && String(s.id) !== String(me.id); })
+                       .map(function (s) { return { id: s.id, name: s.name || "" }; });
+      var lay = seaLayout(others);
+      mapR = lay.mapR;
+      var sums = await Promise.all(lay.map(function (p) {
+        return isleLoad(p.stu.id).catch(function () { return { name: "", state: [] }; });
+      }));
+      if (!alive) return;
+      var now = performance.now();
+      lay.forEach(function (p, i) {
+        var e = { id: p.stu.id, name: p.stu.name || sums[i].name || "친구", seed: String(p.stu.id || p.stu.name),
+                  x: p.x, z: p.z, ring: p.ring, state: sums[i].state || [],
+                  holder: new THREE.Group(), full: null, proxy: null, tag: null, det: 0,
+                  born: now + i * 45 };
+        e.holder.position.set(e.x, -3.5, e.z);
+        scene.add(e.holder);
+        if (O.tags) { e.tag = buildNameTag(e.name); e.holder.add(e.tag); }   // 카드 E
+        isles.push(e);
+      });
+      setSea(tone.tone, [{ x: 0, z: 0 }].concat(lay));
+      setNames(isles.map(function (e) { return { id: e.id, name: e.name }; })
+                    .sort(function (a, b) { return a.name.localeCompare(b.name, "ko"); }));
+      setLoading("");
+      refreshNear(true);
+    })();
+    function findIsle(id) {
+      for (var i = 0; i < isles.length; i++) if (String(isles[i].id) === String(id)) return isles[i];
+      return null;
+    }
+
+    // 항해. 탭한 섬의 부두 앞까지. 섬을 뚫지 않게 돌아가고, 3초 안에 닿는다.
+    var sail = null;
+    function sailTo(e) {
+      if (!e || sail || intro) return;
+      e.keep = true;                     // 도착할 섬은 카드 C와 무관하게 온전히
+      ensureFull(e, 1); showFull(e);
+      var g = e.isle, th = g.userData.dockTh, rc = g.userData.coast(th) + 0.70;
+      // 그 섬 배의 반대편에 댄다. 같은 자리면 배 둘이 겹친다.
+      var to = new THREE.Vector3(e.x + Math.cos(th) * rc + Math.sin(th) * 1.3, 0,
+                                 e.z + Math.sin(th) * rc - Math.cos(th) * 1.3);
+      var from = new THREE.Vector3(boat.position.x, 0, boat.position.z);
+      var obs = [new THREE.Vector3(0, 0, 0)];
+      isles.forEach(function (o) { if (o !== e) obs.push(new THREE.Vector3(o.x, 0, o.z)); });
+      var pts = seaPath(from, to, obs);
+      var curve = new THREE.CatmullRomCurve3(pts, false, "centripetal", 0.5);
+      var len = curve.getLength();
+      sail = { e: e, curve: curve, t0: performance.now(),
+               dur: Math.max(1400, Math.min(3000, len / 22 * 1000)),
+               head0: boat.rotation.y, headEnd: -(th + Math.PI) };
+      setSel(null); setArrived(null);
+      setSailing({ name: e.name });
+      if (hi) { hi = null; hiRing.visible = false; }
+    }
+    function angLerp(a, b, t) {
+      var dlt = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      return a + dlt * t;
+    }
+    // 화면 쪽 조작 창구
+    api.current.focus = function (id) {
+      var e = findIsle(id); if (!e || sail) return;
+      goal.set(e.x, 0, e.z); follow = false;
+      highlight(e);
+      setSel({ id: e.id, name: e.name });
+    };
+    api.current.sail = function (id) { sailTo(findIsle(id)); };
+    api.current.home = function () { if (sail) return; goal.set(0, 0, 0); follow = false; };
+    api.current.leave = function () { if (sail) return; dGoal = D_SEA; setArrived(null); };
+    api.current.zoom = function (v) { dGoal = clampD(v); };
+    if (devMode()) window.__sea = api.current;   // #dev: 콘솔·하네스에서 조작
+
+    // 포인터: 끌면 둘러보고, 탭하면 그 섬으로 간다. 두 손가락은 확대·축소.
+    var follow = true, pts = {}, drag = null, pinch = null;
+    var ray = new THREE.Raycaster(), plane = new THREE.Plane(UP, 0), hitP = new THREE.Vector3();
+    function toWorld(px, py) {
+      var rc = renderer.domElement.getBoundingClientRect();
+      ray.setFromCamera({ x: ((px - rc.left) / rc.width) * 2 - 1, y: -((py - rc.top) / rc.height) * 2 + 1 }, cam);
+      return ray.ray.intersectPlane(plane, hitP) ? hitP : null;
+    }
+    function clampD(v) { return Math.max(D_MIN, Math.min(D_MAX, v)); }
+    function onDown(ev) {
+      if (ev.button != null && ev.button !== 0) return;
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      var ids = Object.keys(pts);
+      if (ids.length === 2) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), dg: dGoal };
+        drag = null;
+      } else {
+        drag = { id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, lx: ev.clientX, ly: ev.clientY, moved: false };
+      }
+      try { host.setPointerCapture(ev.pointerId); } catch (e) {}
+    }
+    function onMove(ev) {
+      if (!pts[ev.pointerId]) return;
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      if (pinch) {
+        var ids = Object.keys(pts);
+        if (ids.length >= 2) {
+          var a = pts[ids[0]], b = pts[ids[1]], dd = Math.hypot(a.x - b.x, a.y - b.y);
+          if (dd > 1) dGoal = clampD(pinch.dg * pinch.d0 / dd);
+        }
+        return;
+      }
+      if (!drag || drag.id !== ev.pointerId || sail || intro) return;
+      var dx = ev.clientX - drag.lx, dy = ev.clientY - drag.ly;
+      drag.lx = ev.clientX; drag.ly = ev.clientY;
+      if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 7) drag.moved = true;
+      if (!drag.moved) return;
+      var k = 2 * d / (host.clientHeight || H);
+      goal.addScaledVector(scrR, -dx * k).addScaledVector(scrF, dy * k);
+      var gl = Math.hypot(goal.x, goal.z);
+      if (gl > mapR) { goal.x *= mapR / gl; goal.z *= mapR / gl; }
+      tgt.copy(goal);          // 끌 때는 바로 따라와야 손에 붙는다
+      follow = false;
+    }
+    function onUp(ev) {
+      delete pts[ev.pointerId];
+      if (pinch) { if (!Object.keys(pts).length) pinch = null; drag = null; return; }
+      if (!drag || drag.id !== ev.pointerId) return;
+      var tap = !drag.moved; drag = null;
+      if (!tap || sail || intro) return;
+      var p = toWorld(ev.clientX, ev.clientY);
+      if (!p) return;
+      var best = null, bd = 1e9;
+      isles.forEach(function (e) {
+        var dd = Math.hypot(e.x - p.x, e.z - p.z);
+        if (dd < 9.5 && dd < bd) { best = e; bd = dd; }
+      });
+      if (best) {
+        // DESIGN.md §7 — 친구 섬을 탭하면 배가 항해한다.
+        setArrived(null);
+        sailTo(best);
+      } else if (Math.hypot(p.x, p.z) < 9.5) {
+        goal.set(0, 0, 0); follow = false; setSel(null);
+      }
+    }
+    function onWheel(ev) {
+      ev.preventDefault();
+      dGoal = clampD(dGoal * Math.exp(ev.deltaY * 0.0012));
+    }
+    host.addEventListener("pointerdown", onDown);
+    host.addEventListener("pointermove", onMove);
+    host.addEventListener("pointerup", onUp);
+    host.addEventListener("pointercancel", onUp);
+    host.addEventListener("wheel", onWheel, { passive: false });
+
+    // 섬 단위 컬링. 화면 밖과 안개 너머는 그리지 않는다.
+    var vv = new THREE.Vector3();
+    function cull() {
+      var mx = 1 + 11 / (d * aspect), my = 1 + 12 / d;
+      var far = scene.fog ? scene.fog.far + 9 : 1e9;
+      for (var i = 0; i < isles.length; i++) {
+        var e = isles[i];
+        vv.set(e.x, 0, e.z);
+        var depth = vv.clone().sub(cam.position).dot(VIEW_DIR);
+        vv.project(cam);
+        var vis = Math.abs(vv.x) < mx && Math.abs(vv.y) < my && depth < far;
+        if (e.holder.visible !== vis) e.holder.visible = vis;
+      }
+    }
+    var frames = 0, last = performance.now(), lastT = last;
+    function tick() {
+      if (disposed) return;
+      raf = requestAnimationFrame(tick);
+      var t0 = performance.now(), dt = Math.min(0.05, (t0 - lastT) / 1000);
+      lastT = t0;
+      if (intro) {
+        var u = Math.min(1, (t0 - intro.t0) / intro.dur), eo = 1 - (1 - u) * (1 - u);
+        boatAt(intro.from + (intro.to - intro.from) * eo);
+        dGoal = D_ISLE + (D_SEA - D_ISLE) * eo;
+        goal.set(boat.position.x, 0, boat.position.z);
+        if (u >= 1) { intro = null; refreshNear(true); }
+      } else if (sail) {
+        var su = Math.min(1, (t0 - sail.t0) / sail.dur), se = su * su * (3 - 2 * su);
+        var p = sail.curve.getPointAt(se), tn = sail.curve.getTangentAt(se);
+        boat.position.set(p.x, boatHome.y + Math.sin(t0 / 380) * 0.025, p.z);
+        var head = -Math.atan2(tn.z, tn.x);
+        // 마지막에는 부두 쪽으로 뱃머리를 돌려 댄다
+        var dock = Math.max(0, (su - 0.85) / 0.15);
+        boat.rotation.y = angLerp(head, sail.headEnd, dock);
+        boat.rotation.z = Math.sin(t0 / 520) * 0.02;
+        goal.set(boat.position.x, 0, boat.position.z);
+        if (su >= 1) {
+          var e = sail.e; sail = null;
+          goal.set(e.x, 0, e.z); dGoal = D_ISLE * 1.25;   // 도착한 섬을 화면에 담는다
+          follow = false;
+          setSailing(null);
+          setArrived({ id: e.id, name: e.name });
+          refreshNear(true);
+        }
+      } else {
+        boat.position.y = boatHome.y + Math.sin(t0 / 380) * 0.025;
+        boat.rotation.z = Math.sin(t0 / 520) * 0.02;
+        if (follow) goal.set(boat.position.x, 0, boat.position.z);
+      }
+      // 카메라는 목표를 부드럽게 따라간다
+      var kf = 1 - Math.exp(-dt * 6);
+      tgt.lerp(goal, kf);
+      d += (dGoal - d) * kf;
+      applyCam();
+      if (O.shadow) placeLight();
+      if (scene.fog) { scene.fog.near = CAM_DIST + d * 0.5; scene.fog.far = CAM_DIST + d * 2.2; }
+      // 친구 섬이 물속에서 떠오른다
+      var tagS = Math.max(1, Math.min(2.2, d / D_SEA));
+      for (var i = 0; i < isles.length; i++) {
+        var e2 = isles[i];
+        if (e2.holder.position.y < 0) {
+          var bu = Math.max(0, Math.min(1, (t0 - e2.born) / 700));
+          e2.holder.position.y = -3.5 * (1 - bu * bu * (3 - 2 * bu));
+          if (bu >= 1) e2.holder.position.y = 0;
+        }
+        if (e2.tag) {
+          e2.tag.scale.setScalar(tagS);
+          var dist = Math.hypot(e2.x - tgt.x, e2.z - tgt.z);
+          e2.tag.material.opacity = Math.max(0.3, Math.min(1, 1.2 - dist / (d * 2.4)));
+        }
+      }
+      if (hi) {
+        var hu = (t0 - hi.t0) / 2600;
+        if (hu >= 1) { hi = null; hiRing.visible = false; }
+        else { hiRing.scale.setScalar(1 + 0.06 * Math.sin(t0 / 160)); hiRing.material.opacity = 0.9 * (1 - hu); }
+      }
+      if (buildQ.length) showFull(buildQ.shift());
+      if (!intro && !sail) refreshNear(false);
+      cull();
+      renderer.render(scene, cam);
+      frames++;
+      var now = performance.now();
+      if (now - last >= 500) {
+        setFps(Math.round(frames * 1000 / (now - last)));
+        var ri = renderer.info.render;
+        setStats({ calls: ri.calls, tris: ri.triangles });
+        frames = 0; last = now;
+      }
+    }
+    tick();
+
+    function onResize() {
+      if (disposed || !host) return;
+      var w = host.clientWidth || 640, h = host.clientHeight || 420;
+      if (!w || !h) return;
+      aspect = w / h;
+      renderer.setSize(w, h);
+      applyCam();
+    }
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    var ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(onResize); ro.observe(host); }
+    return function () {
+      disposed = true; alive = false;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      if (ro) ro.disconnect();
+      host.removeEventListener("pointerdown", onDown);
+      host.removeEventListener("pointermove", onMove);
+      host.removeEventListener("pointerup", onUp);
+      host.removeEventListener("pointercancel", onUp);
+      host.removeEventListener("wheel", onWheel);
+      disposeObj(scene);
+      renderer.dispose();
+      if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+    };
+  }, [seed]);
+  var matches = q.trim() ? names.filter(function (n) { return n.name.indexOf(q.trim()) >= 0; }).slice(0, 8) : [];
+  function pick(n) { setQ(""); setListOpen(false); if (api.current.focus) api.current.focus(n.id); }
+  var panel = { background: "rgba(255,255,255,0.94)", borderRadius: 12, boxShadow: "0 3px 14px rgba(0,0,0,0.16)" };
+  return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
+    React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    React.createElement("style", null, "@keyframes seaReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
+    reveal ? React.createElement("div", {
+      style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5,
+               background: "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
+               animation: "seaReveal 720ms cubic-bezier(0.2,0.4,0.4,1) 0ms forwards" } }) : null,
+    err ? React.createElement("div", {
+      style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 }
+    }, err) : null,
+    // 측정용 HUD. 카드 상태를 함께 보여 크롬북에서 무엇을 켜고 껐는지 바로 안다.
+    React.createElement("div", {
+      style: { position: "absolute", left: 10, top: 10, padding: "3px 9px", borderRadius: 8, background: "rgba(255,255,255,0.82)",
+               fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums", lineHeight: 1.5 }
+    }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
+        "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri") : null,
+      React.createElement("div", { style: { fontSize: 11, color: "#7a8f9a", fontFamily: "ui-monospace, Menlo, monospace" } }, seaCardText(cards))),
+    React.createElement("button", {
+      onClick: onBack,
+      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
+    }, "내 섬으로"),
+    // 친구 찾기 — 검색과 명단 둘 다.
+    React.createElement("div", {
+      style: { position: "absolute", left: "50%", top: small ? 66 : 52, transform: "translateX(-50%)", width: small ? "min(92vw, 340px)" : 360, zIndex: 4 }
+    },
+      React.createElement("div", { style: { display: "flex", gap: 6 } },
+        React.createElement("input", {
+          value: q, placeholder: "친구 이름으로 찾기",
+          onChange: function (ev) { setQ(ev.target.value); setListOpen(false); },
+          onKeyDown: function (ev) { if (ev.key === "Enter" && matches.length) pick(matches[0]); if (ev.key === "Escape") setQ(""); },
+          style: { flex: 1, minWidth: 0, padding: "8px 12px", borderRadius: 12, border: "1px solid #cfdde3",
+                   background: "rgba(255,255,255,0.94)", fontSize: 14, fontFamily: "inherit", outline: "none" }
+        }),
+        React.createElement("button", {
+          onClick: function () { setListOpen(function (v) { return !v; }); setQ(""); },
+          style: { ...bSoft, padding: "8px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9",
+                   background: listOpen ? "#e0f4f1" : "rgba(255,255,255,0.94)", whiteSpace: "nowrap" }
+        }, "명단 " + (names.length || ""))),
+      matches.length ? React.createElement("div", { style: { ...panel, marginTop: 6, overflow: "hidden" } },
+        matches.map(function (n) {
+          return React.createElement("button", {
+            key: String(n.id), onClick: function () { pick(n); },
+            style: { display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none",
+                     borderBottom: "1px solid #eef3f5", background: "transparent", cursor: "pointer", fontSize: 14, fontFamily: "inherit", color: "#28444f" }
+          }, n.name);
+        })) : null,
+      listOpen ? React.createElement("div", { style: { ...panel, marginTop: 6, maxHeight: "46vh", overflowY: "auto" } },
+        names.length ? names.map(function (n) {
+          return React.createElement("button", {
+            key: String(n.id), onClick: function () { pick(n); },
+            style: { display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none",
+                     borderBottom: "1px solid #eef3f5", background: "transparent", cursor: "pointer", fontSize: 14, fontFamily: "inherit", color: "#28444f" }
+          }, n.name);
+        }) : React.createElement("div", { style: { padding: 14, fontSize: 13, color: "#6b8792" } }, loading || "아직 친구 섬이 없어요")) : null),
+    // 조작 안내
+    !small ? React.createElement("div", {
+      style: { position: "absolute", left: 10, bottom: 12, padding: "3px 9px", borderRadius: 8,
+               background: "rgba(255,255,255,0.78)", fontSize: 12, color: "#5b7684" }
+    }, touch ? "섬을 누르면 배가 가요 · 끌어서 둘러보기" : "섬을 누르면 배가 가요 · 끌어서 둘러보기 · 휠로 확대") : null,
+    loading ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", padding: "6px 14px", borderRadius: 10,
+               background: "rgba(255,255,255,0.86)", fontSize: 13, color: "#5b7684" }
+    }, loading) : null,
+    // 고른 섬 배너. 배너가 곧 버튼이다(③-8과 같은 방식).
+    sel && !sailing && !arrived ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)",
+               display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
+               padding: "8px 10px 8px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
+               boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 15, color: "#28444f" }
+    },
+      React.createElement("b", { style: { color: "#0e7490" } }, sel.name + "의 섬"),
+      React.createElement("button", {
+        onClick: function () { if (api.current.sail) api.current.sail(sel.id); },
+        style: { ...bPri, padding: "7px 14px", fontSize: 14 }
+      }, "배 타고 가기"),
+      React.createElement("button", {
+        onClick: function () { setSel(null); },
+        style: { background: "transparent", border: "none", cursor: "pointer", fontSize: 16, color: "#94a3b8", padding: "2px 4px" }
+      }, "✕")) : null,
+    sailing ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)", whiteSpace: "nowrap",
+               padding: "9px 18px", borderRadius: 14, background: "rgba(255,255,255,0.9)", fontSize: 15, color: "#28444f" }
+    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.name + "의 섬"), "으로 가는 중…") : null,
+    // 도착. ⑥-2 친구 섬 방문은 아직이라 여기서 멈춘다.
+    arrived ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", bottom: small ? 60 : 24, transform: "translateX(-50%)",
+               background: "#fff", borderRadius: 16, padding: "18px 22px", textAlign: "center",
+               width: "min(92vw, 320px)", boxShadow: "0 6px 24px rgba(0,0,0,0.25)" }
+    },
+      React.createElement("div", { style: { fontSize: 16, color: "#0e7490", fontWeight: 700, marginBottom: 6 } }, arrived.name + "의 섬에 도착했어요"),
+      React.createElement("div", { style: { fontSize: 14, color: "#5b7684", lineHeight: 1.7 } }, "섬 구경은 아직 준비 중이에요.", React.createElement("br"), "곧 올라갈 수 있어요."),
+      React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center", marginTop: 12 } },
+        React.createElement("button", {
+          onClick: function () { if (api.current.leave) api.current.leave(); },
+          style: { ...bSoft, padding: "7px 16px", fontSize: 14, color: "#0e7490" }
+        }, "다른 섬 가기"),
+        React.createElement("button", { onClick: onBack, style: { ...bPri, padding: "7px 16px", fontSize: 14 } }, "내 섬으로"))) : null);
 }
 function DiaryView({
   entries,
@@ -9607,6 +10396,7 @@ function App() {
     return function () { cancelled = true; };
   }, [myStudents]);
   const [myEntries, setME] = useState([]);
+  const [seaFrom, setSeaFrom] = useState(null);   // ⑥-1 부두 출항 → 바다 화면에 넘길 것
   const [trialEntries, setTE] = useState([]);
   const [trialId] = useState("trial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8));
   const trialNoop = useCallback(async function (e) {}, []);
@@ -10647,6 +11437,34 @@ function App() {
   })));
   // 섬은 화면을 꽉 채운다. 상자 안에 넣으면 캔버스만 작아지고 아래가 여백이 된다.
   // 제목은 캔버스 위에 겹쳐 얹는다. 자리를 차지하면 그만큼 섬이 줄어든다.
+  // ⑥-1 바다 화면. 부두 출항이 여기로 이어진다. #sea 해시로 바로 열 수도 있다(측정용).
+  if ((page === "sea" || (page === "island" && seaHash())) && currentUser) return React.createElement("div", {
+    style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
+  }, React.createElement("div", {
+    style: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, pointerEvents: "none",
+             padding: "10px 16px", textAlign: "center",
+             background: "linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0))" }
+  }, React.createElement("h1", {
+    className: "diary-h1",
+    style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0, fontSize: "clamp(15px, 4vw, 22px)" }
+  }, "우리 반 바다")), React.createElement("div", {
+    style: { position: "absolute", inset: 0 }
+  }, React.createElement(SeaView, {
+    me: currentUser,
+    entries: myEntries,
+    arrive: page === "sea" ? seaFrom : null,
+    onBack: function () {
+      setSeaFrom(null);
+      // #sea로 열었으면 해시를 지워야 섬 화면으로 돌아간다
+      try {
+        if (seaHash()) {
+          var h = (window.location.hash || "").replace(/^#/, "").split("&").filter(function (t) { return t && !/^sea\b/.test(t); }).join("&");
+          history.replaceState(null, "", window.location.pathname + window.location.search + (h ? "#" + h : ""));
+        }
+      } catch (e) {}
+      setPage("island");
+    }
+  })));
   if (page === "island" && currentUser) return React.createElement("div", {
     style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
   }, React.createElement("div", {
@@ -10662,7 +11480,10 @@ function App() {
     entries: myEntries,
     seed: String(currentUser.id || currentUser.name || "island"),
     onBack: function () { setPage("studentDiary"); },
-    onGo: function (where) { if (where === "diary") setPage("studentDiary"); }
+    onGo: function (where, info) {
+      if (where === "diary") setPage("studentDiary");
+      else if (where === "sea") { setSeaFrom(info || null); setPage("sea"); }
+    }
   })));
   if (page === "studentDiary" && currentUser) return React.createElement("div", {
     style: shell
