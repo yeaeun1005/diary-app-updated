@@ -6477,16 +6477,18 @@ function buildSea(radius, tone) {
 // URL 해시로 하나씩 끄면서 어디까지 감당되는지 잰다 (2026-09-06 결정).
 // 재배포 없이 그 자리에서 조합을 바꿔야 하므로 해시로 받는다.
 //
-//   카드              켬(기본)      끔               잃는 것
+//   카드              기본          반대편            잃는 것
 //   A 먼 섬 단순화     lod=2        lod=0            먼 섬의 계단·다리·랜드마크가 빠진다
 //   B 안개            fog=1        fog=0            바다의 넓이가 안 보인다. 안개 뒤는 아예 안 그린다
-//   C 동시 렌더 제한   near=12      near=0           가까운 N개만 온전히, 나머지는 납작한 원판
+//   C 동시 렌더 제한   near=0(끔)   near=12          가까운 N개만 온전히, 나머지는 원판. 근처만 보이는 건
+//                                                   이상해서 기본은 끈다(2026-09-06 브라우저 확인, near=0 여유)
 //   D 그림자          shadow=0     shadow=1&sm=2048 인상의 절반이 조명이다(§4). 마지막에 끈다
-//   E 이름표          tags=0       tags=1           친구 찾기가 어려워진다 → 검색·명단으로 보완
+//   E 이름표          tags=1(끔)   tags=0           누가 누구 섬인지 모르면 "놀러 간다"가 아니라 목록에서
+//                                                   고르는 것이 된다. 기본은 켠다
 //   F 픽셀비          dpr=1        dpr=2            가장자리가 거칠어진다. 잃는 게 제일 적다
 //
-//   전부 끈 것(최고 화질): #sea&lod=0&fog=0&near=0&shadow=1&sm=2048&tags=1&dpr=2
-var SEA_CARDS = { lod: 2, fog: 1, near: 12, shadow: 0, sm: 1024, tags: 0, dpr: 1 };
+//   전부 끈 것(최고 화질): #sea&lod=0&fog=0&shadow=1&sm=2048&dpr=2
+var SEA_CARDS = { lod: 2, fog: 1, near: 0, shadow: 0, sm: 1024, tags: 1, dpr: 1 };
 function seaOpts() {
   var o = {};
   for (var k in SEA_CARDS) o[k] = SEA_CARDS[k];
@@ -6572,18 +6574,48 @@ function buildSeaWide(tone, spots) {
   sea.userData.fogColor = deepC.clone().multiplyScalar(1.3);
   return sea;
 }
-// 먼 섬 대용 원판(카드 C). 가까운 N개만 온전히 그리고 나머지는 이걸로 둔다.
-function buildIsleProxy() {
+// 먼 섬 대용(카드 C `#near=N`, 그리고 섬을 만드는 동안의 자리 표시).
+// 밋밋한 녹색 접시로 두면 안 된다 — 계단식 3층·흙벽·나무 몇 그루가 있어야
+// 멀리서도 "섬"으로 읽힌다. 형태는 시드에서 나와 서로 조금씩 다르다.
+// 메시 4개 + 인스턴스 1개 = 드로우콜 5.
+function buildIsleProxy(seed) {
   var g = new THREE.Group();
+  var rnd = mulberry32(hashSeed("proxy:" + (seed || "")));
   var col = function (c) { return new THREE.Color(c[0], c[1], c[2]).convertSRGBToLinear(); };
-  var base = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 7.6, 0.9, 22),
-    new THREE.MeshStandardMaterial({ color: col(ISLE.sand), roughness: 1, metalness: 0 }));
-  base.position.y = 0.1; base.castShadow = true; base.receiveShadow = true;
+  var M = function (c) { return new THREE.MeshStandardMaterial({ color: col(c), roughness: 1, metalness: 0 }); };
+  var sand = M(ISLE.sand), cliff = M(ISLE.cliff), gLo = M(ISLE.grassLow), gHi = M(ISLE.grassHigh);
+  // 원기둥 재질 배열: [옆면, 윗면, 아랫면]. 옆면은 흙벽, 윗면은 잔디.
+  var sx = 0.86 + rnd() * 0.28, sz = 0.86 + rnd() * 0.28, rot = rnd() * Math.PI * 2;
+  g.rotation.y = rot;
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(6.6, 7.8, 0.7, 22), sand);
+  base.position.y = 0.05; base.scale.set(sx, 1, sz);
+  base.castShadow = true; base.receiveShadow = true;
   g.add(base);
-  var top = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.4, 0.8, 20),
-    new THREE.MeshStandardMaterial({ color: col(ISLE.grassLow), roughness: 1, metalness: 0 }));
-  top.position.y = 0.9; top.castShadow = true; top.receiveShadow = true;
-  g.add(top);
+  var ox = (rnd() - 0.5) * 1.6, oz = (rnd() - 0.5) * 1.6;   // 위층은 한쪽으로 치우친다
+  var tiers = [[5.2, 0, 0, gLo], [3.3, ox, oz, gLo], [1.7, ox * 1.8, oz * 1.8, gHi]];
+  var tops = [];
+  for (var i = 0; i < 3; i++) {
+    var T = tiers[i], y0 = 0.40 + i * 0.56;
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(T[0], T[0] + 0.25, 0.56, 18), [cliff, T[3], cliff]);
+    m.position.set(T[1], y0 + 0.28, T[2]); m.scale.set(sx, 1, sz);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m);
+    tops.push({ r: T[0], x: T[1], z: T[2], y: y0 + 0.56 });
+  }
+  // 나무 몇 그루. 어휘 식생이 아니라 자리 표시다.
+  var n = 3 + Math.floor(rnd() * 4);
+  var trees = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), M([0.16, 0.36, 0.17]), n);
+  var mm = new THREE.Matrix4(), vv = new THREE.Vector3(), qq = new THREE.Quaternion(), ss = new THREE.Vector3();
+  for (var k = 0; k < n; k++) {
+    var tp = tops[1 + (k % 2)], a = rnd() * Math.PI * 2, rr = rnd() * (tp.r - 0.9);
+    var sc = 0.8 + rnd() * 0.6;
+    vv.set((tp.x + Math.cos(a) * rr) * sx, tp.y + 0.45 * sc, (tp.z + Math.sin(a) * rr) * sz);
+    ss.set(sc, sc * 1.1, sc);
+    trees.setMatrixAt(k, mm.compose(vv, qq, ss));
+  }
+  trees.instanceMatrix.needsUpdate = true;
+  trees.castShadow = true; trees.frustumCulled = false;
+  g.add(trees);
   return g;
 }
 // 이름표(카드 E). 섬 위에 떠 있는 판. 조명을 안 받는 재질이라 각도와 무관하게 읽힌다.
@@ -7310,7 +7342,7 @@ function SeaView({ me, entries, arrive, onBack }) {
       if (e.proxy) e.proxy.visible = false;
     }
     function showProxy(e) {
-      if (!e.proxy) { e.proxy = buildIsleProxy(); e.holder.add(e.proxy); }
+      if (!e.proxy) { e.proxy = buildIsleProxy(e.seed); e.holder.add(e.proxy); }
       e.proxy.visible = true;
       if (e.full) e.full.visible = false;
     }
