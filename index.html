@@ -4986,7 +4986,8 @@ function isleTraits(seed) {
   t.beach = 0.74 + rnd() * 0.14;                                    // 1층 가장자리 (기준 0.82) — 해변 폭
   // 잔디 명도 상한 +0.03: 중립 식생(관목 0xaec37e, 밝기 181)이 잔디보다 밝아야
   // 한다(③-7). grassHigh는 169라 +0.05면 184로 뒤집힌다.
-  t.grassH = (rnd() - 0.5) * 14; t.grassL = -0.06 + rnd() * 0.09;  // 잔디 색상(°)·명도
+  // 색상 ±12°, 명도 −0.09~+0.03. ±7°로는 한 화면에 모으면 초록 덩어리 반복이었다(2026-09-06).
+  t.grassH = (rnd() - 0.5) * 24; t.grassL = -0.09 + rnd() * 0.12;  // 잔디 색상(°)·명도
   t.sandH = (rnd() - 0.5) * 10; t.sandL = (rnd() - 0.5) * 0.04;    // 모래 따뜻함·명도(0.91에서 붉은 채널이 잘린 적이 있어 좁게)
   t.cliffL = (rnd() - 0.5) * 0.12;                                  // 흙벽 명도
   t.bars = Math.floor(rnd() * 3);                                   // 물가 모래톱 0~2
@@ -6710,16 +6711,25 @@ function buildIsleProxy(seed) {
 }
 // 이름표(카드 E). 섬 위에 떠 있는 판. 조명을 안 받는 재질이라 각도와 무관하게 읽힌다.
 // 캔버스 텍스처가 학생 수만큼 생기므로 기본은 꺼 둔다(#tags=1).
-function buildNameTag(text) {
+// 내 섬은 같은 크기에 청록 테두리·옅은 청록 판으로만 구분한다. 크기로 강조하면
+// 가까이서 화면을 가로지른다(2026-09-06).
+function buildNameTag(text, mine) {
   var tx = labelTexture(text);
   var mat = tx
-    ? new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false })
+    ? new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, color: mine ? 0xcdeeea : 0xffffff })
     : new THREE.MeshBasicMaterial({ color: 0xf2e3c2, transparent: true, depthWrite: false });
   var m = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.08), mat);
   m.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");   // 카메라 쪽. 아이소메트릭이 고정이라 상수다
   m.position.y = TIER_Y[2] + 3.4;
   m.renderOrder = 900;
   m.frustumCulled = false;
+  if (mine) {
+    var frame = new THREE.Mesh(new THREE.PlaneGeometry(3.24, 1.32),
+      new THREE.MeshBasicMaterial({ color: 0x1b8a8f, transparent: true, depthWrite: false }));
+    frame.position.z = -0.012; frame.renderOrder = 899;
+    m.add(frame);
+    m.userData.frame = frame;
+  }
   return m;
 }
 // 항해 경로. 직선으로 가되 도중에 섬이 있으면 그 옆으로 돌아간다.
@@ -7311,7 +7321,8 @@ function SeaView({ me, entries, arrive, onBack }) {
     myHolder.add(buildVegMeshes(buildVegetation(mine, islandState(entries), { seed: seed })));
     myHolder.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
     scene.add(myHolder);
-    if (O.tags) myHolder.add(buildNameTag("내 섬"));
+    var myTag = O.tags ? buildNameTag("내 섬", true) : null;
+    if (myTag) myHolder.add(myTag);
     // 섬 화면과 같은 반폭. 부두 출항 장면이 끊기지 않고 이어지려면 같아야 한다.
     var D_ISLE = isleCamHalf(cam, mine, aspect);
     // 세로 화면에서는 반높이 대신 가로가 기준이다. 섬 화면 반폭의 2.4배면
@@ -7665,7 +7676,10 @@ function SeaView({ me, entries, arrive, onBack }) {
       if (O.shadow) placeLight();
       if (scene.fog) { scene.fog.near = CAM_DIST + d * 0.5; scene.fog.far = CAM_DIST + d * 2.2; }
       // 친구 섬이 물속에서 떠오른다
-      var tagS = Math.max(1, Math.min(2.6, d / D_SEA));
+      // 이름표는 화면 크기가 대충 일정하게 — 가까이 가면 줄고 멀어지면 커진다.
+      // 1로 고정해 두면 도착 화면에서 판이 섬을 가로지른다.
+      var tagS = Math.max(0.45, Math.min(2.6, d / D_SEA));
+      if (myTag) { myTag.scale.setScalar(tagS); myTag.material.opacity = 1; }
       for (var i = 0; i < isles.length; i++) {
         var e2 = isles[i];
         if (e2.holder.position.y < 0) {
