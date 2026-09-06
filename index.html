@@ -5419,7 +5419,7 @@ function buildIsland(seedStr, opts) {
   // 식생이 놓일 자리만 잡아먹는다.
   // 팻말 앞을 따로 비우므로 랜드마크 자체 여유는 구조물 둘레만 지키면 된다.
   // 둘을 다 넉넉히 잡으면 겹쳐서 식생 자리만 크게 잡아먹는다.
-  var LM_CLEAR = { dock: 1.05, dive: 1.3, plaza: 0.9 };
+  var LM_CLEAR = { dock: 1.05, dive: 1.3, plaza: 0.72 };
   function addLandmark(id, name, sign, hint, th, r, build) {
     var x = Math.cos(th) * r, z = Math.sin(th) * r, y = profileAt(r, th).y;
     var lg = new THREE.Group();
@@ -5441,16 +5441,25 @@ function buildIsland(seedStr, opts) {
     // 이름 팻말은 셋 다 같은 형태다.
     // 카메라 쪽(화면 앞쪽)으로 빼서 나무·바위 뒤로 숨지 않게 한다.
     // 그룹이 -th로 돌아 있으므로 월드 방향을 로컬로 되돌려 넣는다.
-    var sd = id === "dive" ? 1.05 : 0.68;
-    var sw = 0.7071 * sd;
+    // 팻말 자리. 화면 앞쪽(카메라 방향)과 화면 오른쪽으로 나눠 옮긴다.
+    // 잠수 지점은 앞으로 빼면 웅덩이를 덮으므로 옆으로 비켜 세운다.
+    var FW = { dock: 1.15, plaza: 1.05, dive: 0.30 }[id] || 0.9;   // 카메라 쪽
+    var RT = { dive: -1.55 }[id] || 0;                              // 화면 오른쪽(음수면 왼쪽)
+    var wx = 0.7071 * (FW + RT), wz = 0.7071 * (FW - RT);
     var sg = new THREE.Group();
-    sg.position.set(sw * (Math.cos(th) + Math.sin(th)), 0, sw * (Math.cos(th) - Math.sin(th)));
+    sg.position.set(wx * Math.cos(th) + wz * Math.sin(th),
+                    0, -wx * Math.sin(th) + wz * Math.cos(th));
     lg.add(sg);
     addNameSign(sg, sign, th, 1);
-    // 팻말 앞을 비운다. 랜드마크 여유 구역만으로는 팻말이 가려질 수 있다.
-    // 3층은 좁아서 팻말 여유를 넉넉히 주면 그 층 식생이 통째로 사라진다.
-    keepOuts.push({ x: x + 0.7071 * sd, z: z + 0.7071 * sd,
-                    r: id === "plaza" ? 0.95 : 1.45, why: name + " 팻말" });
+    // 팻말 자리와 그 앞(카메라 쪽)을 비운다. 땅 위 거리만 보면, 카메라 쪽에
+    // 선 나무가 시선을 가로막는 것을 못 막는다 — 실제로 "바다로"가 그랬다.
+    // 3층은 좁아서 시선 방향까지 길게 비우면 그 층 식생이 통째로 사라진다.
+    // 대신 3층은 나무가 적고 팻말이 섬에서 제일 높아 가릴 것도 적다.
+    var sn = id === "plaza" ? 1 : 3, sr = id === "plaza" ? 0.72 : 1.30;
+    for (var sq = 0; sq < sn; sq++) {
+      keepOuts.push({ x: x + wx + 0.7071 * sq * 0.85, z: z + wz + 0.7071 * sq * 0.85,
+                      r: sr - sq * 0.25, why: name + " 팻말" });
+    }
     grp.add(lg);
     landmarks.push({ id: id, name: name, hint: hint, x: x, y: y, z: z, th: th, near: 1.3, mat: pmat });
     keepOuts.push({ x: x, z: z, r: LM_CLEAR[id] || 1.3, why: name });
@@ -6012,9 +6021,9 @@ function labelTexture(text) {
 // 판은 항상 카메라 쪽을 본다. 아이소메트릭이 고정이라 각도가 상수다.
 function addNameSign(lg, text, th, scale) {
   var k = scale || 1;
-  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * k, 0.062 * k, 1.14 * k, 7),
+  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * k, 0.062 * k, 1.00 * k, 7),
     new THREE.MeshStandardMaterial({ color: ISLE.wood, roughness: 1, metalness: 0 }));
-  post.position.y = 0.07 + 1.14 * k / 2;
+  post.position.y = 0.07 + 1.00 * k / 2;
   post.castShadow = true;
   lg.add(post);
   var board = new THREE.Mesh(new THREE.BoxGeometry(1.42 * k, 0.51 * k, 0.06 * k), [
@@ -6033,8 +6042,11 @@ function addNameSign(lg, text, th, scale) {
   ].map(function (m) {
     return m || new THREE.MeshStandardMaterial({ color: 0xd8c49c, roughness: 1, metalness: 0 });
   }));
-  board.position.y = 0.07 + 0.97 * k;
+  board.position.y = 0.07 + 0.90 * k;
   board.rotation.y = Math.PI / 4 + th;   // 그룹이 -th로 돌아 있으니 이걸 더하면 화면을 본다
+  // 판을 기둥보다 앞으로 뺀다. 같은 자리에 두면 기둥이 글자 한가운데를
+  // 세로로 가른다(실제 화면에서 그렇게 나왔다).
+  board.translateZ(0.14 * k);
   board.castShadow = true;
   lg.add(board);
 }
@@ -6067,6 +6079,39 @@ function isleCamHalf(cam, isle, aspect) {
     }
   }
   return Math.max(hy, hx / aspect) * 1.03;
+}
+// 물보라. 링 하나가 퍼지며 옅어지고, 물방울 몇 개가 튀어 올랐다 떨어진다.
+// 잠수 전환에서 "풍덩"이 보이게 하는 것이 목적이라 크게 만들지 않는다.
+function buildSplash() {
+  var g = new THREE.Group();
+  var mat = new THREE.MeshBasicMaterial({ color: 0xdff2f6, transparent: true, opacity: 0.9,
+    depthWrite: false, side: THREE.DoubleSide });
+  var ring = new THREE.Mesh(new THREE.RingGeometry(0.30, 0.46, 20).rotateX(-Math.PI / 2), mat);
+  g.add(ring);
+  var drops = [], dm = new THREE.MeshBasicMaterial({ color: 0xeaf7fa, transparent: true, opacity: 0.95, depthWrite: false });
+  for (var i = 0; i < 9; i++) {
+    var d = new THREE.Mesh(new THREE.SphereGeometry(0.055, 7, 6), dm);
+    d.userData.a = i / 9 * 6.283185307;
+    d.userData.v = 0.55 + (i % 3) * 0.18;
+    g.add(d); drops.push(d);
+  }
+  // t는 0~1. 링이 퍼지고 물방울이 포물선을 그린다.
+  g.userData.at = function (t) {
+    var e = Math.max(0, Math.min(1, t));
+    ring.scale.setScalar(0.5 + e * 2.4);
+    mat.opacity = 0.9 * (1 - e);
+    dm.opacity = 0.95 * (1 - e * e);
+    for (var k = 0; k < drops.length; k++) {
+      var d2 = drops[k], r = 0.25 + e * d2.userData.v * 1.6;
+      d2.position.set(Math.cos(d2.userData.a) * r,
+                      Math.max(0, 0.75 * Math.sin(Math.PI * e) - 0.1 * e),
+                      Math.sin(d2.userData.a) * r);
+      d2.scale.setScalar(1 - e * 0.5);
+    }
+  };
+  g.renderOrder = 1000;
+  g.traverse(function (o) { if (o.isMesh) o.renderOrder = 1000; });
+  return g;
 }
 // 조명. ③-2에서 정한 값이고 확인용 하네스도 이 함수를 부른다.
 // 두 군데에 적어두면 하네스로 잰 수치가 앱 화면과 달라진다(실제로 겪었다).
@@ -6114,50 +6159,69 @@ var CHAR_H = 1.1, CHAR_D = 0.4;
 // 반투명 패스보다 먼저 통째로 그려지므로, 섞어두면 순서가 뒤집힌다.
 function buildCharacter() {
   var grp = new THREE.Group();
-  // 부품을 하나의 Group에 담고 그 Group을 두 번 그린다.
-  // 실루엣은 ③-6과 같은 방식이다 — 부품이 늘어도 방식은 그대로다.
+  // 부품을 하나의 Group에 담고 그 Group을 두 번 그린다(본체 + 가림 실루엣).
+  // 모서리는 둥글게 — 섬과 같은 클레이 톤이어야 한다(DESIGN.md §4).
+  // 얼굴은 넣지 않는다. 아이소메트릭 고정이라 뒷모습이 주로 보인다.
   var body = new THREE.Group();
-
-  var skin = new THREE.MeshStandardMaterial({ color: 0xdd6b4f, roughness: 1, metalness: 0,
-    transparent: true, opacity: 1 });
-  var dark = new THREE.MeshStandardMaterial({ color: 0x8a3524, roughness: 1, metalness: 0,
-    transparent: true, opacity: 1 });
-  var tank = new THREE.MeshStandardMaterial({ color: 0xe8d9b8, roughness: 1, metalness: 0,
-    transparent: true, opacity: 1 });
-
-  // 몸통 — 아래가 조금 넓은 구. 얼굴은 넣지 않는다(DESIGN.md §4 톤).
-  var torso = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), skin);
-  torso.scale.set(0.20, 0.26, 0.17);
-  torso.position.y = 0.52;
-  body.add(torso);
-  // 머리
-  var head = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), skin);
-  head.scale.set(0.155, 0.145, 0.145);
-  head.position.y = 0.90;
-  body.add(head);
-  // 등에 진 작은 공기통 — 뒷모습이 주로 보이므로 여기가 이 캐릭터의 특징이다.
-  // "마음 바다 탐험대"라는 이름, 그리고 잠수 지점과도 이어진다.
-  var pack = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.30, 8), tank);
-  pack.position.set(0, 0.60, -0.18);
-  body.add(pack);
-  // 다리 둘. 걸을 때 번갈아 흔든다.
+  function M(c) {
+    return new THREE.MeshStandardMaterial({ color: c, roughness: 1, metalness: 0,
+      transparent: true, opacity: 1 });
+  }
+  var mShirt = M(0xdd6b4f), mPants = M(0x4f6d86), mSkin = M(0xe8b48c), mHair = M(0x3f2c22);
+  // 캡슐이 있으면 쓴다. 없으면 구를 늘려 쓴다 — 어느 쪽이든 모서리가 둥글다.
+  function limb(r, len) {
+    if (THREE.CapsuleGeometry) return new THREE.CapsuleGeometry(r, len, 4, 10);
+    var g2 = new THREE.SphereGeometry(r, 12, 9); g2.scale(1, (len + 2 * r) / (2 * r), 1); return g2;
+  }
+  function put(geo, mat, x, y, z, name) {
+    var m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    if (name) m.name = name;
+    return m;
+  }
+  // 다리 — 엉덩이 그룹을 축으로 흔든다
   var legs = [];
   for (var i = -1; i <= 1; i += 2) {
     var hip = new THREE.Group();
-    hip.position.set(i * 0.075, 0.30, 0);
-    var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.046, 0.30, 7), dark);
-    leg.position.y = -0.15;
-    hip.add(leg);
-    body.add(hip);
-    legs.push(hip);
+    hip.name = i < 0 ? "hipL" : "hipR";
+    hip.position.set(i * 0.088, 0.34, 0);
+    hip.add(put(limb(0.060, 0.16), mPants, 0, -0.14, 0));
+    body.add(hip); legs.push(hip);
   }
+  // 몸통 — 아이 비율이라 짧고 통통하게
+  var torso = put(limb(0.150, 0.20), mShirt, 0, 0.56, 0, "torso");
+  torso.scale.set(1, 1, 0.88);
+  body.add(torso);
+  // 팔 — 어깨 그룹을 축으로 다리와 반대로 흔든다
+  for (var a2 = -1; a2 <= 1; a2 += 2) {
+    var sh = new THREE.Group();
+    sh.name = a2 < 0 ? "armL" : "armR";
+    sh.position.set(a2 * 0.178, 0.72, 0);
+    sh.add(put(limb(0.045, 0.14), mShirt, 0, -0.12, 0));
+    body.add(sh);
+  }
+  // 머리 — 아이는 머리가 크다. 목은 짧게 붙여 뜨지 않게 한다.
+  body.add(put(new THREE.SphereGeometry(0.062, 10, 8), mSkin, 0, 0.80, 0));
+  var head = put(new THREE.SphereGeometry(0.155, 18, 14), mSkin, 0, 0.94, 0, "head");
+  head.scale.set(1, 1.04, 0.95);
+  body.add(head);
+  // 머리카락 — 얼굴 없이도 사람으로 읽히게 하는 부분.
+  // 위와 뒤를 덮는 모자 모양이라 뒷모습에서 특히 잘 보인다.
+  var hair = new THREE.Mesh(new THREE.SphereGeometry(0.166, 18, 14,
+    0, Math.PI * 2, 0, Math.PI * 0.60), mHair);
+  hair.position.set(0, 0.948, -0.010);
+  hair.name = "hair";
+  body.add(hair);
+  var hback = put(new THREE.SphereGeometry(0.128, 14, 11), mHair, 0, 0.925, -0.062);
+  hback.scale.set(1.02, 0.88, 0.72);
+  body.add(hback);
+
   // renderOrder는 Group에 걸어도 자식에 전파되지 않는다. 메시마다 걸어야
   // 실루엣이 본체 위로 덮이지 않는다.
   body.traverse(function (o) {
     if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.renderOrder = 999; }
   });
-
-  // 실루엣 — 같은 부품을 색만 바꿔 한 벌 더. depthTest를 끄고 먼저 그린다.
+  // 실루엣 — 같은 부품을 단색으로 한 벌 더. depthTest를 꺼서 가려질 때만 비친다.
   var silMat = new THREE.MeshBasicMaterial({
     color: 0xef866c, depthTest: false, depthWrite: false, transparent: true, opacity: 0.7
   });
@@ -6165,26 +6229,27 @@ function buildCharacter() {
   sil.traverse(function (o) {
     if (o.isMesh) { o.material = silMat; o.castShadow = false; o.receiveShadow = false; o.renderOrder = 998; }
   });
-
   grp.add(sil);
   grp.add(body);
   grp.userData.body = body;
   grp.userData.silhouette = sil;
-  // 걷기 동작. 뼈대 애니메이션은 쓰지 않는다 — 부품 몇 개를 흔드는 것으로
-  // 충분하고, 리깅된 모델을 들여오면 §4의 라이선스·톤 통일 문제가 생긴다.
-  // t는 누적 시간, moving은 지금 걷는 중인지.
+
+  // 걷기. 뼈대 애니메이션은 쓰지 않는다 — 부품 몇 개를 흔들면 충분하고
+  // 리깅된 모델을 들여오면 §4의 라이선스·톤 통일 문제가 생긴다.
+  // 복제본에도 같은 이름이 남으므로 이름으로 찾아 함께 움직인다.
   grp.userData.step = function (t, moving, dir) {
-    var sw = moving ? Math.sin(t * 9.5) : 0;
-    var bob = moving ? Math.abs(Math.sin(t * 9.5)) * 0.035 : 0;
+    var sw = moving ? Math.sin(t * 8.5) : 0;
+    var bob = moving ? Math.abs(Math.sin(t * 8.5)) * 0.03 : 0;
     [body, sil].forEach(function (root) {
-      var ls = [];
-      root.children.forEach(function (c) { if (c.isGroup) ls.push(c); });
-      if (ls[0]) ls[0].rotation.x = sw * 0.40;
-      if (ls[1]) ls[1].rotation.x = -sw * 0.40;
+      var lL = root.getObjectByName("hipL"), lR = root.getObjectByName("hipR");
+      var aL = root.getObjectByName("armL"), aR = root.getObjectByName("armR");
+      if (lL) lL.rotation.x = sw * 0.42;
+      if (lR) lR.rotation.x = -sw * 0.42;
+      if (aL) aL.rotation.x = -sw * 0.34;   // 팔은 다리와 반대로
+      if (aR) aR.rotation.x = sw * 0.34;
       root.position.y = bob;
-      // 가는 쪽을 바라본다. 뒷모습이 기본이라 방향만 맞으면 충분하다.
       if (dir != null) root.rotation.y = dir;
-      root.rotation.z = sw * 0.045;
+      root.rotation.z = sw * 0.03;
     });
   };
   return grp;
@@ -6478,7 +6543,17 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       setVocab(st.length);
       // ③-6 준비. 조작은 아직 없다. 크기 감을 보려고 세워만 둔다.
       // 1층 카메라 앞쪽(각도 π/4)이 카메라 (14,12,14) 기준 화면 아래쪽이다.
-      var chSpot = CHAR_LAST[seed] || tierSpot(isleGrp, Math.PI / 4, 0);
+      // 시작 자리가 랜드마크나 팻말 여유 구역 안이면 캐릭터가 구조물에 묻혀
+      // 화면에서 찾을 수 없다. 비어 있는 각도를 찾아 세운다.
+      function freeStart() {
+        for (var q = 0; q < 24; q++) {
+          var th0 = Math.PI / 4 + (q % 2 ? 1 : -1) * Math.ceil(q / 2) * 0.26;
+          var sp0 = tierSpot(isleGrp, th0, 0);
+          if (sp0 && keepOutHit(isleGrp, sp0.x, sp0.z) < -0.6) return sp0;
+        }
+        return tierSpot(isleGrp, Math.PI / 4, 0);
+      }
+      var chSpot = CHAR_LAST[seed] || freeStart();
       if (chSpot) {
         charGrp = buildCharacter();
         charGrp.position.set(chSpot.x, walkY(isleGrp, chSpot.x, chSpot.z), chSpot.z);
@@ -6552,6 +6627,15 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
       var lm = nearLmRef, dive = lm.id === "dive";
       going = { dive: dive, t0: performance.now(), dur: dive ? DIVE_MS : SAIL_MS,
                 y0: charGrp ? charGrp.position.y : 0 };
+      if (dive && charGrp) {
+        // 웅덩이 한가운데로 뛰어든다. 카메라만 내려가면 무엇이 일어났는지 모른다.
+        going.from = charGrp.position.clone();
+        going.to = new THREE.Vector3(lm.x, lm.y, lm.z);
+        going.splash = buildSplash();
+        going.splash.position.set(lm.x, lm.y + 0.10, lm.z);
+        going.splash.visible = false;
+        scene.add(going.splash);
+      }
       setWipe({ dir: dive ? "down" : "side", ms: going.dur });
       window.setTimeout(function () {
         if (dive) { if (onGo) onGo("diary"); return; }   // 이 경우 화면이 바뀐다
@@ -6600,7 +6684,23 @@ function IslandView({ entries, seed, seaTone, onBack, onGo }) {
         var u = Math.min(1, (t0 - going.t0) / going.dur);
         var ease = u * u;                 // 처음엔 천천히, 갈수록 빨리
         if (going.dive) {
-          if (charGrp) charGrp.position.y = going.y0 - 1.15 * ease;
+          if (charGrp && going.to) {
+            // 0~45%: 웅덩이로 달려가며 살짝 뛴다. 45~70%: 물속으로 가라앉는다.
+            var j = Math.min(1, u / 0.45);
+            charGrp.position.x = going.from.x + (going.to.x - going.from.x) * j;
+            charGrp.position.z = going.from.z + (going.to.z - going.from.z) * j;
+            var base = going.from.y + (going.to.y - going.from.y) * j;
+            var hop = Math.sin(Math.PI * j) * 0.28;                  // 뛰어오르는 활
+            var sink = u < 0.45 ? 0 : Math.min(1, (u - 0.45) / 0.25);
+            charGrp.position.y = base + hop - 1.5 * sink * sink;
+            if (charGrp.userData.step) charGrp.userData.step(t0 / 1000, u < 0.45, faceDir);
+          }
+          if (going.splash) {
+            // 물보라는 캐릭터가 수면에 닿는 순간부터
+            var sp = (u - 0.44) / 0.30;
+            going.splash.visible = sp > 0 && sp < 1;
+            if (going.splash.visible) going.splash.userData.at(sp);
+          }
           cam.position.y = camHome.y - 4.2 * ease;
         } else {
           cam.position.x = camHome.x + scrR.x * 5.5 * ease;
