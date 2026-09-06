@@ -461,7 +461,9 @@ function josa(name, pair) {   // pair: "이가" | "이는" | "이에게"
   if (pair === "이는") return t + (bat ? "이는" : "는");
   return t + pair;
 }
-var Q_NAME = { HA: "활기", LA: "평온", LV: "슬픔", HV: "분노" };
+// 나침반 단어. HV는 "분노"가 아니라 "떨림"이다(2026-09-06). 긴장·불안·부끄러움·경악이 다 이 영역인데
+// "분노"로 뜨면 아이가 이상하게 느낀다. 좌표(EMOTIONS_28의 q)는 그대로고 이름만 다르다.
+var Q_NAME = { HA: "활기", LA: "평온", LV: "슬픔", HV: "떨림" };
 const EMOTIONS_28 = [{
   name: "excited",
   label: "신남",
@@ -1283,10 +1285,12 @@ function EmptyState({
     }
   }, actionLabel));
 }
+// teacher면 사분면 이름을 병기한다("떨림(분노·불안)"). 학생 화면에는 나침반 단어만.
 function CircumplexChart({
   entries,
   hovIdx,
-  onHover
+  onHover,
+  teacher
 }) {
   const cRef = useRef(null),
     conRef = useRef(null);
@@ -1375,10 +1379,10 @@ function CircumplexChart({
     c.font = "600 11px 'Gowun Dodum',system-ui";
     c.fillStyle = "#94a3b8";
     c.textAlign = "center";
-    c.fillText("활기·흥분", cx + rad * 0.55, cy - rad * 0.9);
-    c.fillText("분노·불안", cx - rad * 0.55, cy - rad * 0.9);
-    c.fillText("슬픔·피로", cx - rad * 0.55, cy + rad * 0.95);
-    c.fillText("평온·만족", cx + rad * 0.55, cy + rad * 0.95);
+    c.fillText(teacher ? "활기·흥분" : "활기", cx + rad * 0.55, cy - rad * 0.9);
+    c.fillText(teacher ? "떨림(분노·불안)" : "떨림", cx - rad * 0.55, cy - rad * 0.9);
+    c.fillText(teacher ? "슬픔·피로" : "슬픔", cx - rad * 0.55, cy + rad * 0.95);
+    c.fillText(teacher ? "평온·만족" : "평온", cx + rad * 0.55, cy + rad * 0.95);
     c.fillStyle = "#475569";
     c.font = "700 12px 'Gowun Dodum',system-ui";
     c.fillText("긍정 →", cx + rad - 28, cy + 18);
@@ -3613,7 +3617,9 @@ function ShellMatchGame({
   })));
 }
 var EMO_REPORT_SCRIPT = `
-var QM={HA:{name:"활기·흥분",color:"#e8873c",bg:"#fbede0",tx:"#c96a1f"},HV:{name:"분노·불안",color:"#e07070",bg:"#fbe4e4",tx:"#c14d4d"},LV:{name:"슬픔·피로",color:"#6b9cc2",bg:"#e7eef6",tx:"#4a72a0"},LA:{name:"평온·만족",color:"#5bb5a6",bg:"#e6f4f0",tx:"#3d8b78"}};
+var QM={HA:{name:"활기",tname:"활기·흥분",color:"#e8873c",bg:"#fbede0",tx:"#c96a1f"},HV:{name:"떨림",tname:"떨림(분노·불안)",color:"#e07070",bg:"#fbe4e4",tx:"#c14d4d"},LV:{name:"슬픔",tname:"슬픔·피로",color:"#6b9cc2",bg:"#e7eef6",tx:"#4a72a0"},LA:{name:"평온",tname:"평온·만족",color:"#5bb5a6",bg:"#e6f4f0",tx:"#3d8b78"}};
+// 사분면 이름. 학생 리포트는 나침반 단어만, 교사 리포트는 병기.
+function qn(q){return (typeof MODE!=="undefined"&&MODE==="teacher")?QM[q].tname:qn(q);}
 function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function ymd(ts){var d=new Date(ts);var m=d.getMonth()+1,day=d.getDate();return d.getFullYear()+"-"+(m<10?"0"+m:m)+"-"+(day<10?"0"+day:day);}
 function buildBody(entries){
@@ -3628,8 +3634,8 @@ function buildBody(entries){
   var today=(new Date().getMonth()+1)+"월 "+new Date().getDate()+"일";
   var summary;
   if(total===0){summary=esc(NAME)+" 학생은 이 기간에 분석된 감정이 없어요. 다른 기간을 선택하거나 일기를 더 써 보면 감정의 변화를 볼 수 있어요.";}
-  else{var negN=byQ.HV+byQ.LV;summary=esc(NAME)+" 학생은 이 기간 동안 ‘"+QM[domQ].name+"’ 감정을 가장 자주 표현했고, 긍정적인 감정이 전체의 약 "+posPct+"%였어요.";if(negN>0&&negN/total>=0.15)summary+=" 때때로 "+(byQ.HV>=byQ.LV?"분노·불안":"슬픔·피로")+" 같은 감정도 나타났어요.";}
-  var barRows=qOrder.map(function(q){var pct=total>0?Math.round(byQ[q]/total*100):0;return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:66px;font-size:12px">'+QM[q].name+'</span><div style="flex:1;background:#eef3f5;border-radius:7px;overflow:hidden"><div class="bar" style="width:'+pct+'%;background:'+QM[q].color+'"></div></div><span style="width:34px;text-align:right;font-size:11px;color:#7a8a92">'+pct+'%</span></div>';}).join("");
+  else{var negN=byQ.HV+byQ.LV;summary=esc(NAME)+" 학생은 이 기간 동안 ‘"+qn(domQ)+"’ 감정을 가장 자주 표현했고, 긍정적인 감정이 전체의 약 "+posPct+"%였어요.";if(negN>0&&negN/total>=0.15)summary+=" 때때로 "+(byQ.HV>=byQ.LV?"분노·불안":"슬픔·피로")+" 같은 감정도 나타났어요.";}
+  var barRows=qOrder.map(function(q){var pct=total>0?Math.round(byQ[q]/total*100):0;return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:66px;font-size:12px">'+qn(q)+'</span><div style="flex:1;background:#eef3f5;border-radius:7px;overflow:hidden"><div class="bar" style="width:'+pct+'%;background:'+QM[q].color+'"></div></div><span style="width:34px;text-align:right;font-size:11px;color:#7a8a92">'+pct+'%</span></div>';}).join("");
   var tagsHtml=labels.slice(0,14).map(function(l){var m=QM[l.q]||QM.LA;return '<span class="tag" style="background:'+m.bg+';color:'+m.tx+'">'+esc(l.label)+' '+l.count+'</span>';}).join("");
   if(!tagsHtml)tagsHtml='<span style="font-size:12px;color:#9aa8af">이 기간엔 감정 기록이 없어요</span>';
   var TEACHER=(typeof MODE!=="undefined"&&MODE==="teacher");
@@ -5428,7 +5434,7 @@ function buildIsland(seedStr, opts) {
   grp.add(dock);
 
   // 물가 모래톱 0~2개(섬마다 주어진 것). §4 레퍼런스의 "주변 얕은 바다에 흩어진" 구성.
-  // 섬 밖 물속이라 걷기·식생에 영향이 없다. 둥근 물(평온·잠수)·바위(분노)는
+  // 섬 밖 물속이라 걷기·식생에 영향이 없다. 둥근 물(평온·잠수)·바위(떨림)는
   // 어휘 표식이라 물가 장식으로도 쓰지 않는다.
   if (traits.bars > 0) {
     var brnd2 = mulberry32(hashSeed("bars:" + (seedStr || "island")));
@@ -5756,7 +5762,7 @@ function islandState(entries) {
 // 영역은 방위로 나누고 층을 가로지른다. 층은 같은 영역 안에서
 // 무엇이 자라는지만 바꾼다 (2026-09-05 결정).
 // 층마다 다른 영역을 주지 않는 이유:
-//  · §5의 나침반(활기 위·평온 오른쪽·슬픔 아래·분노 왼쪽)이 방위에 걸려 있다
+//  · §5의 나침반(활기 위·평온 오른쪽·슬픔 아래·떨림 왼쪽)이 방위에 걸려 있다
 //  · §2에서 높이에는 이미 "안으로 내려간다"는 뜻이 있어 감정 분류를 겹칠 수 없다
 //  · 층 면적이 크게 달라, 영역이 층을 소유하면 어휘 분포에 따라 섬이 기운다
 //  · ③-8 랜드마크가 층을 쓰므로 자리 싸움이 난다
@@ -5765,7 +5771,7 @@ var VEG = {
   HA: { name: "활기", tiers: [["flower"], ["fruit"], ["flower", "fruit"]] },
   LA: { name: "평온", tiers: [["pond"], ["tree"], ["tree"]] },
   LV: { name: "슬픔", tiers: [["reed"], ["wflower"], ["lamp"]] },
-  HV: { name: "분노", tiers: [["wave"], ["rock"], ["rock"]] }
+  HV: { name: "떨림", tiers: [["wave"], ["rock"], ["rock"]] }
 };
 // 중립 식생 — 감정과 무관하고 섬 시드로만 정해진다.
 // 일기가 없는 첫날 섬도 휑하지 않아야 한다(§5). 다만 자란 것과
@@ -5861,7 +5867,7 @@ function tierBand(isle, th, lv) {
 }
 // Russell 좌표 -> 섬 방위.
 // psi = 3π/2 - phi 로 두면 화면에서 활기가 위, 평온이 오른쪽,
-// 슬픔이 아래, 분노가 왼쪽에 온다(카메라가 (14,12,14)일 때).
+// 슬픔이 아래, 떨림이 왼쪽에 온다(카메라가 (14,12,14)일 때).
 function russellAngle(valStd, aroStd, label) {
   if (Math.abs(valStd) < 1e-4 && Math.abs(aroStd) < 1e-4) {
     return mulberry32(hashSeed(label || "x"))() * 6.283185307;
@@ -6143,7 +6149,7 @@ function buildVegMeshes(items) {
       add("neu", it.x, y + 0.015 * s, it.z, 0.10 * s, 0.045 * s, 0.085 * s, it.rot, C(VEGCOL.pebble));
       add("neu", it.x + 0.13 * s, y + 0.01 * s, it.z + 0.07 * s, 0.06 * s, 0.03 * s, 0.055 * s, it.rot, C(VEGCOL.pebble));
     } else if (it.kind === "outcrop") {
-      // 바위 노두 — 땅에 반쯤 묻힌 납작한 판. 분노의 둥근 바위와 다르게 읽힌다.
+      // 바위 노두 — 땅에 반쯤 묻힌 납작한 판. 떨림 영역의 둥근 바위와 다르게 읽힌다.
       add("neu", it.x, y, it.z, 0.30 * s, 0.05 * s, 0.22 * s, it.rot, C(VEGCOL.outcrop));
     }
   });
@@ -7527,7 +7533,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 7, textAlign: "center", color: "#c96a1f", fontWeight: 700 } }, "활기"),
       React.createElement("div", { style: { position: "absolute", right: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#3d8b78", fontWeight: 700 } }, "평온"),
       React.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: 7, textAlign: "center", color: "#4a72a0", fontWeight: 700 } }, "슬픔"),
-      React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#c14d4d", fontWeight: 700 } }, "분노"),
+      React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#7d5ba6", fontWeight: 700 } }, "떨림"),
       React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 7, height: 7, marginLeft: -3.5, marginTop: -3.5, borderRadius: "50%", background: "#9fb0bb" } })),
     React.createElement("div", {
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
@@ -9601,7 +9607,8 @@ function DiaryView({
     }, "\uAC10\uC815 \uC6D0\uD615 \uADF8\uB798\uD504"), React.createElement(CircumplexChart, {
       entries: fe,
       hovIdx: hovIdx,
-      onHover: setHovIdx
+      onHover: setHovIdx,
+      teacher: !!readOnly   // 교사가 학생 일기를 볼 때만 readOnly다
     }), React.createElement("div", {
       style: {
         display: "flex",
