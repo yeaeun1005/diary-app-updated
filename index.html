@@ -1264,7 +1264,7 @@ function plazaAnswerShape(sid, e) {
   e = e || {};
   return { sid: String(sid), o: e.o || "", f: e.f || "", w: e.w || "",
            fl: Array.isArray(e.fl) ? e.fl.filter(function (x) { return x && x.l; }) : [],
-           ts: e.ts || 0, s: e.s === 1 || e.s === 2 ? e.s : 0 };
+           ts: e.ts || 0, s: e.s === 1 || e.s === 2 ? e.s : 0, nmf: !!e.nmf };
 }
 // 내 답(학생). 없으면 null.
 async function plazaMyAnswer(code, qid, sid) {
@@ -1283,10 +1283,20 @@ async function plazaAnswerPut(code, qid, stu, ans) {
   o[base + "w"] = plazaCleanText(ans.w);
   o[base + "fl"] = (ans.fl || []).slice(0, 5).map(function (x) { return { l: String(x.l || "").slice(0, 40), q: QC[x.q] ? x.q : "LA" }; });
   o[base + "ts"] = Date.now();
-  o[base + "s"] = 0;
+  // 이름이 들어 있어 두 번째 막힌 답은 저장하되 숨김(s=2)으로 간다. nmf가 교사 화면에 "확인 필요"를 띄운다.
+  // 막는 기준이 "쓰기"가 아니라 "공개"다(2026-09-07).
+  o[base + "s"] = ans.flagged ? 2 : 0;
+  o[base + "nmf"] = ans.flagged ? true : null;
   o["pub/" + qid + "/" + anonKey(sid)] = null;
+  // 오늘 답을 쓴 아이 수. 광장에 그 수만큼 캐릭터가 선다. 익명 키뿐이라 누가인지는 없다.
+  o["n/" + qid + "/" + anonKey(sid)] = 1;
   await firebase.database().ref("app/" + plazaKey(code)).update(o);
   return true;
+}
+// 답을 쓴 아이들의 익명 키. 개수가 아니라 목록을 돌려주고, 광장은 그 수만큼 캐릭터를 세운다.
+async function plazaCount(code, qid) {
+  var o = await sGet(plazaKey(code) + "/n/" + qid);
+  return o ? Object.keys(o) : [];
 }
 // 답 전체(교사). 이름은 호출한 쪽이 학생 목록에서 붙인다.
 async function plazaAnswers(code, qid) {
@@ -1301,6 +1311,7 @@ async function plazaSetState(code, qid, ans, s) {
   if (!code || !qid || !ans || !ans.sid) return;
   var o = {};
   o["a/" + qid + "/" + ans.sid + "/s"] = s;
+  if (s !== 2) o["a/" + qid + "/" + ans.sid + "/nmf"] = null;   // 교사가 확인하고 풀면 표시도 걷는다
   o["pub/" + qid + "/" + anonKey(ans.sid)] = s === 1 ? { o: ans.o || "", f: ans.f || "", w: ans.w || "", fl: ans.fl || [] } : null;
   await firebase.database().ref("app/" + plazaKey(code)).update(o);
 }
@@ -1360,17 +1371,28 @@ function plazaChips(myState) {
   });
   return out;
 }
-// 이름 검사. 답에 반 친구 이름이 들어 있으면 그 이름을 돌려준다(저장을 막는다).
-// 성 포함 전체 이름만 본다 — 두 글자 이름은 일반 낱말과 겹친다. 내 이름은 지목이 아니라 뺀다.
+// 이름 검사. 답에 반 친구 이름이 들어 있으면 그 이름을 돌려준다.
+//  · 세 글자 이상(성 포함)은 그대로 찾는다. 글에 우연히 나올 일이 거의 없다.
+//  · 두 글자 이름은 "이슬·하늘·보라"처럼 낱말과 겹치므로 뒤에 조사가 붙을 때만 잡는다.
+//  · 내 이름은 지목이 아니라 뺀다.
+var PLAZA_JOSA = "(이가|이는|이랑|이도|이를|이한테|이에게|가|는|랑|도|를|한테|에게|은|을|이)";
 function plazaNameHit(text, names, myName) {
   var t = String(text || "");
   if (!t) return null;
   for (var i = 0; i < (names || []).length; i++) {
     var nm = String(names[i] || "").trim();
     if (nm.length < 2 || nm === myName) continue;
-    if (t.indexOf(nm) >= 0) return nm;
+    var esc = nm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (nm.length >= 3) { if (t.indexOf(nm) >= 0) return nm; }
+    else if (new RegExp(esc + PLAZA_JOSA).test(t)) return nm;
   }
   return null;
+}
+// 이름을 "친구"로 바꾼다. "하늘이가" → "친구가"처럼 받침 조사 '이'는 같이 걷는다.
+function plazaNameFix(text, nm) {
+  var t = String(text || ""), esc = nm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  t = t.replace(new RegExp(esc + "이(가|는|랑|도|를|한테|에게)", "g"), "친구$1");
+  return t.split(nm).join("친구");
 }
 // 일기 읽기. 새 경로가 마이그레이션 완료 상태면 그쪽을, 아니면 옛 경로를 읽는다.
 // 어느 쪽이든 예전과 똑같은 모양의 배열을 돌려준다(소비 코드는 손대지 않는다).
@@ -7768,56 +7790,82 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
 // 내 섬이 "누적된 어휘의 지도"라면 광장은 "오늘"만 보여준다(§5·§8). 그래서 매일 다시 자란다.
 // 광장에서 고른 어휘는 섬에 자라지 않는다. 만나는 곳은 여럿이어도 자라는 곳은 일기 하나다
 // (2026-09-07, 친구 섬과 같은 규칙).
-var PLAZA_R = 4.6, PLAZA_Y = 0.42;
-// 게시판·깃대 자리. 화면 위쪽(카메라 반대편)에 두어 아래 카드에 가리지 않는다.
-var PLAZA_BOARD = { x: -2.55, z: -0.75 }, PLAZA_FLAG = { x: -3.0, z: -2.6 };
-function plazaShape(rnd, R) {
-  var TAU = Math.PI * 2, p1 = rnd() * TAU, p2 = rnd() * TAU, sh = new THREE.Shape();
-  for (var i = 0; i < 72; i++) {
-    var th = i / 72 * TAU, r = R * (1 + 0.06 * Math.sin(3 * th + p1) + 0.035 * Math.sin(5 * th + p2));
-    var x = Math.cos(th) * r, y = Math.sin(th) * r;
-    if (i === 0) sh.moveTo(x, y); else sh.lineTo(x, y);
-  }
-  sh.closePath();
-  return sh;
-}
-// 판 하나. 윗면과 옆면 색이 다르다(잔디/흙벽, 모래/젖은 모래). 베벨이 있어야 점토가 된다.
-function plazaSlab(shape, depth, topY, capCol, sideCol) {
-  var BV = 0.05;
-  var geo = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 2, curveSegments: 4 });
+// 돌계단 마당(A안, 2026-09-07). 물에서 바로 올라온 둥근 돌 단이 안으로 두 단 내려가 모닥불에서 끝난다.
+// 내 섬은 위로 올라가 표지에서 끝나고, 광장은 안으로 내려가 불에서 끝난다 — 형태만이 아니라 뜻이 다르다.
+// 잔디·모래·흙벽이 없다. 포장돌과 나무 테두리뿐이다. 섬은 땅이고 광장은 자리다.
+var PLZ = { R0: 2.2, R1: 3.4, R2: 4.5, Y0: 0.30, Y1: 0.62, Y2: 0.95, YW: -0.36,
+            SLOTS: 12, RP: 3.9, RPOST: 4.15, RBOARD: 5.3, THBOARD: 195 * Math.PI / 180 };
+// 네 방위 — 내 섬 나침반과 같다. 활기 위 · 평온 오른쪽 · 슬픔 아래 · 떨림 왼쪽 (화면 기준).
+var PLZ_QA = { HA: 225 * Math.PI / 180, LA: 315 * Math.PI / 180, LV: 45 * Math.PI / 180, HV: 135 * Math.PI / 180 };
+var PLZ_STONE = 0xcfc4ad, PLZ_STONE_D = 0x9a8f7c, PLZ_WALL = 0x847a6a;
+function plazaRing(rIn, rOut, yBot, yTop, capCol, sideCol) {
+  var sh = new THREE.Shape();
+  sh.absarc(0, 0, rOut, 0, Math.PI * 2, false);
+  if (rIn > 0) { var hole = new THREE.Path(); hole.absarc(0, 0, rIn, 0, Math.PI * 2, true); sh.holes.push(hole); }
+  var BV = 0.035, depth = yTop - yBot - BV;
+  var geo = new THREE.ExtrudeGeometry(sh, { depth: depth, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 2, curveSegments: 48 });
   geo.rotateX(-Math.PI / 2);
   var M = function (c) { return new THREE.MeshStandardMaterial({ color: c, roughness: 1, metalness: 0 }); };
   var m = new THREE.Mesh(geo, [M(capCol), M(sideCol)]);
-  m.position.y = topY - depth - BV;
+  m.position.y = yBot;
   m.castShadow = true; m.receiveShadow = true;
   return m;
 }
+var PLZ_FLAG_TEX = {};
+function plazaFlagTexture(text, hex) {
+  var key = text + "#" + hex;
+  if (PLZ_FLAG_TEX[key]) return PLZ_FLAG_TEX[key];
+  if (typeof document === "undefined") return null;
+  var c = document.createElement("canvas"); c.width = 256; c.height = 160;
+  var g = c.getContext("2d");
+  g.fillStyle = hex; g.fillRect(0, 0, 256, 160);
+  g.fillStyle = "rgba(255,255,255,0.92)"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "bold 84px 'Jua', 'Apple SD Gothic Neo', sans-serif";
+  g.fillText(text, 128, 86);
+  var t = new THREE.Texture(c); t.needsUpdate = true;
+  if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
+  PLZ_FLAG_TEX[key] = t;
+  return t;
+}
 function buildPlazaIsle(seedStr, hasBoard) {
   var grp = new THREE.Group();
-  var rnd = mulberry32(hashSeed(seedStr || "plaza"));
-  var C = function (a) { return new THREE.Color(a[0], a[1], a[2]); };
   var M = function (col, extra) {
     var o = { color: col, roughness: 1, metalness: 0 };
     if (extra) for (var k in extra) o[k] = extra[k];
     return new THREE.MeshStandardMaterial(o);
   };
-  grp.add(plazaSlab(plazaShape(rnd, PLAZA_R + 1.05), 0.26, 0.10, C(ISLE.sand), C(hslShift(ISLE.sand, 0, -0.07))));
-  grp.add(plazaSlab(plazaShape(rnd, PLAZA_R), PLAZA_Y - 0.10, PLAZA_Y, C(ISLE.grassLow), C(ISLE.cliff)));
-  // 가운데 모임 자리 — 돌바닥, 둘러앉는 통나무, 모닥불.
-  var stone = new THREE.Mesh(new THREE.CircleGeometry(1.35, 40), M(0xcbbfa6));
-  stone.rotation.x = -Math.PI / 2; stone.position.y = PLAZA_Y + 0.012; stone.receiveShadow = true;
-  grp.add(stone);
-  var rim = new THREE.Mesh(new THREE.RingGeometry(1.30, 1.48, 40), M(0xa89b83));
-  rim.rotation.x = -Math.PI / 2; rim.position.y = PLAZA_Y + 0.014; rim.receiveShadow = true;
-  grp.add(rim);
-  var logG = new THREE.CylinderGeometry(0.10, 0.10, 0.62, 7).rotateZ(Math.PI / 2), logM = M(ISLE.wood);
-  for (var i = 0; i < 8; i++) {
-    var a = i / 8 * Math.PI * 2 + 0.2, lg = new THREE.Mesh(logG, logM);
-    lg.position.set(Math.cos(a) * 1.02, PLAZA_Y + 0.10, Math.sin(a) * 1.02);
-    lg.rotation.y = -a - Math.PI / 2;   // 접선 방향
-    lg.castShadow = true; lg.receiveShadow = true;
-    grp.add(lg);
+  // 세 단. 아래부터 — 바닥(물속에서 안쪽 마당 높이까지), 가운데 단, 바깥 단.
+  grp.add(plazaRing(0, PLZ.R2, PLZ.YW, PLZ.Y0, PLZ_STONE, PLZ_WALL));
+  grp.add(plazaRing(PLZ.R0, PLZ.R2, PLZ.Y0, PLZ.Y1, PLZ_STONE, PLZ_STONE_D));
+  grp.add(plazaRing(PLZ.R1, PLZ.R2, PLZ.Y1, PLZ.Y2, PLZ_STONE, PLZ_STONE_D));
+  // 포장 이음선 — 돌판으로 읽히게. 단마다 둘레 줄 하나와 방사선.
+  var seamM = M(0xb8ad97), TAU = Math.PI * 2;
+  function seamRing(r, y) {
+    var m = new THREE.Mesh(new THREE.RingGeometry(r - 0.025, r + 0.025, 64), seamM);
+    m.rotation.x = -Math.PI / 2; m.position.y = y + 0.004; m.receiveShadow = true; grp.add(m);
   }
+  function seamRad(rIn, rOut, y, n, off) {
+    var g = new THREE.BoxGeometry(rOut - rIn, 0.006, 0.05);
+    for (var i = 0; i < n; i++) {
+      var a = off + i / n * TAU, m = new THREE.Mesh(g, seamM);
+      m.position.set(Math.cos(a) * (rIn + rOut) / 2, y + 0.004, Math.sin(a) * (rIn + rOut) / 2);
+      m.rotation.y = -a; grp.add(m);
+    }
+  }
+  seamRing(1.45, PLZ.Y0); seamRing(2.8, PLZ.Y1); seamRing(3.95, PLZ.Y2);
+  seamRad(0.8, PLZ.R0 - 0.1, PLZ.Y0, 12, 0.13); seamRad(PLZ.R0 + 0.1, PLZ.R1 - 0.1, PLZ.Y1, 20, 0.05); seamRad(PLZ.R1 + 0.1, PLZ.R2 - 0.12, PLZ.Y2, 28, 0.09);
+  // 바깥 나무 테두리.
+  var rim = new THREE.Mesh(new THREE.RingGeometry(PLZ.R2 - 0.16, PLZ.R2 + 0.02, 64), M(ISLE.wood));
+  rim.rotation.x = -Math.PI / 2; rim.position.y = PLZ.Y2 + 0.06; rim.receiveShadow = true; grp.add(rim);
+  var rimW = new THREE.Mesh(new THREE.CylinderGeometry(PLZ.R2 + 0.02, PLZ.R2 + 0.02, 0.12, 64, 1, true), M(ISLE.wood));
+  rimW.position.y = PLZ.Y2; rimW.castShadow = true; grp.add(rimW);
+  // 모닥불 — 안쪽 마당 한가운데. 여기서 끝난다.
+  var pit = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.70, 0.16, 24, 1, true), M(PLZ_STONE_D));
+  pit.position.y = PLZ.Y0 + 0.08; pit.castShadow = true; grp.add(pit);
+  var pitTop = new THREE.Mesh(new THREE.RingGeometry(0.50, 0.68, 24), M(0xb3a892));
+  pitTop.rotation.x = -Math.PI / 2; pitTop.position.y = PLZ.Y0 + 0.161; grp.add(pitTop);
+  var ash = new THREE.Mesh(new THREE.CircleGeometry(0.50, 24), M(0x5e544a));
+  ash.rotation.x = -Math.PI / 2; ash.position.y = PLZ.Y0 + 0.02; grp.add(ash);
   var fire = new THREE.Group();
   var log2 = new THREE.CylinderGeometry(0.06, 0.06, 0.52, 6).rotateZ(Math.PI / 2), log2M = M(0x6f4630);
   for (var j = 0; j < 3; j++) {
@@ -7828,69 +7876,121 @@ function buildPlazaIsle(seedStr, hasBoard) {
   flame.position.y = 0.30; fire.add(flame);
   var flame2 = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.30, 6), M(0xfff1b0, { emissive: 0xffd36a, emissiveIntensity: 1.1 }));
   flame2.position.y = 0.26; fire.add(flame2);
-  var glow = new THREE.PointLight(0xffa040, 0.35, 4.5, 2); glow.position.y = 0.55; fire.add(glow);
-  fire.position.y = PLAZA_Y; grp.add(fire);
+  var glow = new THREE.PointLight(0xffa040, 0.45, 5.0, 2); glow.position.y = 0.6; fire.add(glow);
+  fire.position.y = PLZ.Y0 + 0.02; grp.add(fire);
   grp.userData.flame = flame; grp.userData.flame2 = flame2;
-  // 깃대 — 내 섬 광장 표지의 깃발과 같은 것. 여기가 그 깃발이 가리키던 곳이다.
-  var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 2.05, 8), M(ISLE.wood));
-  pole.position.set(PLAZA_FLAG.x, PLAZA_Y + 2.05 / 2, PLAZA_FLAG.z); pole.castShadow = true; grp.add(pole);
-  var flag = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.54, 0.04), M(0xd6883c));
-  flag.rotation.y = Math.PI / 4; flag.position.set(PLAZA_FLAG.x, PLAZA_Y + 1.70, PLAZA_FLAG.z);
-  flag.translateX(0.41); flag.castShadow = true; grp.add(flag);
-  // 게시판 — 질문이 있는 날만 선다. 팻말과 같은 형태를 크게. 판이 있는 곳이 무언가 있는 곳이다.
+  // 네 방위 기둥 — 등불과 깃발. 내 섬 나침반이 광장에도 선다.
+  var poleG = new THREE.CylinderGeometry(0.045, 0.055, 2.35, 8), poleM = M(ISLE.wood);
+  var lampG = new THREE.BoxGeometry(0.2, 0.24, 0.2);
+  var lampM = M(0xffe2a8, { emissive: 0xffb75a, emissiveIntensity: 0.7 });
+  Object.keys(PLZ_QA).forEach(function (q) {
+    var a = PLZ_QA[q], x = Math.cos(a) * PLZ.RPOST, z = Math.sin(a) * PLZ.RPOST;
+    var pole = new THREE.Mesh(poleG, poleM);
+    pole.position.set(x, PLZ.Y2 + 2.35 / 2, z); pole.castShadow = true; grp.add(pole);
+    // 앞 기둥(슬픔, 카메라 쪽)은 깃발이 높으면 화면에서 모닥불 위에 걸친다. 그것만 낮게 달고 등불을 위로 올린다.
+    var frontPost = q === "LV", fy = frontPost ? 1.25 : 2.10, ly = frontPost ? 1.75 : 1.35;
+    var lamp = new THREE.Mesh(lampG, lampM);
+    lamp.position.set(x, PLZ.Y2 + ly, z); lamp.castShadow = true; grp.add(lamp);
+    var tx = plazaFlagTexture(Q_NAME[q] || q, QC[q]);
+    var flag = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.46),
+      tx ? new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }) : new THREE.MeshBasicMaterial({ color: QC[q], side: THREE.DoubleSide }));
+    flag.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");   // 화면을 본다. 이름표와 같은 각도
+    // 기둥 바깥쪽(마당 반대쪽)으로 편다. 안쪽으로 펴면 옆 화분 이름표를 가린다.
+    flag.position.set(x + Math.cos(a) * 0.42, PLZ.Y2 + fy, z + Math.sin(a) * 0.42);
+    flag.renderOrder = 10;
+    grp.add(flag);
+  });
+  // 게시판 — 질문이 있는 날만. 마당 바깥 뒤쪽, 물 위의 작은 돌 받침에 선다. 화분 자리를 하나도 안 뺏는다.
   if (hasBoard) {
-    var bg = new THREE.Group(); bg.position.set(PLAZA_BOARD.x, PLAZA_Y, PLAZA_BOARD.z); grp.add(bg);
+    var bx = Math.cos(PLZ.THBOARD) * PLZ.RBOARD, bz = Math.sin(PLZ.THBOARD) * PLZ.RBOARD;
+    var pad = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.9, PLZ.Y2 - PLZ.YW, 24), [M(PLZ_WALL), M(PLZ_STONE), M(PLZ_WALL)]);
+    pad.position.set(bx, (PLZ.Y2 + PLZ.YW) / 2, bz); pad.castShadow = true; pad.receiveShadow = true; grp.add(pad);
+    var bg = new THREE.Group(); bg.position.set(bx, PLZ.Y2, bz); grp.add(bg);
     addNameSign(bg, "오늘의 질문", 0, 1.55);
-    var pl = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.66, 0.07, 20), M(0xd8c6a2));
-    pl.position.set(0, 0.035, 0.30); pl.castShadow = true; pl.receiveShadow = true; bg.add(pl);
   }
   return grp;
 }
-// 오늘 많이 쓴 어휘를 광장에 심는다. 내 섬 식생 규칙(VEG)과 같은 종류·같은 방위를 쓴다.
-// 순위로 크기만 다르고, 개수는 어디에도 없다. 매일 다시 자란다.
+// 어휘 화분. 바깥 단 테두리를 따라 12자리. 어휘 하나가 상자 하나이고 상자 안에 사분면 식생이 자란다.
+// 자리는 12칸 격자라 이름표가 겹치지 않는다. 방위는 내 섬과 같게 두고, 같은 방위의 말은 그 둘레에 모인다.
+// 순위는 상자·식생 크기로만. 개수는 어디에도 없다. 사람이 가져다 심은 것이라 "오늘 우리가 가져온 말"로 읽힌다.
 function buildPlazaWords(words, seedStr) {
-  var items = [], TAU = Math.PI * 2, tags = [];
-  var REP = { HA: [0.6, 0.6], LA: [0.6, -0.6], LV: [-0.6, -0.6], HV: [-0.6, 0.6] };
-  var perQ = {};
-  function fits(x, z, foot) {
-    if (Math.hypot(x, z) < 1.62 + foot) return false;                                  // 모임 자리
-    if (Math.hypot(x - PLAZA_FLAG.x, z - PLAZA_FLAG.z) < 0.55 + foot) return false;     // 깃대
-    if (Math.hypot(x - PLAZA_BOARD.x, z - PLAZA_BOARD.z) < 1.05 + foot) return false;   // 게시판 자리는 늘 비워 둔다
-    for (var i = 0; i < items.length; i++)
-      if (Math.hypot(x - items[i].x, z - items[i].z) < foot + items[i].foot + 0.18) return false;
-    return true;
-  }
-  function push(kind, x, z, sc, rnd, lv, q, label) {
-    items.push({ kind: kind, x: x, y: PLAZA_Y, z: z, s: sc, sy: sc * (0.85 + rnd() * 0.4), rot: rnd() * TAU, col: rnd(),
-                 foot: (VEG_FOOT[kind] || 0.2) * sc, lv: lv, q: q, label: label, neutral: !!VEG_NEUTRAL[kind] });
-  }
-  (words || []).forEach(function (w, rank) {
-    var q = VEG[w.q] ? w.q : "LA", rule = VEG[q], rnd = mulberry32(hashSeed("plaza:" + w.l));
-    var k = perQ[q] = (perQ[q] || 0) + 1;
-    // 같은 방위의 말은 각도를 벌리고 안쪽·바깥쪽 고리를 번갈아 쓴다. 이름표가 겹치지 않게.
-    var rep = REP[q], base = russellAngle(rep[0], rep[1], w.l) + (k % 2 ? 1 : -1) * Math.ceil((k - 1) / 2) * 0.75;
-    var ring = (k - 1) % 2, r0 = ring ? 3.55 : 2.45;
-    var big = 1.28 - rank * 0.07, cx = 0, cz = 0, n = 0;
-    for (var i = 0; i < 3; i++) {
-      var kind = rule.tiers[i][0]; if (kind === "wave") kind = "rock";   // 물가가 없다
-      var sc = big * (0.8 + rnd() * 0.35), foot = (VEG_FOOT[kind] || 0.2) * sc;
-      for (var t = 0; t < 30; t++) {
-        var a = base + (rnd() - 0.5) * (0.5 + t * 0.03), r = r0 + (rnd() - 0.5) * (0.5 + t * 0.03);
-        var x = Math.cos(a) * r, z = Math.sin(a) * r;
-        if (fits(x, z, foot)) { push(kind, x, z, sc, rnd, i, q, w.l); cx += x; cz += z; n++; break; }
-      }
-    }
-    if (n) tags.push({ l: w.l, x: cx / n, z: cz / n, top: PLAZA_Y + 1.05 + ring * 0.35 + big * 0.25 });
+  var items = [], tags = [], boxes = [], TAU = Math.PI * 2, N = PLZ.SLOTS, STEP = TAU / N;
+  var list = (words || []).slice(0, N);
+  // 방위별로 모아 원하는 칸을 정하고, 겹치면 가까운 빈 칸으로 민다. 순위가 높은 말이 먼저 자리를 잡는다.
+  var byQ = {};
+  list.forEach(function (w, i) { var q = VEG[w.q] ? w.q : "LA"; (byQ[q] = byQ[q] || []).push(i); });
+  var want = new Array(list.length);
+  Object.keys(byQ).forEach(function (q) {
+    var idx = byQ[q], c = PLZ_QA[q] / STEP;   // 방위 중심(칸 단위, 4.5 / 7.5 / 10.5 / 1.5)
+    idx.forEach(function (wi, k) { want[wi] = Math.round(c + (k - (idx.length - 1) / 2) * 1.0 + (idx.length % 2 ? 0 : 0.5)); });
   });
-  var brnd = mulberry32(hashSeed("plaza-neu:" + (seedStr || "")));
-  for (var b = 0; b < 26; b++) {
-    var kind2 = NEU_KINDS[Math.floor(brnd() * NEU_KINDS.length)], sc2 = 0.8 + brnd() * 0.5;
-    var foot2 = (VEG_FOOT[kind2] || 0.2) * sc2;
-    var a2 = brnd() * TAU, r2 = 1.75 + brnd() * (PLAZA_R - 0.6 - 1.75);
-    var x2 = Math.cos(a2) * r2, z2 = Math.sin(a2) * r2;
-    if (fits(x2, z2, foot2)) push(kind2, x2, z2, sc2, brnd, 0, null, null);
-  }
-  return { items: items, tags: tags };
+  var taken = {}, slot = new Array(list.length);
+  list.forEach(function (w, i) {
+    var d0 = ((want[i] % N) + N) % N, got = -1;
+    for (var d = 0; d < N && got < 0; d++) {
+      var c1 = (d0 + d) % N, c2 = ((d0 - d) % N + N) % N;
+      if (!taken[c1]) got = c1; else if (!taken[c2]) got = c2;
+    }
+    taken[got] = 1; slot[i] = got;
+  });
+  var KIND = { HA: ["flower", "fruit"], LA: ["tree", "tree"], LV: ["wflower", "reed"], HV: ["rock", "rock"] };
+  list.forEach(function (w, rank) {
+    var q = VEG[w.q] ? w.q : "LA", rnd = mulberry32(hashSeed("plaza:" + w.l));
+    var a = slot[rank] * STEP, x = Math.cos(a) * PLZ.RP, z = Math.sin(a) * PLZ.RP;
+    var big = 1.15 - rank * 0.045;
+    var kind = KIND[q][rank % 2], sc = big * (0.9 + rnd() * 0.2);
+    boxes.push({ x: x, z: z, s: 0.62 * (0.92 + big * 0.1) });
+    items.push({ kind: kind, x: x, y: PLZ.Y2 + 0.32, z: z, s: sc, sy: sc * (0.9 + rnd() * 0.25), rot: rnd() * TAU, col: rnd(),
+                 foot: (VEG_FOOT[kind] || 0.2) * sc, lv: 2, q: q, label: w.l, neutral: false });
+    // 나무(가장 큰 식생)보다 위, 방위 깃발보다 아래. 같은 높이면 서로 가린다.
+    tags.push({ l: w.l, x: x + 0.707 * 0.22, z: z + 0.707 * 0.22, top: PLZ.Y2 + 0.34 + 1.45 + big * 0.15 });
+  });
+  return { items: items, tags: tags, boxes: boxes };
+}
+function buildPlazaBoxes(boxes) {
+  var grp = new THREE.Group();
+  var M = function (c) { return new THREE.MeshStandardMaterial({ color: c, roughness: 1, metalness: 0 }); };
+  var wood = M(ISLE.wood), soil = M(0x5a4632);
+  boxes.forEach(function (b) {
+    var box = new THREE.Mesh(new THREE.BoxGeometry(b.s, 0.34, b.s), wood);
+    box.position.set(b.x, PLZ.Y2 + 0.17, b.z); box.castShadow = true; box.receiveShadow = true; grp.add(box);
+    var top = new THREE.Mesh(new THREE.BoxGeometry(b.s - 0.1, 0.03, b.s - 0.1), soil);
+    top.position.set(b.x, PLZ.Y2 + 0.33, b.z); grp.add(top);
+  });
+  return grp;
+}
+// 둘러앉는 자리. 안쪽 마당 10 · 가운데 단 16 · 바깥 단 8 = 34. 30명이 다 와도 선다.
+// 0번 자리가 카메라 쪽(화면 아래)이다 — 내 캐릭터가 여기 선다.
+function plazaSeats() {
+  var out = [], TAU = Math.PI * 2, front = PLZ_QA.LV;   // 45° = 화면 아래
+  for (var i = 0; i < 10; i++) out.push({ r: 1.45, a: front + i * TAU / 10, y: PLZ.Y0 });
+  for (var j = 0; j < 16; j++) out.push({ r: 2.8, a: front + TAU / 32 + j * TAU / 16, y: PLZ.Y1 });
+  for (var k = 0; k < 8; k++) out.push({ r: 3.5, a: front + Math.PI / 12 + k * TAU / 8, y: PLZ.Y2 });   // 화분 칸(30° 격자) 사이
+  return out;
+}
+// 오늘 답을 쓴 아이 수만큼 캐릭터를 세운다. 실시간이 아니라 숫자다. 누가 누군지는 안 보인다.
+// 익명 키로 옷 색과 키를 조금씩 달리해 복제 느낌을 줄인다. 내 것만 카메라 쪽 자리에 선다.
+function buildPlazaFigures(keys, myKey) {
+  var grp = new THREE.Group();
+  var seats = plazaSeats(), ks = (keys || []).slice().sort();
+  var mine = !!myKey && ks.indexOf(myKey) >= 0;
+  if (mine) { ks.splice(ks.indexOf(myKey), 1); ks.unshift(myKey); }
+  // 0번(카메라 쪽)은 내 자리다. 아직 안 썼으면 비워 둔다 — 쓰면 거기 선다.
+  ks.forEach(function (k, i) {
+    var st = seats[mine ? i : i + 1];
+    if (!st) return;
+    var ch = buildCharacter(), rnd = mulberry32(hashSeed("fig:" + k));
+    var x = Math.cos(st.a) * st.r, z = Math.sin(st.a) * st.r;
+    ch.position.set(x, st.y, z);
+    var sc = 0.92 + rnd() * 0.14; ch.scale.set(sc, sc, sc);
+    var hue = rnd(), light = 0.5 + rnd() * 0.12;
+    ch.traverse(function (o) {
+      if (o.isMesh && o.material && o.material.color && o.material.color.getHex() === 0xdd6b4f) o.material.color.setHSL(hue, 0.55, light);
+    });
+    if (ch.userData.step) ch.userData.step(0, false, Math.atan2(-x, -z));   // 불을 본다
+    grp.add(ch);
+  });
+  return grp;
 }
 // 어휘 이름표. 바다 이름표와 같은 판을 작게. 칩과 식생이 같은 말이라는 것을 잇는다.
 function buildPlazaTag(text) {
@@ -7921,12 +8021,17 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
   const [warn, setWarn] = useState("");
   const [saving, setSaving] = useState(false);
   const [bridge, setBridge] = useState(false); // 저장 뒤 한 줄
+  const [fold, setFold] = useState(false);     // 내 답이 있으면 카드를 접어 광장을 보여준다
   const [reveal, setReveal] = useState(!!arrive);
+  const [figKeys, setFigKeys] = useState([]);    // 오늘 답을 쓴 아이들의 익명 키. 그 수만큼 캐릭터
+  const [nameBlock, setNameBlock] = useState(0); // 이름으로 막힌 횟수. 두 번째는 저장하되 숨김
+  const figRef = useRef(null);
   const [small, setSmall] = useState(function () {
     try { return window.innerWidth < 560; } catch (e) { return false; }
   });
   const code = me && me.schoolCode;
   const chips = plazaChips(myState);
+  const myKey = me && me.id ? anonKey(me.id) : "";
   useEffect(function () {   // 경고는 저장 버튼 바로 위에 뜬다. 카드가 스크롤이라 보이게 끌어온다
     if (!warn) return;
     try { var el = document.getElementById("plazaWarn"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" }); } catch (e) {}
@@ -7942,16 +8047,17 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     var dead = false;
     (async function () {
       try {
-        var r = await Promise.all([plazaCurrent(code), dayWords(code, 8), dayTone(code), sGet(stuKey(code))]);
+        var r = await Promise.all([plazaCurrent(code), dayWords(code, PLZ.SLOTS), dayTone(code), sGet(stuKey(code))]);
         if (dead) return;
         var qq = r[0];
         setQ(qq); setWords(r[1].words); setTone(r[2].tone);
         setRoster((r[3] || []).map(function (st) { return st && st.name; }).filter(Boolean));
         if (qq) {
           if (onSeen) onSeen(qq.id);
-          var a = await plazaMyAnswer(code, qq.id, me.id);
+          var r2 = await Promise.all([plazaMyAnswer(code, qq.id, me.id), plazaCount(code, qq.id)]);
           if (dead) return;
-          setAns(a);
+          var a = r2[0];
+          setAns(a); setFigKeys(r2[1]); if (a) setFold(true);
           if (a) { var pl = await plazaPublic(code, qq.id, me.id); if (!dead) setPub(pl); }
         }
       } catch (e) { console.error("plaza:", e); }
@@ -7977,21 +8083,30 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     host.appendChild(renderer.domElement);
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
-    function halfFor(a) { return Math.max(5.1, 6.6 / a); }
+    function halfFor(a) { return Math.max(5.35, 6.8 / a); }
     var aspect = W / H, d = halfFor(aspect);
     var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
     cam.position.set(14, 12, 14);
-    cam.lookAt(0, 0.3, 0);
+    cam.lookAt(0, 0.5, 0);
     scene.add(buildSea(15 * ISLE_K, tone));
     var isle = buildPlazaIsle("plaza:" + code, !!q);
     scene.add(isle);
     var pw = buildPlazaWords(words, "plaza:" + code);
+    scene.add(buildPlazaBoxes(pw.boxes));
     scene.add(buildVegMeshes(pw.items));
     pw.tags.forEach(function (t) {
       var tg = buildPlazaTag(t.l);
       tg.position.set(t.x, t.top, t.z);
       scene.add(tg);
     });
+    // 캐릭터는 따로 갈아 끼운다 — 내가 답을 쓰면 그 자리에서 하나 더 선다.
+    var figGrp = null;
+    figRef.current = function (keys) {
+      if (figGrp) { scene.remove(figGrp); figGrp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.dispose(); }); }); }
+      figGrp = buildPlazaFigures(keys, myKey);
+      scene.add(figGrp);
+    };
+    figRef.current(figKeys);
     addIsleLights(scene, 7 * ISLE_K, 42 * ISLE_K);
     var t00 = performance.now();
     function tick(t0) {
@@ -8018,6 +8133,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(onResize); ro.observe(host); }
     return function () {
       disposed = true;
+      figRef.current = null;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
@@ -8031,6 +8147,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
       if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
   }, [loading]);
+  useEffect(function () { if (figRef.current) figRef.current(figKeys); }, [figKeys]);
   // ── 카드 ──
   var lab = { HA: "활기", LA: "평온", LV: "슬픔", HV: "떨림" };
   var pill = function (q2) { return React.createElement("span", { style: { fontSize: 11, color: "#7a8f9a", border: "1px solid #dbe6ea", borderRadius: 6, padding: "1px 6px", marginLeft: 6 } }, lab[q2] || ""); };
@@ -8056,7 +8173,12 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
   }
   function startWrite() {
     setForm(ans ? { o: ans.o, f: ans.f, w: ans.w, fl: ans.fl.slice() } : { o: "", f: "", w: "", fl: [] });
-    setWarn(""); setTip(null); setBridge(false); setMode("write");
+    setWarn(""); setTip(null); setBridge(false); setNameBlock(0); setMode("write");
+  }
+  // 경고의 "친구로 바꾸기". 세 칸에서 그 이름을 걷는다.
+  function fixName(nm) {
+    setForm(function (f) { return { ...f, o: plazaNameFix(f.o, nm), f: plazaNameFix(f.f, nm), w: plazaNameFix(f.w, nm) }; });
+    setWarn("");
   }
   async function save() {
     if (saving) return;
@@ -8064,12 +8186,19 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     if (!o) { setWarn("무슨 일이 있었는지 먼저 써 주세요."); return; }
     if (!form.fl.length && !f) { setWarn("마음 말을 하나 골라 주세요."); return; }
     var hit = plazaNameHit(o, roster, me.name) || plazaNameHit(f, roster, me.name) || plazaNameHit(w, roster, me.name);
-    if (hit) { setWarn("'" + hit + "'은 친구 이름이에요. 이름 대신 '친구가'라고 써 볼까요?"); return; }
+    var flagged = false;
+    if (hit) {
+      // 첫 번째는 막고 바꾸기를 돕는다. 두 번째는 저장하되 숨김 — 정말 그 말을 쓰고 싶은 아이는 쓸 수 있고,
+      // 광장에는 교사 확인 없이 절대 나가지 않는다.
+      if (nameBlock < 1) { setNameBlock(1); setWarn({ text: "'" + hit + "'은 친구 이름이에요. 이름 대신 '친구'라고 써 볼까요?", name: hit }); return; }
+      flagged = true;
+    }
     setSaving(true);
     try {
-      await plazaAnswerPut(code, q.id, me, { o: o, f: f, w: w, fl: form.fl });
-      setAns({ sid: String(me.id), o: o, f: f, w: w, fl: form.fl.slice(), ts: Date.now(), s: 0 });
-      setMode("view"); setBridge(true); setTip(null);
+      await plazaAnswerPut(code, q.id, me, { o: o, f: f, w: w, fl: form.fl, flagged: flagged });
+      setAns({ sid: String(me.id), o: o, f: f, w: w, fl: form.fl.slice(), ts: Date.now(), s: flagged ? 2 : 0, nmf: flagged });
+      setFigKeys(function (ks) { return ks.indexOf(myKey) >= 0 ? ks : ks.concat([myKey]); });
+      setMode("view"); setBridge(true); setTip(null); setFold(false);
       plazaPublic(code, q.id, me.id).then(setPub).catch(function () {});
     } catch (e) { console.error("plazaAnswerPut:", e); setWarn("저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."); }
     setSaving(false);
@@ -8128,12 +8257,22 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     React.createElement("textarea", { value: form.w, maxLength: PLAZA_MAX, rows: 2, placeholder: "이랬으면 좋겠다고 써요 (안 써도 괜찮아요)",
       onChange: function (e) { setWarn(""); setForm({ ...form, w: e.target.value }); },
       style: { width: "100%", boxSizing: "border-box", marginTop: 3, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
-    warn ? React.createElement("div", { id: "plazaWarn", style: { marginTop: 8, fontSize: 13, color: "#b4532a", background: "#fff1ea", borderRadius: 8, padding: "6px 10px" } }, warn) : null,
+    warn ? React.createElement("div", { id: "plazaWarn", style: { marginTop: 8, fontSize: 13, color: "#b4532a", background: "#fff1ea", borderRadius: 8, padding: "6px 10px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+      React.createElement("span", { style: { flex: 1 } }, warn.text || warn),
+      warn.name ? React.createElement("button", { onClick: function () { fixName(warn.name); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, color: "#b4532a", border: "1px solid #f0c9b3", background: "#fff" } }, "친구로 바꾸기") : null,
+      warn.name ? React.createElement("span", { style: { flexBasis: "100%", fontSize: 11, color: "#c47a5a" } }, "그대로 저장하면 선생님이 확인한 뒤에 보여요") : null) : null,
     React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 } },
       React.createElement("button", { onClick: function () { setMode("view"); setWarn(""); setTip(null); }, style: { ...bSoft, padding: "7px 14px", fontSize: 14 } }, "취소"),
       React.createElement("button", { onClick: save, disabled: saving, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490", opacity: saving ? 0.6 : 1 } }, saving ? "저장 중…" : "저장")));
+  else if (ans && fold) body = React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+    React.createElement("div", { style: { flex: "1 1 auto", minWidth: 0 } },
+      React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a" } }, "오늘의 질문 · 답을 썼어요"),
+      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#0e7490", lineHeight: 1.4 } }, q.t)),
+    React.createElement("button", { onClick: function () { setFold(false); }, style: { ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "내 답과 친구들의 답"));
   else body = React.createElement("div", null,
-    React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a" } }, "오늘의 질문"),
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+      React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a", flex: 1 } }, "오늘의 질문"),
+      ans ? React.createElement("button", { onClick: function () { setFold(true); }, style: { ...bSoft, padding: "3px 10px", fontSize: 12 } }, "접기") : null),
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45 } }, q.t),
     !ans ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" } },
       React.createElement("span", { style: { fontSize: 13, color: "#5b7684" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
@@ -8141,9 +8280,9 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     : React.createElement("div", null,
       ansCard(ans, true),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" } },
-        ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, color: "#9a5b2b" } }, "선생님이 확인하고 있어요")
+        ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, color: "#9a5b2b" } }, ans.nmf ? "이름이 들어 있어 선생님이 확인한 뒤에 보여요" : "선생님이 확인하고 있어요")
         : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, color: "#0e7490" } }, "광장에 올라갔어요") : null,
-        ans.s !== 2 ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "고치기") : null),
+        ans.s !== 2 || ans.nmf ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "고치기") : null),
       // 광장은 섬을 키우지 않는다. 자동이 아니라 초대다 — 안 써도 아무것도 기록하지 않는다.
       bridge ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#0e7490", background: "#e6f4f7", borderRadius: 8, padding: "6px 10px" } }, "이 마음을 일기에도 써 보면 섬에 자라요") : null,
       React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#2f6a97", marginTop: 14 } }, "친구들의 답"),
@@ -11538,13 +11677,15 @@ function App() {
     };
     var stPill = function (s2) {
       var m = s2 === 1 ? ["광장", "#0e7490", "#e6f4f7"] : s2 === 2 ? ["숨김", "#9a5b2b", "#fff4e6"] : ["비공개", "#7a8f9a", "#f1f5f7"];
+      if (s2 === "nmf") m = ["확인 필요", "#b4532a", "#fff1ea"];
       return React.createElement("span", { style: { fontSize: 11, color: m[1], background: m[2], borderRadius: 6, padding: "1px 7px", marginLeft: 6 } }, m[0]);
     };
     var ansEl = function (a, ro) {
       return React.createElement("div", { key: a.sid, style: { border: "1px solid #e3edf1", borderRadius: 10, padding: "8px 12px 10px", marginTop: 8, background: a.s === 2 ? "#fffaf5" : "#fff" } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, fontSize: 13 } },
           React.createElement("b", { style: { color: "#2b3a42" } }, nmOf[a.sid] || "(반에 없는 학생)"),
-          React.createElement("span", { style: { color: "#9aa7b0", marginLeft: 6 } }, a.ts ? dayStamp(a.ts) : ""), stPill(a.s)),
+          React.createElement("span", { style: { color: "#9aa7b0", marginLeft: 6 } }, a.ts ? dayStamp(a.ts) : ""), stPill(a.s), a.nmf ? stPill("nmf") : null),
+        a.nmf ? React.createElement("div", { style: { fontSize: 12, color: "#b4532a", marginTop: 4 } }, "이름이 들어 있어 확인 필요 — 아이가 두 번 저장을 눌러 숨김으로 저장됐어요. 읽고 풀거나 그대로 두세요.") : null,
         rowS("관찰", a.o || "—"),
         rowS("느낌", React.createElement("span", null, (a.fl || []).map(chipS), a.f || ((a.fl || []).length ? "" : "—"))),
         rowS("바람", a.w || "—"),
