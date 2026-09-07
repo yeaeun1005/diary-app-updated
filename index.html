@@ -7811,21 +7811,33 @@ function plazaRing(rIn, rOut, yBot, yTop, capCol, sideCol) {
   m.castShadow = true; m.receiveShadow = true;
   return m;
 }
+// 방위 깃발은 삼각 페넌트다. 어휘 팻말(네모 베이지 판·검은 글씨)과 모양·색·글자색이 전부 다르다.
+// "슬픔"은 방위 이름이자 어휘라 둘이 나란히 서면 같은 것으로 읽혔다(100번). 크기나 자리를 바꿔도
+// 다시 겹칠 수 있으니 모양으로 가른다. 글자는 기둥 쪽 넓은 부분에 쓴다.
 var PLZ_FLAG_TEX = {};
-function plazaFlagTexture(text, hex) {
-  var key = text + "#" + hex;
+function plazaFlagTexture(text, hex, flip) {
+  var key = text + "#" + hex + (flip ? "L" : "R");
   if (PLZ_FLAG_TEX[key]) return PLZ_FLAG_TEX[key];
   if (typeof document === "undefined") return null;
-  var c = document.createElement("canvas"); c.width = 256; c.height = 160;
+  var c = document.createElement("canvas"); c.width = 256; c.height = 128;
   var g = c.getContext("2d");
-  g.fillStyle = hex; g.fillRect(0, 0, 256, 160);
-  g.fillStyle = "rgba(255,255,255,0.92)"; g.textAlign = "center"; g.textBaseline = "middle";
-  g.font = "bold 84px 'Jua', 'Apple SD Gothic Neo', sans-serif";
-  g.fillText(text, 128, 86);
+  g.fillStyle = hex; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = "rgba(255,255,255,0.95)"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "bold 68px 'Jua', 'Apple SD Gothic Neo', sans-serif";
+  g.fillText(text, flip ? 172 : 84, 66);
   var t = new THREE.Texture(c); t.needsUpdate = true;
   if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
   PLZ_FLAG_TEX[key] = t;
   return t;
+}
+// 페넌트 삼각형. 기둥에 붙는 변이 x=0이고 flip이면 왼쪽으로 뻗는다.
+function plazaPennantGeo(flip) {
+  var L = flip ? -0.92 : 0.92, g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0.26, 0, 0, -0.26, 0, L, 0, 0], 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(flip ? [1, 1, 1, 0, 0, 0.5] : [0, 1, 0, 0, 1, 0.5], 2));
+  g.setIndex(flip ? [0, 2, 1] : [0, 1, 2]);
+  g.computeVertexNormals();
+  return g;
 }
 function buildPlazaIsle(seedStr, hasBoard) {
   var grp = new THREE.Group();
@@ -7891,12 +7903,13 @@ function buildPlazaIsle(seedStr, hasBoard) {
     var frontPost = q === "LV", fy = frontPost ? 1.25 : 2.10, ly = frontPost ? 1.75 : 1.35;
     var lamp = new THREE.Mesh(lampG, lampM);
     lamp.position.set(x, PLZ.Y2 + ly, z); lamp.castShadow = true; grp.add(lamp);
-    var tx = plazaFlagTexture(Q_NAME[q] || q, QC[q]);
-    var flag = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.46),
+    // 화면 왼쪽 기둥(떨림)만 왼쪽으로 뻗는다. 안쪽으로 뻗으면 옆 화분 이름표를 가린다.
+    var flip = q === "HV";
+    var tx = plazaFlagTexture(Q_NAME[q] || q, QC[q], flip);
+    var flag = new THREE.Mesh(plazaPennantGeo(flip),
       tx ? new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }) : new THREE.MeshBasicMaterial({ color: QC[q], side: THREE.DoubleSide }));
-    flag.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");   // 화면을 본다. 이름표와 같은 각도
-    // 기둥 바깥쪽(마당 반대쪽)으로 편다. 안쪽으로 펴면 옆 화분 이름표를 가린다.
-    flag.position.set(x + Math.cos(a) * 0.42, PLZ.Y2 + fy, z + Math.sin(a) * 0.42);
+    flag.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");   // 화면을 본다. 이름표와 같은 각도. 로컬 x가 화면 오른쪽
+    flag.position.set(x, PLZ.Y2 + fy, z);              // 붙는 변이 기둥에
     flag.renderOrder = 10;
     grp.add(flag);
   });
