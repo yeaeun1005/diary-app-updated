@@ -7112,6 +7112,23 @@ function fireflySpots(list, plants) {
 // 화면을 다녀와도 캐릭터가 그 자리에 있어야 한다. 랜드마크 앞에서 일기를
 // 쓰고 돌아왔는데 처음 자리로 되돌아가 있으면 다시 걸어가야 한다.
 var CHAR_LAST = {};
+// ── 허브 승격 (2026-09-07, DESIGN.md §3) ──
+// true면 로그인 뒤 첫 화면이 내 섬이다. 거기서 걸어 일기·바다·광장으로 간다.
+// **되돌리기는 이 한 줄이다.** false로 바꾸면 예전처럼 일기 화면이 먼저 뜨고 내 섬은 "내 섬 보기" 버튼 뒤의 별도 페이지가 된다.
+var ISLE_HUB = true;
+// 기기 단위 내림. 3D가 느려 아이가 "일기로 바로 가기"를 고르면 이 기기에서는 일기 화면이 먼저 뜬다.
+// 섬을 다시 열었을 때 잘 돌면(25fps 이상 4초) 조용히 풀린다. WebGL이 없는 기기는 페이지가 열릴 때마다 바로 일기로 간다.
+function isleOff() { try { return localStorage.getItem("isle3d") === "off"; } catch (e) { return false; } }
+function isleSetOff(off) { try { if (off) localStorage.setItem("isle3d", "off"); else localStorage.removeItem("isle3d"); } catch (e) {} }
+// WebGL이 없는 기기는 섬 화면을 거치지 않고 바로 일기로 간다. 한 번만 재고 기억한다.
+var WEBGL_OK = null;
+function webglOK() {
+  if (WEBGL_OK !== null) return WEBGL_OK;
+  try { var c = document.createElement("canvas"); WEBGL_OK = !!(c.getContext("webgl") || c.getContext("experimental-webgl")); }
+  catch (e) { WEBGL_OK = false; }
+  return WEBGL_OK;
+}
+function hubStart() { return ISLE_HUB && !isleOff() && webglOK() ? "island" : "studentDiary"; }
 // 터치 기기에서는 "스페이스" 안내를 빼고 배너를 눌러 들어간다.
 function coarsePointer() {
   try { return window.matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
@@ -7119,9 +7136,12 @@ function coarsePointer() {
 // ⑥-2: friend = { id, name } 이면 친구 섬이다. state는 isleLoad가 준 어휘 목록(가림 표시 포함),
 // me는 지금 학생, myState는 내 어휘(공감 조건 판정), arrive = { boatDir } 면 배로 도착한다.
 // onHome은 친구 섬의 "내 섬으로".
-function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive }) {
+// hub면 내 섬이 첫 화면이다. 오른쪽 위는 로그아웃, 3D가 안 뜨면 onNo3D, 느리면 배너가 뜨고 onSlowGo로 일기로 간다.
+function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive, hub, onLogout, onNo3D, onSlowGo }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
+  const [slow, setSlow] = useState(0);      // 0 없음 · 1 배너 · 2 아이가 "괜찮아요"
+  const slowRef = useRef({ lo: 0, hi: 0, t0: 0 });
   const [err, setErr] = useState("");
   const [vocab, setVocab] = useState(0);
   const [stats, setStats] = useState(null);
@@ -7158,6 +7178,22 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   }, []);
   const compass = small ? 74 : 104;
   const fleetN = fleetCount();
+  // 3D가 안 뜨면 허브에 갇힌다 — 일기조차 못 쓴다(§3의 걱정). 바로 일기 화면으로 보낸다.
+  useEffect(function () { if (err && hub && !friend && onNo3D) onNo3D(err); }, [err]);
+  // 느림 감시. 처음 3초는 만드는 중이라 세지 않는다. 그 뒤 15fps 미만이 4초(0.5초 표본 8개) 이어지면 배너.
+  // 반대로 내려둔 기기에서 25fps 이상이 4초 이어지면 내림을 조용히 푼다.
+  // fps 상태의 effect로 하면 안 된다 — 같은 값(9, 9, 9…)이 반복되면 React가 렌더를 건너뛰어 effect가 안 돈다.
+  // 렌더 루프가 표본마다 직접 부른다.
+  const noteFpsRef = useRef(null);
+  noteFpsRef.current = function (v) {
+    if (!hub || friend || fleetN > 0 || !v) return;
+    var r = slowRef.current, now = Date.now();
+    if (!r.t0) { r.t0 = now; return; }
+    if (now - r.t0 < 3000) return;
+    if (v < 15) { r.lo++; r.hi = 0; } else if (v >= 25) { r.hi++; r.lo = 0; } else { r.lo = 0; r.hi = 0; }
+    if (r.lo >= 8 && !r.shown) { r.shown = true; setSlow(1); }
+    if (r.hi >= 8 && isleOff()) isleSetOff(false);
+  };
   useEffect(function () {
     var host = hostRef.current;
     if (!host) return;
@@ -7583,6 +7619,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var now = performance.now();
       if (now - last >= 500) {
         setFps(Math.round(frames * 1000 / (now - last)));
+        if (noteFpsRef.current) noteFpsRef.current(Math.round(frames * 1000 / (now - last)));
         // 크롬북에서 원인을 가르려면 fps만으로 부족하다.
         // 드로우콜이 많으면 CPU, 삼각형이 많으면 GPU 쪽이다.
         var ri = renderer.info.render;
@@ -7661,11 +7698,21 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
                background: "rgba(30,30,40,0.82)", fontSize: 12, color: "#ffe9c4",
                fontVariantNumeric: "tabular-nums" }
     }, dbg) : null,
+    // 허브면 "돌아가기"가 갈 곳이 없다. 이 자리는 로그아웃이다(일기 화면에도 있다).
     React.createElement("button", {
-      onClick: isFriend ? (onHome || onBack) : onBack,
+      onClick: isFriend ? (onHome || onBack) : (hub && onLogout ? function () { if (confirm("로그아웃할까요?")) onLogout(); } : onBack),
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13,
                color: isFriend ? "#0e7490" : undefined, border: isFriend ? "1px solid #99d8c9" : undefined }
-    }, isFriend ? "내 섬으로" : "돌아가기"),
+    }, isFriend ? "내 섬으로" : hub ? "로그아웃" : "돌아가기"),
+    // 느린 기기. 걸어서 잠수 지점까지 가기 힘들면 여기서 바로 간다. "일기로 가기"를 고르면 이 기기는 다음부터 일기가 먼저다.
+    slow === 1 ? React.createElement("div", {
+      style: { position: "absolute", left: "50%", top: small ? 70 : 60, transform: "translateX(-50%)", zIndex: 6,
+               display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center",
+               padding: "8px 14px", borderRadius: 12, background: "rgba(255,255,255,0.95)",
+               boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 13, color: "#28444f", maxWidth: "94vw" }
+    }, "섬이 느리네요. 일기로 바로 갈까요?",
+      React.createElement("button", { onClick: function () { isleSetOff(true); if (onSlowGo) onSlowGo(); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "일기로 가기"),
+      React.createElement("button", { onClick: function () { setSlow(2); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "괜찮아요")) : null,
     toast ? React.createElement("div", {
       style: { position: "absolute", left: "50%", top: 52, transform: "translateX(-50%)", padding: "7px 14px",
                borderRadius: 10, background: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 13, whiteSpace: "nowrap" }
@@ -11876,6 +11923,7 @@ function App() {
   const [friendInfo, setFriendInfo] = useState(null); // ⑥-2 친구 섬 { id, name, state, boatDir }
   // ⑤ 광장. 돌아갈 곳(내 섬/친구 섬), 배너용 현재 질문, 본 질문 id.
   const [plazaBack, setPlazaBack] = useState("island");
+  const [no3d, setNo3d] = useState("");   // 이 세션에서 3D가 안 떴다. 일기 화면에 한 줄 띄우고 "내 섬으로"를 숨긴다
   const [plazaQ, setPlazaQ] = useState(null);
   const [plazaSeen, setPlazaSeen] = useState(function () { try { return localStorage.getItem("plazaSeen") || ""; } catch (e) { return ""; } });
   // 질문 배너. 학생이 일기·내 섬 화면에 올 때 한 번 읽는다(읽기 2회). 실시간 리스너는 없다.
@@ -11985,7 +12033,7 @@ function App() {
     var meNow = { ...found, schoolCode: code };
     try { await isleSync(meNow, islandState(entries)); } catch (e) { console.error("isleSync:", e); }
     try { await dayMark(meNow, entries); } catch (e) { console.error("dayMark:", e); }
-    setPage("studentDiary");
+    setPage(hubStart());   // 허브 승격: 내 섬이 먼저. ISLE_HUB=false면 일기 화면
     setLF({
       schoolCode: "",
       loginId: "",
@@ -13012,6 +13060,10 @@ function App() {
     seed: String(currentUser.id || currentUser.name || "island"),
     me: currentUser,
     arrive: isleFrom,
+    hub: ISLE_HUB,
+    onLogout: logout,
+    onNo3D: function (why) { setNo3d(why || "3D를 표시할 수 없어요"); setIsleFrom(null); setPage("studentDiary"); },
+    onSlowGo: function () { setIsleFrom(null); setPage("studentDiary"); },
     onBack: function () { setIsleFrom(null); setPage("studentDiary"); },
     onGo: function (where, info) {
       setIsleFrom(null);
@@ -13090,7 +13142,10 @@ function App() {
       flexWrap: "wrap",
       justifyContent: "center"
     }
-  }, plazaBannerEl({ flexBasis: "100%", justifyContent: "center", marginBottom: 4 }), React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9", marginRight: 6 } }, "내 섬 보기"), React.createElement("button", { onClick: function () { openEmotionReport(currentUser.name, myEntries); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "리포트 저장"), React.createElement("button", {
+  }, plazaBannerEl({ flexBasis: "100%", justifyContent: "center", marginBottom: 4 }),
+  // 허브면 이 버튼은 "돌아가는" 쪽이다(내 섬으로). 3D가 안 뜬 세션에는 버튼 대신 한 줄.
+  no3d || !webglOK() ? React.createElement("span", { style: { flexBasis: "100%", fontSize: 12, color: "#7a8f9a", marginBottom: 4 } }, "이 기기에서는 3D 섬을 볼 수 없어 일기 화면으로 왔어요. 일기는 그대로 쓸 수 있어요.")
+       : React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9", marginRight: 6 } }, ISLE_HUB && !isleOff() ? "내 섬으로" : "내 섬 보기"), React.createElement("button", { onClick: function () { openEmotionReport(currentUser.name, myEntries); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "리포트 저장"), React.createElement("button", {
     onClick: function () {
       setShowPwChange(!showPwChange);
       setPwF({
