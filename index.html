@@ -7906,9 +7906,39 @@ function buildPlazaIsle(seedStr, hasBoard) {
     var pad = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.9, PLZ.Y2 - PLZ.YW, 24), [M(PLZ_WALL), M(PLZ_STONE), M(PLZ_WALL)]);
     pad.position.set(bx, (PLZ.Y2 + PLZ.YW) / 2, bz); pad.castShadow = true; pad.receiveShadow = true; grp.add(pad);
     var bg = new THREE.Group(); bg.position.set(bx, PLZ.Y2, bz); grp.add(bg);
-    addNameSign(bg, "오늘의 질문", 0, 1.55);
+    // 화분 이름표(베이지 판)와 같은 모양이면 어휘 하나로 읽힌다. 어두운 칠판에 밝은 글씨, 기둥 둘, 두 배 크기.
+    var postG = new THREE.CylinderGeometry(0.06, 0.07, 1.9, 8);
+    for (var pi = -1; pi <= 1; pi += 2) {
+      var post = new THREE.Mesh(postG, M(ISLE.wood));
+      post.position.set(pi * 1.38 * 0.707, 0.95, -pi * 1.38 * 0.707);   // 판(폭 2.5) 바깥, 판과 같은 각도(π/4)
+      post.castShadow = true; bg.add(post);
+    }
+    var btx = plazaBoardTexture();
+    // 판이 빛을 등진다. 이름표와 같이 조명을 안 받는 재질로 그려야 어두운 칠판의 밝은 글씨가 읽힌다.
+    var boardM = btx ? new THREE.MeshBasicMaterial({ map: btx }) : M(0x3f5148);
+    var board = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.15, 0.09), [M(0x8a6742), M(0x8a6742), M(0x8a6742), M(0x8a6742), boardM, M(0x8a6742)]);
+    board.position.y = 1.32; board.rotation.y = Math.PI / 4; board.castShadow = true; bg.add(board);
+    var frame = new THREE.Mesh(new THREE.BoxGeometry(2.62, 1.27, 0.06), M(0x8a6742));
+    frame.position.y = 1.32; frame.rotation.y = Math.PI / 4; frame.translateZ(-0.03); frame.castShadow = true; bg.add(frame);
   }
   return grp;
+}
+var PLZ_BOARD_TEX = null;
+function plazaBoardTexture() {
+  if (PLZ_BOARD_TEX) return PLZ_BOARD_TEX;
+  if (typeof document === "undefined") return null;
+  var c = document.createElement("canvas"); c.width = 640; c.height = 296;
+  var g = c.getContext("2d");
+  g.fillStyle = "#3f5148"; g.fillRect(0, 0, 640, 296);           // 칠판
+  g.strokeStyle = "rgba(255,240,200,0.35)"; g.lineWidth = 6; g.strokeRect(18, 18, 604, 260);
+  g.fillStyle = "#fff3d6"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "bold 118px 'Jua', 'Apple SD Gothic Neo', sans-serif";
+  g.fillText("오늘의 질문", 320, 150);
+  g.fillStyle = "rgba(255,243,214,0.55)"; g.fillRect(150, 222, 340, 8);   // 분필 밑줄
+  var t = new THREE.Texture(c); t.needsUpdate = true;
+  if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
+  PLZ_BOARD_TEX = t;
+  return t;
 }
 // 어휘 화분. 바깥 단 테두리를 따라 12자리. 어휘 하나가 상자 하나이고 상자 안에 사분면 식생이 자란다.
 // 자리는 12칸 격자라 이름표가 겹치지 않는다. 방위는 내 섬과 같게 두고, 같은 방위의 말은 그 둘레에 모인다.
@@ -7982,6 +8012,10 @@ function buildPlazaFigures(keys, myKey) {
     var ch = buildCharacter(), rnd = mulberry32(hashSeed("fig:" + k));
     var x = Math.cos(st.a) * st.r, z = Math.sin(st.a) * st.r;
     ch.position.set(x, st.y, z);
+    // 내 섬의 가림 실루엣(depthTest 끔·renderOrder 998)은 층 뒤에 숨은 캐릭터를 비추는 장치다.
+    // 광장에는 가릴 것이 없고, 그대로 두면 실루엣이 화분 이름표 위에 덮여 글자를 지운다(100번).
+    if (ch.userData.silhouette) ch.userData.silhouette.visible = false;
+    ch.traverse(function (o) { if (o.isMesh) o.renderOrder = 0; });
     var sc = 0.92 + rnd() * 0.14; ch.scale.set(sc, sc, sc);
     var hue = rnd(), light = 0.5 + rnd() * 0.12;
     ch.traverse(function (o) {
@@ -7995,12 +8029,14 @@ function buildPlazaFigures(keys, myKey) {
 // 어휘 이름표. 바다 이름표와 같은 판을 작게. 칩과 식생이 같은 말이라는 것을 잇는다.
 function buildPlazaTag(text) {
   var tx = labelTexture(text);
-  var mat = tx ? new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false })
-               : new THREE.MeshBasicMaterial({ color: 0xf2e3c2, transparent: true, depthWrite: false });
+  // depthTest를 끈다. 답을 쓴 아이들이 불 둘레에 서면 앞에 선 아이가 화분 이름표를 가려 글자가 잘렸다(100번).
+  // 높이만 올리면 앞줄의 아이는 여전히 가리고, 화분을 더 밖으로 빼면 물 위로 나간다.
+  // 이름표는 세계의 물건이 아니라 라벨이라 언제나 위에 그린다(2026-09-07).
+  var mat = tx ? new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, depthTest: false })
+               : new THREE.MeshBasicMaterial({ color: 0xf2e3c2, transparent: true, depthWrite: false, depthTest: false });
   var m = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.45), mat);
   m.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");
-  // 얕은 바다 원판이 반투명이라 정렬에서 뒤로 가면 물이 이름표 위에 덮여 흐려진다. 물 다음에 그린다.
-  m.renderOrder = 10;
+  m.renderOrder = 20;   // 물·식생·아이들 다음에
   return m;
 }
 // 광장 화면. 카메라 고정, 걷기 없음. 질문·답·어휘는 화면 위 카드다.
@@ -8083,7 +8119,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     host.appendChild(renderer.domElement);
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
-    function halfFor(a) { return Math.max(5.35, 6.8 / a); }
+    function halfFor(a) { return Math.max(5.6, 7.0 / a); }   // 뒤쪽 게시판 머리 여유
     var aspect = W / H, d = halfFor(aspect);
     var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
     cam.position.set(14, 12, 14);
