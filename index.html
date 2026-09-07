@@ -1104,8 +1104,20 @@ async function dayMark(stu, entries) {
     });
   });
   if (!n) return;
-  var o = {};
-  o[anonKey(stu.id)] = { v: v / n, a: a / n };
+  // 자식 경로로 쓴다. 익명 키 노드를 통째로 놓으면 ⑤ 광장이 쓰는 w/가 지워진다.
+  var ak = anonKey(stu.id), o = {};
+  o[ak + "/v"] = v / n;
+  o[ak + "/a"] = a / n;
+  // ⑤ 광장 "오늘 우리 반이 많이 쓴 마음 말". 오늘 일기의 어휘를 익명 키 아래 남긴다.
+  // 교사 "오늘의 현황"과 같은 값(hits.label)이고, 아이는 이 날짜 노드 하나만 읽는다.
+  // 반 전원의 일기 노드를 아이가 읽게 하지 않기 위해서다(DESIGN.md §8).
+  (entries || []).forEach(function (e) {
+    if (!e || !e.ts || dayStamp(e.ts) !== today) return;
+    ((e.analysis && e.analysis.hits) || []).forEach(function (h) {
+      if (!h || !h.label) return;
+      o[ak + "/w/" + labelKey(h.label)] = { l: h.label, q: QC[h.q] ? h.q : "LA" };
+    });
+  });
   await firebase.database().ref("app/" + dayKey(stu.schoolCode, today)).update(o);
 }
 // 학급 온도계 읽기 -> 바다 tone(0~1). 0.5가 보통이다.
@@ -1172,6 +1184,193 @@ async function empCounts(ids, days) {
     });
   });
   return { recv: recv, sent: sent };
+}
+// ── ⑤ 광장 저장 계층 ──────────────────────────────────────
+// app/plaza/<반코드>/cur                 현재 질문 id 또는 null. 교사만 쓴다
+// app/plaza/<반코드>/q/<qid>             { t 질문, cat 분류, nm 이름안내, ts, open, closed }. 교사만 쓴다
+// app/plaza/<반코드>/a/<qid>/<학생id>     { o 관찰, f 느낌 한 줄, fl [{l,q}] 느낌 칩, w 바람, ts, s }
+//                                       내용은 학생이 쓴다. s(0 비공개 / 1 광장 / 2 숨김)는 교사가 쓴다.
+//                                       고치면 s가 0으로 돌아가고 광장 사본이 지워진다(재승인).
+// app/plaza/<반코드>/pub/<qid>/<익명키>   { o, f, fl, w }  교사가 광장에 올릴 때 복사. 키는 anonKey라
+//                                       학생 id가 없다. 아이 화면은 이 노드만 읽는다.
+// app/day/<반코드>/<날짜>/<익명키>/w/<어휘키>  { l, q }  오늘 쓴 어휘(익명). dayMark가 쓴다
+//
+// 원칙은 ⑥과 같다 — 읽고-고쳐-쓰기가 없고, 쓰기는 전부 자기 키 하나다(DESIGN.md §8, §10).
+// 학생 30명이 같은 질문에 답해도 키가 학생 id라 겹치지 않는다.
+// 광장은 섬을 키우지 않는다. 답변의 어휘는 여기에만 남고 isle에는 아무것도 쓰지 않는다(§5).
+// 자유 게시판이 아니다 — 댓글·좋아요·이름·개수가 없고, 아이가 쓰는 곳은 a/<qid>/<자기 id> 하나뿐이다.
+function plazaKey(code) { return "plaza/" + code; }
+var PLAZA_MAX = 120;     // 칸당 글자 수
+var PLAZA_MIN_PUB = 3;   // 광장에 올라간 답이 이만큼 이상일 때만 아이에게 보인다. 한둘이면 누구 것인지 짐작된다
+var PLAZA_CATS = [
+  { id: "self", name: "감정 인식", nm: false, qs: [
+    "요즘 나를 가장 많이 웃게 한 건 뭐였나요?",
+    "최근에 \"이건 좀 아니다\" 싶었던 순간이 있었나요?",
+    "하루 중 마음이 가장 편해지는 때는 언제인가요?" ] },
+  { id: "other", name: "타인 이해", nm: true, qs: [
+    "친구가 어떤 행동을 했을 때 고마웠나요?",
+    "말은 안 했지만 속상했던 적이 있나요?",
+    "우리 반에서 누군가 힘들어 보였던 적이 있나요?" ] },
+  { id: "wish", name: "관계와 바람", nm: true, qs: [
+    "우리 반이 이랬으면 좋겠다고 생각한 게 있나요?",
+    "친구에게 부탁하고 싶은데 말 못 한 게 있나요?",
+    "요즘 누군가에게 고맙다고 말하고 싶은 순간이 있었나요?" ] },
+  { id: "words", name: "어휘 확장", nm: false, qs: [
+    "오늘 내 기분을 색깔로 말한다면?",
+    "\"기분이 좋다\" 말고 다른 말로 표현해본다면?" ] }
+];
+function plazaCleanText(t) {
+  return String(t == null ? "" : t).replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, PLAZA_MAX);
+}
+// 현재 열린 질문. 없거나 마감됐으면 null.
+async function plazaCurrent(code) {
+  if (!code) return null;
+  var cur = await sGet(plazaKey(code) + "/cur");
+  if (!cur) return null;
+  var q = await sGet(plazaKey(code) + "/q/" + cur);
+  if (!q || !q.open) return null;
+  return { id: String(cur), t: q.t || "", cat: q.cat || "", nm: !!q.nm, ts: q.ts || 0 };
+}
+// 질문 올리기(교사). 이전 질문이 열려 있으면 같은 update 안에서 마감한다.
+async function plazaAsk(code, text, cat, nm, prevId) {
+  var t = plazaCleanText(text);
+  if (!code || !t) return null;
+  var qid = "q" + Date.now(), o = {};
+  o["q/" + qid] = { t: t, cat: cat || "", nm: !!nm, ts: Date.now(), open: true };
+  o["cur"] = qid;
+  if (prevId) { o["q/" + prevId + "/open"] = false; o["q/" + prevId + "/closed"] = Date.now(); }
+  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+  return qid;
+}
+// 마감(교사). 광장에서 사라지고 교사 화면에만 남는다. 답과 사본은 지우지 않는다.
+async function plazaClose(code, qid) {
+  if (!code || !qid) return;
+  var o = {};
+  o["q/" + qid + "/open"] = false;
+  o["q/" + qid + "/closed"] = Date.now();
+  o["cur"] = null;
+  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+}
+// 질문 목록(교사). 최신순.
+async function plazaQuestions(code) {
+  var o = await sGet(plazaKey(code) + "/q");
+  if (!o) return [];
+  return Object.keys(o).map(function (k) {
+    var q = o[k] || {};
+    return { id: k, t: q.t || "", cat: q.cat || "", nm: !!q.nm, ts: q.ts || 0, open: !!q.open, closed: q.closed || 0 };
+  }).sort(function (a, b) { return b.ts - a.ts; });
+}
+function plazaAnswerShape(sid, e) {
+  e = e || {};
+  return { sid: String(sid), o: e.o || "", f: e.f || "", w: e.w || "",
+           fl: Array.isArray(e.fl) ? e.fl.filter(function (x) { return x && x.l; }) : [],
+           ts: e.ts || 0, s: e.s === 1 || e.s === 2 ? e.s : 0 };
+}
+// 내 답(학생). 없으면 null.
+async function plazaMyAnswer(code, qid, sid) {
+  if (!code || !qid || !sid) return null;
+  var e = await sGet(plazaKey(code) + "/a/" + qid + "/" + sid);
+  return e ? plazaAnswerShape(sid, e) : null;
+}
+// 답 쓰기·고치기(학생). 내용 필드만 놓는다.
+// 고치면 s를 0으로 되돌리고 광장 사본을 지운다 — 승인된 내용과 원본이 어긋나면 안 된다.
+// 세 경로가 한 update 안에 있어 원자적이다. 섬 요약(isle)에는 아무것도 쓰지 않는다(§5).
+async function plazaAnswerPut(code, qid, stu, ans) {
+  if (!code || !qid || !stu || !stu.id) return false;
+  var sid = String(stu.id), base = "a/" + qid + "/" + sid + "/", o = {};
+  o[base + "o"] = plazaCleanText(ans.o);
+  o[base + "f"] = plazaCleanText(ans.f);
+  o[base + "w"] = plazaCleanText(ans.w);
+  o[base + "fl"] = (ans.fl || []).slice(0, 5).map(function (x) { return { l: String(x.l || "").slice(0, 40), q: QC[x.q] ? x.q : "LA" }; });
+  o[base + "ts"] = Date.now();
+  o[base + "s"] = 0;
+  o["pub/" + qid + "/" + anonKey(sid)] = null;
+  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+  return true;
+}
+// 답 전체(교사). 이름은 호출한 쪽이 학생 목록에서 붙인다.
+async function plazaAnswers(code, qid) {
+  var o = await sGet(plazaKey(code) + "/a/" + qid);
+  if (!o) return [];
+  return Object.keys(o).map(function (k) { return plazaAnswerShape(k, o[k]); })
+    .sort(function (a, b) { return a.ts - b.ts; });
+}
+// 상태 바꾸기(교사). 1이면 사본을 pub에 놓고, 0·2면 사본을 지운다. 한 update라 원자적이다.
+// 사본에는 이름·id·시간이 없다.
+async function plazaSetState(code, qid, ans, s) {
+  if (!code || !qid || !ans || !ans.sid) return;
+  var o = {};
+  o["a/" + qid + "/" + ans.sid + "/s"] = s;
+  o["pub/" + qid + "/" + anonKey(ans.sid)] = s === 1 ? { o: ans.o || "", f: ans.f || "", w: ans.w || "", fl: ans.fl || [] } : null;
+  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+}
+// 광장에 올라간 답(학생). pub만 읽는다. 문턱(PLAZA_MIN_PUB) 미만이면 빈 배열.
+// 순서는 보는 아이마다 다르게 섞는다 — 같은 순서면 "첫 번째 답"이 이름이 된다.
+async function plazaPublic(code, qid, viewerId) {
+  var o = await sGet(plazaKey(code) + "/pub/" + qid);
+  if (!o) return [];
+  var mineKey = viewerId ? anonKey(viewerId) : "";
+  var list = Object.keys(o).map(function (k) {
+    var e = plazaAnswerShape(k, o[k]);
+    return { o: e.o, f: e.f, w: e.w, fl: e.fl, mine: k === mineKey };
+  });
+  if (list.length < PLAZA_MIN_PUB) return [];
+  var rnd = mulberry32(hashSeed("pub:" + qid + ":" + (viewerId || "")));
+  for (var i = list.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)); var t = list[i]; list[i] = list[j]; list[j] = t; }
+  return list;
+}
+// 오늘 우리 반이 많이 쓴 어휘(익명). day 날짜 노드 하나만 읽는다.
+//  · 2명 이상이 쓴 어휘만 — 한 명만 쓴 드문 말은 누구인지 짐작된다
+//  · 순위만 돌려주고 개수는 돌려주지 않는다. 아이 화면은 세지 않는다
+//  · 참여가 DAY_TONE_MIN(3) 미만이면 빈 목록. 바다 온도계와 같은 문턱이다(§6)
+async function dayWords(code, max) {
+  var o = await sGet(dayKey(code, dayStamp()));
+  if (!o) return { n: 0, words: [] };
+  var n = 0, cnt = {};
+  Object.keys(o).forEach(function (ak) {
+    var e = o[ak]; if (!e) return;
+    n++;
+    Object.keys(e.w || {}).forEach(function (k) {
+      var w = e.w[k]; if (!w || !w.l) return;
+      if (!cnt[k]) cnt[k] = { l: w.l, q: QC[w.q] ? w.q : "LA", c: 0 };
+      cnt[k].c++;
+    });
+  });
+  if (n < DAY_TONE_MIN) return { n: n, words: [] };
+  var words = Object.keys(cnt).map(function (k) { return cnt[k]; })
+    .filter(function (w) { return w.c >= 2; })
+    .sort(function (a, b) { return b.c - a.c || a.l.localeCompare(b.l, "ko"); })
+    .slice(0, max || 8)
+    .map(function (w) { return { l: w.l, q: w.q }; });
+  return { n: n, words: words };
+}
+// 느낌 칩. 내 섬에 있는 말이 앞, 없는 말(기본 어휘 사전)이 뒤. 없는 말은 뜻을 붙인다.
+// 광장에서 새 말을 만나는 것이 어휘 확장의 경로이되, 고른다고 섬이 자라지는 않는다(§5).
+function plazaChips(myState) {
+  var mine = {}, out = [];
+  (myState || []).forEach(function (em) {
+    if (!em || !em.label || mine[em.label]) return;
+    mine[em.label] = 1;
+    out.push({ l: em.label, q: QC[em.q] ? em.q : "LA", mine: true, m: EMO_MEANINGS[em.label] || "" });
+  });
+  EMOTIONS_28.forEach(function (em) {
+    if (!em.label || mine[em.label]) return;
+    mine[em.label] = 1;
+    out.push({ l: em.label, q: QC[em.q] ? em.q : "LA", mine: false, m: EMO_MEANINGS[em.label] || "" });
+  });
+  return out;
+}
+// 이름 검사. 답에 반 친구 이름이 들어 있으면 그 이름을 돌려준다(저장을 막는다).
+// 성 포함 전체 이름만 본다 — 두 글자 이름은 일반 낱말과 겹친다. 내 이름은 지목이 아니라 뺀다.
+function plazaNameHit(text, names, myName) {
+  var t = String(text || "");
+  if (!t) return null;
+  for (var i = 0; i < (names || []).length; i++) {
+    var nm = String(names[i] || "").trim();
+    if (nm.length < 2 || nm === myName) continue;
+    if (t.indexOf(nm) >= 0) return nm;
+  }
+  return null;
 }
 // 일기 읽기. 새 경로가 마이그레이션 완료 상태면 그쪽을, 아니면 옛 경로를 읽는다.
 // 어느 쪽이든 예전과 똑같은 모양의 배열을 돌려준다(소비 코드는 손대지 않는다).
@@ -7232,6 +7431,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
           onGo("sea", { boatDir: going.bdir, fromId: friend ? friend.id : null });
           return;
         }
+        // ⑤ 광장. 캐릭터 자리는 언마운트 때 남아 돌아오면 표지 앞에 선다.
+        if (lm.id === "plaza" && onGo) { onGo("plaza"); return; }
         setWipe(null);
         setSoon(lm.name);
         if (going.boat) going.boat.position.copy(going.boatHome);
@@ -7562,6 +7763,414 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
 // ⑥-2: arrive = { boatDir, fromId, autoHome }. fromId면 그 친구 섬 부두에서 출발한다.
 // autoHome이면 바로 내 섬으로 항해한다(친구 섬의 "내 섬으로"). onGo("friend", info)로 친구 섬에 내린다.
 // onBack(info)의 info에 boatDir이 있으면 내 섬에 배로 도착한다.
+// ── ⑤ 광장 ──────────────────────────────────────────────
+// 반 공용의 작고 평평한 섬. 계단·부두·잠수 지점이 없다 — 걷지 않고 모여 앉는 곳이다.
+// 내 섬이 "누적된 어휘의 지도"라면 광장은 "오늘"만 보여준다(§5·§8). 그래서 매일 다시 자란다.
+// 광장에서 고른 어휘는 섬에 자라지 않는다. 만나는 곳은 여럿이어도 자라는 곳은 일기 하나다
+// (2026-09-07, 친구 섬과 같은 규칙).
+var PLAZA_R = 4.6, PLAZA_Y = 0.42;
+// 게시판·깃대 자리. 화면 위쪽(카메라 반대편)에 두어 아래 카드에 가리지 않는다.
+var PLAZA_BOARD = { x: -2.55, z: -0.75 }, PLAZA_FLAG = { x: -3.0, z: -2.6 };
+function plazaShape(rnd, R) {
+  var TAU = Math.PI * 2, p1 = rnd() * TAU, p2 = rnd() * TAU, sh = new THREE.Shape();
+  for (var i = 0; i < 72; i++) {
+    var th = i / 72 * TAU, r = R * (1 + 0.06 * Math.sin(3 * th + p1) + 0.035 * Math.sin(5 * th + p2));
+    var x = Math.cos(th) * r, y = Math.sin(th) * r;
+    if (i === 0) sh.moveTo(x, y); else sh.lineTo(x, y);
+  }
+  sh.closePath();
+  return sh;
+}
+// 판 하나. 윗면과 옆면 색이 다르다(잔디/흙벽, 모래/젖은 모래). 베벨이 있어야 점토가 된다.
+function plazaSlab(shape, depth, topY, capCol, sideCol) {
+  var BV = 0.05;
+  var geo = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 2, curveSegments: 4 });
+  geo.rotateX(-Math.PI / 2);
+  var M = function (c) { return new THREE.MeshStandardMaterial({ color: c, roughness: 1, metalness: 0 }); };
+  var m = new THREE.Mesh(geo, [M(capCol), M(sideCol)]);
+  m.position.y = topY - depth - BV;
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+function buildPlazaIsle(seedStr, hasBoard) {
+  var grp = new THREE.Group();
+  var rnd = mulberry32(hashSeed(seedStr || "plaza"));
+  var C = function (a) { return new THREE.Color(a[0], a[1], a[2]); };
+  var M = function (col, extra) {
+    var o = { color: col, roughness: 1, metalness: 0 };
+    if (extra) for (var k in extra) o[k] = extra[k];
+    return new THREE.MeshStandardMaterial(o);
+  };
+  grp.add(plazaSlab(plazaShape(rnd, PLAZA_R + 1.05), 0.26, 0.10, C(ISLE.sand), C(hslShift(ISLE.sand, 0, -0.07))));
+  grp.add(plazaSlab(plazaShape(rnd, PLAZA_R), PLAZA_Y - 0.10, PLAZA_Y, C(ISLE.grassLow), C(ISLE.cliff)));
+  // 가운데 모임 자리 — 돌바닥, 둘러앉는 통나무, 모닥불.
+  var stone = new THREE.Mesh(new THREE.CircleGeometry(1.35, 40), M(0xcbbfa6));
+  stone.rotation.x = -Math.PI / 2; stone.position.y = PLAZA_Y + 0.012; stone.receiveShadow = true;
+  grp.add(stone);
+  var rim = new THREE.Mesh(new THREE.RingGeometry(1.30, 1.48, 40), M(0xa89b83));
+  rim.rotation.x = -Math.PI / 2; rim.position.y = PLAZA_Y + 0.014; rim.receiveShadow = true;
+  grp.add(rim);
+  var logG = new THREE.CylinderGeometry(0.10, 0.10, 0.62, 7).rotateZ(Math.PI / 2), logM = M(ISLE.wood);
+  for (var i = 0; i < 8; i++) {
+    var a = i / 8 * Math.PI * 2 + 0.2, lg = new THREE.Mesh(logG, logM);
+    lg.position.set(Math.cos(a) * 1.02, PLAZA_Y + 0.10, Math.sin(a) * 1.02);
+    lg.rotation.y = -a - Math.PI / 2;   // 접선 방향
+    lg.castShadow = true; lg.receiveShadow = true;
+    grp.add(lg);
+  }
+  var fire = new THREE.Group();
+  var log2 = new THREE.CylinderGeometry(0.06, 0.06, 0.52, 6).rotateZ(Math.PI / 2), log2M = M(0x6f4630);
+  for (var j = 0; j < 3; j++) {
+    var l2 = new THREE.Mesh(log2, log2M);
+    l2.rotation.y = j * Math.PI / 3; l2.position.y = 0.06; l2.castShadow = true; fire.add(l2);
+  }
+  var flame = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.46, 7), M(0xffb347, { emissive: 0xff7a1a, emissiveIntensity: 0.9 }));
+  flame.position.y = 0.30; fire.add(flame);
+  var flame2 = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.30, 6), M(0xfff1b0, { emissive: 0xffd36a, emissiveIntensity: 1.1 }));
+  flame2.position.y = 0.26; fire.add(flame2);
+  var glow = new THREE.PointLight(0xffa040, 0.35, 4.5, 2); glow.position.y = 0.55; fire.add(glow);
+  fire.position.y = PLAZA_Y; grp.add(fire);
+  grp.userData.flame = flame; grp.userData.flame2 = flame2;
+  // 깃대 — 내 섬 광장 표지의 깃발과 같은 것. 여기가 그 깃발이 가리키던 곳이다.
+  var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 2.05, 8), M(ISLE.wood));
+  pole.position.set(PLAZA_FLAG.x, PLAZA_Y + 2.05 / 2, PLAZA_FLAG.z); pole.castShadow = true; grp.add(pole);
+  var flag = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.54, 0.04), M(0xd6883c));
+  flag.rotation.y = Math.PI / 4; flag.position.set(PLAZA_FLAG.x, PLAZA_Y + 1.70, PLAZA_FLAG.z);
+  flag.translateX(0.41); flag.castShadow = true; grp.add(flag);
+  // 게시판 — 질문이 있는 날만 선다. 팻말과 같은 형태를 크게. 판이 있는 곳이 무언가 있는 곳이다.
+  if (hasBoard) {
+    var bg = new THREE.Group(); bg.position.set(PLAZA_BOARD.x, PLAZA_Y, PLAZA_BOARD.z); grp.add(bg);
+    addNameSign(bg, "오늘의 질문", 0, 1.55);
+    var pl = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.66, 0.07, 20), M(0xd8c6a2));
+    pl.position.set(0, 0.035, 0.30); pl.castShadow = true; pl.receiveShadow = true; bg.add(pl);
+  }
+  return grp;
+}
+// 오늘 많이 쓴 어휘를 광장에 심는다. 내 섬 식생 규칙(VEG)과 같은 종류·같은 방위를 쓴다.
+// 순위로 크기만 다르고, 개수는 어디에도 없다. 매일 다시 자란다.
+function buildPlazaWords(words, seedStr) {
+  var items = [], TAU = Math.PI * 2, tags = [];
+  var REP = { HA: [0.6, 0.6], LA: [0.6, -0.6], LV: [-0.6, -0.6], HV: [-0.6, 0.6] };
+  var perQ = {};
+  function fits(x, z, foot) {
+    if (Math.hypot(x, z) < 1.62 + foot) return false;                                  // 모임 자리
+    if (Math.hypot(x - PLAZA_FLAG.x, z - PLAZA_FLAG.z) < 0.55 + foot) return false;     // 깃대
+    if (Math.hypot(x - PLAZA_BOARD.x, z - PLAZA_BOARD.z) < 1.05 + foot) return false;   // 게시판 자리는 늘 비워 둔다
+    for (var i = 0; i < items.length; i++)
+      if (Math.hypot(x - items[i].x, z - items[i].z) < foot + items[i].foot + 0.18) return false;
+    return true;
+  }
+  function push(kind, x, z, sc, rnd, lv, q, label) {
+    items.push({ kind: kind, x: x, y: PLAZA_Y, z: z, s: sc, sy: sc * (0.85 + rnd() * 0.4), rot: rnd() * TAU, col: rnd(),
+                 foot: (VEG_FOOT[kind] || 0.2) * sc, lv: lv, q: q, label: label, neutral: !!VEG_NEUTRAL[kind] });
+  }
+  (words || []).forEach(function (w, rank) {
+    var q = VEG[w.q] ? w.q : "LA", rule = VEG[q], rnd = mulberry32(hashSeed("plaza:" + w.l));
+    var k = perQ[q] = (perQ[q] || 0) + 1;
+    // 같은 방위의 말은 각도를 벌리고 안쪽·바깥쪽 고리를 번갈아 쓴다. 이름표가 겹치지 않게.
+    var rep = REP[q], base = russellAngle(rep[0], rep[1], w.l) + (k % 2 ? 1 : -1) * Math.ceil((k - 1) / 2) * 0.75;
+    var ring = (k - 1) % 2, r0 = ring ? 3.55 : 2.45;
+    var big = 1.28 - rank * 0.07, cx = 0, cz = 0, n = 0;
+    for (var i = 0; i < 3; i++) {
+      var kind = rule.tiers[i][0]; if (kind === "wave") kind = "rock";   // 물가가 없다
+      var sc = big * (0.8 + rnd() * 0.35), foot = (VEG_FOOT[kind] || 0.2) * sc;
+      for (var t = 0; t < 30; t++) {
+        var a = base + (rnd() - 0.5) * (0.5 + t * 0.03), r = r0 + (rnd() - 0.5) * (0.5 + t * 0.03);
+        var x = Math.cos(a) * r, z = Math.sin(a) * r;
+        if (fits(x, z, foot)) { push(kind, x, z, sc, rnd, i, q, w.l); cx += x; cz += z; n++; break; }
+      }
+    }
+    if (n) tags.push({ l: w.l, x: cx / n, z: cz / n, top: PLAZA_Y + 1.05 + ring * 0.35 + big * 0.25 });
+  });
+  var brnd = mulberry32(hashSeed("plaza-neu:" + (seedStr || "")));
+  for (var b = 0; b < 26; b++) {
+    var kind2 = NEU_KINDS[Math.floor(brnd() * NEU_KINDS.length)], sc2 = 0.8 + brnd() * 0.5;
+    var foot2 = (VEG_FOOT[kind2] || 0.2) * sc2;
+    var a2 = brnd() * TAU, r2 = 1.75 + brnd() * (PLAZA_R - 0.6 - 1.75);
+    var x2 = Math.cos(a2) * r2, z2 = Math.sin(a2) * r2;
+    if (fits(x2, z2, foot2)) push(kind2, x2, z2, sc2, brnd, 0, null, null);
+  }
+  return { items: items, tags: tags };
+}
+// 어휘 이름표. 바다 이름표와 같은 판을 작게. 칩과 식생이 같은 말이라는 것을 잇는다.
+function buildPlazaTag(text) {
+  var tx = labelTexture(text);
+  var mat = tx ? new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false })
+               : new THREE.MeshBasicMaterial({ color: 0xf2e3c2, transparent: true, depthWrite: false });
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.45), mat);
+  m.rotation.set(-0.35, Math.PI / 4, 0, "YXZ");
+  // 얕은 바다 원판이 반투명이라 정렬에서 뒤로 가면 물이 이름표 위에 덮여 흐려진다. 물 다음에 그린다.
+  m.renderOrder = 10;
+  return m;
+}
+// 광장 화면. 카메라 고정, 걷기 없음. 질문·답·어휘는 화면 위 카드다.
+// me = 지금 학생, myState = 내 어휘(칩 순서), backLabel/onBack = 돌아갈 곳, onSeen = 질문을 본 것을 알린다.
+function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
+  const hostRef = useRef(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState(null);
+  const [ans, setAns] = useState(null);
+  const [pub, setPub] = useState([]);
+  const [words, setWords] = useState([]);
+  const [tone, setTone] = useState(0.5);
+  const [roster, setRoster] = useState([]);
+  const [mode, setMode] = useState("view");
+  const [form, setForm] = useState({ o: "", f: "", w: "", fl: [] });
+  const [tip, setTip] = useState(null);        // 칩을 탭하면 뜻
+  const [warn, setWarn] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [bridge, setBridge] = useState(false); // 저장 뒤 한 줄
+  const [reveal, setReveal] = useState(!!arrive);
+  const [small, setSmall] = useState(function () {
+    try { return window.innerWidth < 560; } catch (e) { return false; }
+  });
+  const code = me && me.schoolCode;
+  const chips = plazaChips(myState);
+  useEffect(function () {   // 경고는 저장 버튼 바로 위에 뜬다. 카드가 스크롤이라 보이게 끌어온다
+    if (!warn) return;
+    try { var el = document.getElementById("plazaWarn"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" }); } catch (e) {}
+  }, [warn]);
+  useEffect(function () {
+    var tm = reveal ? window.setTimeout(function () { setReveal(false); }, 800) : 0;
+    function onR() { try { setSmall(window.innerWidth < 560); } catch (e) {} }
+    window.addEventListener("resize", onR);
+    return function () { if (tm) window.clearTimeout(tm); window.removeEventListener("resize", onR); };
+  }, []);
+  // 읽기는 열 때 한 번. 실시간 리스너는 없다(⑥-2와 같은 원칙).
+  useEffect(function () {
+    var dead = false;
+    (async function () {
+      try {
+        var r = await Promise.all([plazaCurrent(code), dayWords(code, 8), dayTone(code), sGet(stuKey(code))]);
+        if (dead) return;
+        var qq = r[0];
+        setQ(qq); setWords(r[1].words); setTone(r[2].tone);
+        setRoster((r[3] || []).map(function (st) { return st && st.name; }).filter(Boolean));
+        if (qq) {
+          if (onSeen) onSeen(qq.id);
+          var a = await plazaMyAnswer(code, qq.id, me.id);
+          if (dead) return;
+          setAns(a);
+          if (a) { var pl = await plazaPublic(code, qq.id, me.id); if (!dead) setPub(pl); }
+        }
+      } catch (e) { console.error("plaza:", e); }
+      if (!dead) setLoading(false);
+    })();
+    return function () { dead = true; };
+  }, [code]);
+  // 3D. 데이터가 온 뒤 한 번 만든다.
+  useEffect(function () {
+    var host = hostRef.current;
+    if (loading || !host) return;
+    if (typeof THREE === "undefined") { setErr("3D 라이브러리를 불러오지 못했어요."); return; }
+    var renderer, raf = 0, disposed = false;
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); }
+    catch (e) { setErr("이 기기에서는 3D를 표시할 수 없어요. (WebGL 미지원)"); return; }
+    var W = host.clientWidth || 640, H = host.clientHeight || 420;
+    if (THREE.ColorManagement) THREE.ColorManagement.legacyMode = false;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(W, H);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    host.appendChild(renderer.domElement);
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcfe6ee);
+    function halfFor(a) { return Math.max(5.1, 6.6 / a); }
+    var aspect = W / H, d = halfFor(aspect);
+    var cam = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 200);
+    cam.position.set(14, 12, 14);
+    cam.lookAt(0, 0.3, 0);
+    scene.add(buildSea(15 * ISLE_K, tone));
+    var isle = buildPlazaIsle("plaza:" + code, !!q);
+    scene.add(isle);
+    var pw = buildPlazaWords(words, "plaza:" + code);
+    scene.add(buildVegMeshes(pw.items));
+    pw.tags.forEach(function (t) {
+      var tg = buildPlazaTag(t.l);
+      tg.position.set(t.x, t.top, t.z);
+      scene.add(tg);
+    });
+    addIsleLights(scene, 7 * ISLE_K, 42 * ISLE_K);
+    var t00 = performance.now();
+    function tick(t0) {
+      if (disposed) return;
+      raf = requestAnimationFrame(tick);
+      var f = isle.userData.flame, f2 = isle.userData.flame2, u = (t0 - t00) / 1000;
+      if (f) { f.scale.y = 1 + 0.12 * Math.sin(u * 9.1) + 0.06 * Math.sin(u * 23.7); f.rotation.y = u * 0.8; }
+      if (f2) { f2.scale.y = 1 + 0.18 * Math.sin(u * 12.3 + 1); f2.position.y = 0.26 + 0.02 * Math.sin(u * 7.7); }
+      renderer.render(scene, cam);
+    }
+    raf = requestAnimationFrame(tick);
+    function onResize() {
+      if (disposed || !host) return;
+      var w = host.clientWidth || 640, h = host.clientHeight || 420, a2 = w / h;
+      if (!w || !h) return;
+      d = halfFor(a2);
+      cam.left = -d * a2; cam.right = d * a2; cam.top = d; cam.bottom = -d;
+      cam.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    var ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(onResize); ro.observe(host); }
+    return function () {
+      disposed = true;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      if (ro) ro.disconnect();
+      scene.traverse(function (o) {
+        if (o.geometry) o.geometry.dispose();
+        // 팻말 텍스처는 모듈 캐시(LABEL_TEX)라 재질만 지운다. material.dispose는 map을 건드리지 않는다.
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { if (m) m.dispose(); });
+      });
+      renderer.dispose();
+      if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+    };
+  }, [loading]);
+  // ── 카드 ──
+  var lab = { HA: "활기", LA: "평온", LV: "슬픔", HV: "떨림" };
+  var pill = function (q2) { return React.createElement("span", { style: { fontSize: 11, color: "#7a8f9a", border: "1px solid #dbe6ea", borderRadius: 6, padding: "1px 6px", marginLeft: 6 } }, lab[q2] || ""); };
+  function chipEl(c, sel, onTap, sizeK) {
+    var k = sizeK == null ? 1 : sizeK;
+    return React.createElement("button", {
+      key: c.l, type: "button", onClick: onTap,
+      style: { display: "inline-flex", alignItems: "center", gap: 4, padding: (5 * k) + "px " + (11 * k) + "px",
+               borderRadius: 999, fontSize: Math.round(13 * k), cursor: "pointer", fontFamily: "inherit",
+               border: sel ? "2px solid " + QC[c.q] : c.mine === false ? "1px dashed #a9bcc5" : "1px solid " + QC[c.q] + "88",
+               background: sel || c.mine !== false ? QB[c.q] : "#fff", color: "#28444f", lineHeight: 1.3 }
+    }, c.l);
+  }
+  function toggleChip(c) {
+    setWarn("");
+    setTip({ l: c.l, m: c.m || emoMeaning(c.l) || "", q: c.q, isNew: c.mine === false });
+    setForm(function (f) {
+      var has = f.fl.some(function (x) { return x.l === c.l; });
+      if (has) return { ...f, fl: f.fl.filter(function (x) { return x.l !== c.l; }) };
+      if (f.fl.length >= 5) return f;
+      return { ...f, fl: f.fl.concat([{ l: c.l, q: c.q }]) };
+    });
+  }
+  function startWrite() {
+    setForm(ans ? { o: ans.o, f: ans.f, w: ans.w, fl: ans.fl.slice() } : { o: "", f: "", w: "", fl: [] });
+    setWarn(""); setTip(null); setBridge(false); setMode("write");
+  }
+  async function save() {
+    if (saving) return;
+    var o = form.o.trim(), f = form.f.trim(), w = form.w.trim();
+    if (!o) { setWarn("무슨 일이 있었는지 먼저 써 주세요."); return; }
+    if (!form.fl.length && !f) { setWarn("마음 말을 하나 골라 주세요."); return; }
+    var hit = plazaNameHit(o, roster, me.name) || plazaNameHit(f, roster, me.name) || plazaNameHit(w, roster, me.name);
+    if (hit) { setWarn("'" + hit + "'은 친구 이름이에요. 이름 대신 '친구가'라고 써 볼까요?"); return; }
+    setSaving(true);
+    try {
+      await plazaAnswerPut(code, q.id, me, { o: o, f: f, w: w, fl: form.fl });
+      setAns({ sid: String(me.id), o: o, f: f, w: w, fl: form.fl.slice(), ts: Date.now(), s: 0 });
+      setMode("view"); setBridge(true); setTip(null);
+      plazaPublic(code, q.id, me.id).then(setPub).catch(function () {});
+    } catch (e) { console.error("plazaAnswerPut:", e); setWarn("저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."); }
+    setSaving(false);
+  }
+  var row = function (name, body) {
+    return React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start", marginTop: 6 } },
+      React.createElement("span", { style: { flex: "0 0 auto", fontSize: 11, color: "#0e7490", background: "#e6f4f7", borderRadius: 6, padding: "2px 7px", marginTop: 2 } }, name),
+      React.createElement("div", { style: { flex: 1, fontSize: 14, color: "#28444f", lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" } }, body));
+  };
+  var flRow = function (fl, f) {
+    return React.createElement("div", null,
+      (fl || []).length ? React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: f ? 4 : 0 } },
+        fl.map(function (x) { return React.createElement("span", { key: x.l, style: { fontSize: 12, padding: "2px 9px", borderRadius: 999, background: QB[x.q] || "#eee", border: "1px solid " + (QC[x.q] || "#ccc") + "66", color: "#28444f" } }, x.l); })) : null,
+      f ? f : (!(fl || []).length ? "—" : null));
+  };
+  var ansCard = function (a, mineTag) {
+    return React.createElement("div", { style: { background: "#f7fbfc", border: "1px solid #dfeaee", borderRadius: 12, padding: "8px 12px 10px", marginTop: 8 } },
+      mineTag ? React.createElement("div", { style: { fontSize: 11, color: "#0e7490", marginBottom: 2 } }, "내 답") : null,
+      row("관찰", a.o || "—"), row("느낌", flRow(a.fl, a.f)), row("바람", a.w || "—"));
+  };
+  var wordsEl = function (compact) {
+    if (!words.length) return compact ? null : React.createElement("div", { style: { fontSize: 14, color: "#5b7684", lineHeight: 1.7 } },
+      "오늘은 아직 조용해요.", React.createElement("br"), "마음을 쓴 친구가 더 모이면 여기에 자라요.");
+    return React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" } },
+      words.map(function (w, i) {
+        var c = { l: w.l, q: w.q, m: emoMeaning(w.l) || "" };
+        return chipEl(c, tip && tip.l === w.l, function () { setTip(tip && tip.l === w.l ? null : { l: w.l, m: c.m, q: w.q }); }, compact ? 0.9 : 1.22 - i * 0.045);
+      }));
+  };
+  var tipEl = tip ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#3f5560", background: QB[tip.q] || "#f4f8fa", borderRadius: 10, padding: "7px 11px", lineHeight: 1.6 } },
+    React.createElement("b", { style: { color: QC[tip.q] || "#0e7490" } }, tip.l), pill(tip.q), " ",
+    tip.m || (tip.isNew ? "" : me.name + "이가 직접 쓴 마음 말이에요")) : null;
+  var body;
+  if (loading) body = React.createElement("div", { style: { fontSize: 14, color: "#5b7684" } }, "광장으로 가는 중…");
+  else if (!q) body = React.createElement("div", null,
+    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", marginBottom: 8 } }, "오늘 우리 반이 많이 쓴 마음 말"),
+    wordsEl(false), tipEl);
+  else if (mode === "write") body = React.createElement("div", null,
+    React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a" } }, "오늘의 질문"),
+    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45, marginBottom: 6 } }, q.t),
+    q.nm ? React.createElement("div", { style: { fontSize: 12, color: "#9a5b2b", background: "#fff4e6", borderRadius: 8, padding: "5px 10px", marginBottom: 6 } }, "친구 이름은 쓰지 않아요. '어떤 친구가'라고 써요.") : null,
+    React.createElement("div", { style: { fontSize: 13, color: "#0e7490", marginTop: 6 } }, "관찰 · 무슨 일이 있었나요?"),
+    React.createElement("textarea", { value: form.o, maxLength: PLAZA_MAX, rows: 2, placeholder: "본 것, 들은 것을 그대로 써요",
+      onChange: function (e) { setWarn(""); setForm({ ...form, o: e.target.value }); },
+      style: { width: "100%", boxSizing: "border-box", marginTop: 3, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
+    React.createElement("div", { style: { fontSize: 13, color: "#0e7490", marginTop: 8 } }, "느낌 · 그때 마음은 어땠나요?",
+      React.createElement("span", { style: { fontSize: 11, color: "#8fa3ad", marginLeft: 6 } }, "다섯 개까지 골라요")),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5, maxHeight: 92, overflowY: "auto", padding: 2 } },
+      chips.map(function (c) { return chipEl(c, form.fl.some(function (x) { return x.l === c.l; }), function () { toggleChip(c); }, 0.95); })),
+    React.createElement("div", { style: { fontSize: 11, color: "#8fa3ad", marginTop: 4 } }, "테두리가 점선이면 아직 내 섬에 없는 말이에요. 탭하면 뜻이 보여요."),
+    tipEl,
+    React.createElement("input", { value: form.f, maxLength: PLAZA_MAX, placeholder: "한 줄로 덧붙여도 좋아요",
+      onChange: function (e) { setWarn(""); setForm({ ...form, f: e.target.value }); },
+      style: { width: "100%", boxSizing: "border-box", marginTop: 6, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit" } }),
+    React.createElement("div", { style: { fontSize: 13, color: "#0e7490", marginTop: 8 } }, "바람 · 어떻게 되면 좋겠나요?"),
+    React.createElement("textarea", { value: form.w, maxLength: PLAZA_MAX, rows: 2, placeholder: "이랬으면 좋겠다고 써요 (안 써도 괜찮아요)",
+      onChange: function (e) { setWarn(""); setForm({ ...form, w: e.target.value }); },
+      style: { width: "100%", boxSizing: "border-box", marginTop: 3, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
+    warn ? React.createElement("div", { id: "plazaWarn", style: { marginTop: 8, fontSize: 13, color: "#b4532a", background: "#fff1ea", borderRadius: 8, padding: "6px 10px" } }, warn) : null,
+    React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 } },
+      React.createElement("button", { onClick: function () { setMode("view"); setWarn(""); setTip(null); }, style: { ...bSoft, padding: "7px 14px", fontSize: 14 } }, "취소"),
+      React.createElement("button", { onClick: save, disabled: saving, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490", opacity: saving ? 0.6 : 1 } }, saving ? "저장 중…" : "저장")));
+  else body = React.createElement("div", null,
+    React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a" } }, "오늘의 질문"),
+    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45 } }, q.t),
+    !ans ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" } },
+      React.createElement("span", { style: { fontSize: 13, color: "#5b7684" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
+      React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "답하기"))
+    : React.createElement("div", null,
+      ansCard(ans, true),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" } },
+        ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, color: "#9a5b2b" } }, "선생님이 확인하고 있어요")
+        : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, color: "#0e7490" } }, "광장에 올라갔어요") : null,
+        ans.s !== 2 ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "고치기") : null),
+      // 광장은 섬을 키우지 않는다. 자동이 아니라 초대다 — 안 써도 아무것도 기록하지 않는다.
+      bridge ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#0e7490", background: "#e6f4f7", borderRadius: 8, padding: "6px 10px" } }, "이 마음을 일기에도 써 보면 섬에 자라요") : null,
+      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#2f6a97", marginTop: 14 } }, "친구들의 답"),
+      // 내 답은 위에 있으니 여기서는 뺀다. 문턱(3개)은 pub 전체로 세고 보이는 것만 거른다.
+      pub.length ? pub.filter(function (p2) { return !p2.mine; }).map(function (p2, i) { return React.createElement(React.Fragment, { key: i }, ansCard(p2, false)); })
+        : React.createElement("div", { style: { fontSize: 13, color: "#7a8f9a", marginTop: 4 } }, "선생님이 고른 답이 여기에 이름 없이 올라와요.")),
+    words.length ? React.createElement("div", { style: { marginTop: 14, paddingTop: 10, borderTop: "1px solid #e6eef1" } },
+      React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a", marginBottom: 5 } }, "오늘 우리 반이 많이 쓴 마음 말"), wordsEl(true), tipEl) : null);
+  return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
+    React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    React.createElement("style", null, "@keyframes isleReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
+    reveal ? React.createElement("div", {
+      style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5,
+               background: "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
+               animation: "isleReveal 720ms cubic-bezier(0.2,0.4,0.4,1) 0ms forwards" } }) : null,
+    err ? React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 } }, err) : null,
+    React.createElement("button", {
+      onClick: onBack,
+      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
+    }, backLabel || "내 섬으로"),
+    React.createElement("div", {
+      style: { position: "absolute", left: "50%", bottom: small ? 8 : 16, transform: "translateX(-50%)",
+               width: "min(94vw, 600px)", maxHeight: small ? "66vh" : "min(70vh, 600px)", overflowY: "auto", boxSizing: "border-box",
+               padding: "12px 16px 14px", borderRadius: 14, background: "rgba(255,255,255,0.95)",
+               boxShadow: "0 3px 14px rgba(0,0,0,0.18)", color: "#28444f" }
+    }, body));
+}
 function SeaView({ me, entries, arrive, onBack, onGo }) {
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
@@ -10878,6 +11487,116 @@ function App() {
   // ⑥-2 "나도 그래"를 최근 7일 받지 못한 / 보내지 않은 학생. 소외는 양쪽에서 시작된다.
   // 개수는 교사에게도 보여주지 않는다 — 이름만. §9의 선대로 정보까지만.
   const [empGap, setEmpGap] = useState(null);
+  // ⑤ 광장. 질문 올리기·마감, 답변 목록, 상태(비공개/광장/숨김). 새로고침으로만 읽는다.
+  const [plz, setPlz] = useState({ qs: [], cur: null, ans: [], hist: {}, loading: false });
+  const [plzForm, setPlzForm] = useState({ cat: "self", text: "", nm: false, open: false });
+  const [plzHist, setPlzHist] = useState(false);
+  const plzCode = currentUser && currentUser.teacherId ? currentUser.schoolCode : "";
+  const loadPlaza = useCallback(async function () {
+    if (!plzCode) return;
+    setPlz(function (p) { return { ...p, loading: true }; });
+    try {
+      var qs = await plazaQuestions(plzCode);
+      var cur = qs.filter(function (x) { return x.open; })[0] || null;
+      var ans = cur ? await plazaAnswers(plzCode, cur.id) : [];
+      setPlz(function (p) { return { qs: qs, cur: cur, ans: ans, hist: p.hist, loading: false }; });
+    } catch (e) { console.error("plaza:", e); setPlz(function (p) { return { ...p, loading: false }; }); }
+  }, [plzCode]);
+  useEffect(function () { if (page === "teacherDash" && plzCode) loadPlaza(); }, [page, plzCode, loadPlaza]);
+  async function plzAsk() {
+    var t = plzForm.text.trim();
+    if (!t) { setMsg("질문을 써 주세요."); return; }
+    if (plz.cur && !confirm("지금 올라가 있는 질문을 마감하고 새 질문을 올릴까요?")) return;
+    try { await plazaAsk(plzCode, t, plzForm.cat, plzForm.nm, plz.cur ? plz.cur.id : null); }
+    catch (e) { console.error("plazaAsk:", e); setMsg("질문을 올리지 못했어요. Firebase 규칙에 plaza 경로가 있는지 확인해 주세요."); return; }
+    setPlzForm({ cat: plzForm.cat, text: "", nm: false, open: false });
+    setMsg("✅ 광장에 질문을 올렸어요.");
+    await loadPlaza();
+  }
+  async function plzClose() {
+    if (!plz.cur || !confirm("이 질문을 마감할까요? 광장에서 사라지고 여기에는 남아요.")) return;
+    try { await plazaClose(plzCode, plz.cur.id); } catch (e) { console.error("plazaClose:", e); return; }
+    await loadPlaza();
+  }
+  async function plzState(a, s) {
+    if (!plz.cur) return;
+    try { await plazaSetState(plzCode, plz.cur.id, a, s); } catch (e) { console.error("plazaSetState:", e); return; }
+    setPlz(function (p) { return { ...p, ans: p.ans.map(function (x) { return x.sid === a.sid ? { ...x, s: s } : x; }) }; });
+  }
+  async function plzHistLoad(qid) {
+    try { var l = await plazaAnswers(plzCode, qid); setPlz(function (p) { return { ...p, hist: { ...p.hist, [qid]: l } }; }); }
+    catch (e) { console.error("plazaAnswers:", e); }
+  }
+  function plazaCard() {
+    var nmOf = {};
+    myStudents.forEach(function (st) { nmOf[String(st.id)] = st.name || st.loginId || "학생"; });
+    var chipS = function (x) { return React.createElement("span", { key: x.l, style: { fontSize: 12, padding: "1px 8px", borderRadius: 999, background: QB[x.q] || "#eee", border: "1px solid " + (QC[x.q] || "#ccc") + "66", marginRight: 4 } }, x.l); };
+    var rowS = function (name, body) {
+      return React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-start", marginTop: 4 } },
+        React.createElement("span", { style: { flex: "0 0 auto", fontSize: 11, color: "#0e7490", background: "#e6f4f7", borderRadius: 6, padding: "1px 6px", marginTop: 2 } }, name),
+        React.createElement("div", { style: { flex: 1, fontSize: 13, color: "#2f4550", lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" } }, body));
+    };
+    var stPill = function (s2) {
+      var m = s2 === 1 ? ["광장", "#0e7490", "#e6f4f7"] : s2 === 2 ? ["숨김", "#9a5b2b", "#fff4e6"] : ["비공개", "#7a8f9a", "#f1f5f7"];
+      return React.createElement("span", { style: { fontSize: 11, color: m[1], background: m[2], borderRadius: 6, padding: "1px 7px", marginLeft: 6 } }, m[0]);
+    };
+    var ansEl = function (a, ro) {
+      return React.createElement("div", { key: a.sid, style: { border: "1px solid #e3edf1", borderRadius: 10, padding: "8px 12px 10px", marginTop: 8, background: a.s === 2 ? "#fffaf5" : "#fff" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, fontSize: 13 } },
+          React.createElement("b", { style: { color: "#2b3a42" } }, nmOf[a.sid] || "(반에 없는 학생)"),
+          React.createElement("span", { style: { color: "#9aa7b0", marginLeft: 6 } }, a.ts ? dayStamp(a.ts) : ""), stPill(a.s)),
+        rowS("관찰", a.o || "—"),
+        rowS("느낌", React.createElement("span", null, (a.fl || []).map(chipS), a.f || ((a.fl || []).length ? "" : "—"))),
+        rowS("바람", a.w || "—"),
+        ro ? null : React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" } },
+          React.createElement("button", { onClick: function () { plzState(a, a.s === 1 ? 0 : 1); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, color: "#0e7490", border: "1px solid #99d8c9" } }, a.s === 1 ? "광장에서 내리기" : "광장에 올리기"),
+          React.createElement("button", { onClick: function () { plzState(a, a.s === 2 ? 0 : 2); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, color: "#9a5b2b", border: "1px solid #f0d7bd" } }, a.s === 2 ? "숨김 풀기" : "숨기기")));
+    };
+    var cat = PLAZA_CATS.filter(function (c) { return c.id === plzForm.cat; })[0] || PLAZA_CATS[0];
+    var nPub = plz.ans.filter(function (a) { return a.s === 1; }).length;
+    var closed = plz.qs.filter(function (x) { return !x.open; });
+    return React.createElement("div", { key: "plaza", style: { ...crd, marginBottom: 16 } },
+      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "광장"),
+      React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 10, lineHeight: 1.6 } },
+        "오늘의 질문은 필요할 때만 올려요. 아이들은 관찰·느낌·바람 세 칸으로 답하고, 선생님이 고른 답만 이름 없이 광장에 보여요(3개 이상일 때)."),
+      plz.cur ? React.createElement("div", { style: { background: "#f4fafb", border: "1px solid #cfe6ec", borderRadius: 12, padding: "10px 14px 12px" } },
+        React.createElement("div", { style: { fontSize: 12, color: "#5b9bb5" } }, "지금 올라간 질문 · ", dayStamp(plz.cur.ts), plz.cur.nm ? " · '이름은 쓰지 않기' 안내" : ""),
+        React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#0e7490", lineHeight: 1.5, marginTop: 2 } }, plz.cur.t),
+        React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 8, fontSize: 13, color: "#3f5560" } },
+          React.createElement("span", null, "답변 ", React.createElement("b", null, plz.ans.length), "명 · 광장에 ", React.createElement("b", null, nPub), "개"),
+          React.createElement("span", { style: { flex: 1 } }),
+          React.createElement("button", { onClick: loadPlaza, style: { ...bSoft, padding: "4px 10px", fontSize: 12 } }, plz.loading ? "읽는 중…" : "새로고침"),
+          React.createElement("button", { onClick: plzClose, style: { ...bSoft, padding: "4px 10px", fontSize: 12, color: "#9a5b2b", border: "1px solid #f0d7bd" } }, "마감")),
+        plz.ans.length ? plz.ans.map(function (a) { return ansEl(a, false); })
+          : React.createElement("div", { style: { fontSize: 13, color: "#9aa7b0", marginTop: 8 } }, "아직 답한 학생이 없어요."))
+      : React.createElement("div", { style: { fontSize: 14, color: "#7d8b95", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, padding: "12px 14px" } }, "지금은 올라간 질문이 없어요. 광장에는 오늘 우리 반이 많이 쓴 마음 말이 보여요."),
+      React.createElement("div", { style: { marginTop: 12 } },
+        React.createElement("button", { onClick: function () { setPlzForm({ ...plzForm, open: !plzForm.open }); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" } }, plzForm.open ? "질문 올리기 접기" : "질문 올리기"),
+        plzForm.open ? React.createElement("div", { style: { marginTop: 10, border: "1px solid #e3edf1", borderRadius: 12, padding: "10px 14px 12px" } },
+          React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+            PLAZA_CATS.map(function (c) { return React.createElement("button", { key: c.id, onClick: function () { setPlzForm({ ...plzForm, cat: c.id, nm: c.nm }); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, background: c.id === plzForm.cat ? "#0e7490" : "#f1f5f9", color: c.id === plzForm.cat ? "#fff" : "#1e293b" } }, c.name); })),
+          React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4, marginTop: 8 } },
+            cat.qs.map(function (t) { return React.createElement("button", { key: t, onClick: function () { setPlzForm({ ...plzForm, text: t, nm: cat.nm }); }, style: { ...bSoft, textAlign: "left", padding: "6px 10px", fontSize: 13, fontWeight: 400, background: plzForm.text === t ? "#e6f4f7" : "#fff" } }, t); })),
+          React.createElement("textarea", { value: plzForm.text, rows: 2, maxLength: PLAZA_MAX, placeholder: "직접 써도 돼요. 상황을 묻되 사람을 묻지 않아요.",
+            onChange: function (e) { setPlzForm({ ...plzForm, text: e.target.value }); },
+            style: { width: "100%", boxSizing: "border-box", marginTop: 8, padding: "8px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
+          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#3f5560", marginTop: 6 } },
+            React.createElement("input", { type: "checkbox", checked: plzForm.nm, onChange: function (e) { setPlzForm({ ...plzForm, nm: e.target.checked }); } }),
+            "'이름은 쓰지 않기' 안내를 함께 띄우기 (친구 이름이 들어간 답은 저장이 막혀요)"),
+          React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 8 } },
+            React.createElement("button", { onClick: plzAsk, style: { ...bSoft, padding: "7px 16px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, plz.cur ? "지금 질문을 마감하고 올리기" : "광장에 올리기"))) : null),
+      closed.length ? React.createElement("div", { style: { marginTop: 12 } },
+        React.createElement("button", { onClick: function () { setPlzHist(!plzHist); }, style: { ...bSoft, padding: "5px 10px", fontSize: 12 } }, (plzHist ? "지난 질문 접기" : "지난 질문 ") + (plzHist ? "" : closed.length + "개")),
+        plzHist ? closed.map(function (x) {
+          return React.createElement("div", { key: x.id, style: { marginTop: 8, borderTop: "1px solid #eef3f5", paddingTop: 8 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 } },
+              React.createElement("span", { style: { color: "#9aa7b0" } }, dayStamp(x.ts)),
+              React.createElement("span", { style: { color: "#2f4550", flex: 1 } }, x.t),
+              plz.hist[x.id] ? null : React.createElement("button", { onClick: function () { plzHistLoad(x.id); }, style: { ...bSoft, padding: "3px 9px", fontSize: 12 } }, "답 보기")),
+            plz.hist[x.id] ? (plz.hist[x.id].length ? plz.hist[x.id].map(function (a) { return ansEl(a, true); })
+              : React.createElement("div", { style: { fontSize: 12, color: "#9aa7b0", marginTop: 4 } }, "답이 없었어요.")) : null);
+        }) : null) : null);
+  }
   var EMP_GAP_MAX = 8;
   function empGapText(names, total, verb) {
     var n = names.length;
@@ -10965,6 +11684,30 @@ function App() {
   const [seaFrom, setSeaFrom] = useState(null);   // ⑥-1 부두 출항 → 바다 화면에 넘길 것
   const [isleFrom, setIsleFrom] = useState(null); // ⑥-2 배로 내 섬에 도착 { boatDir }
   const [friendInfo, setFriendInfo] = useState(null); // ⑥-2 친구 섬 { id, name, state, boatDir }
+  // ⑤ 광장. 돌아갈 곳(내 섬/친구 섬), 배너용 현재 질문, 본 질문 id.
+  const [plazaBack, setPlazaBack] = useState("island");
+  const [plazaQ, setPlazaQ] = useState(null);
+  const [plazaSeen, setPlazaSeen] = useState(function () { try { return localStorage.getItem("plazaSeen") || ""; } catch (e) { return ""; } });
+  // 질문 배너. 학생이 일기·내 섬 화면에 올 때 한 번 읽는다(읽기 2회). 실시간 리스너는 없다.
+  // 모달이 아니라 한 줄이다 — 흐름을 막지 않고, 탭하면 광장으로 간다(§8 "팝업"의 해석).
+  var plazaHome = page === "studentDiary" || page === "island";
+  useEffect(function () {
+    if (!currentUser || !currentUser.schoolCode || currentUser.teacherId || !plazaHome) return;
+    var dead = false;
+    plazaCurrent(currentUser.schoolCode).then(function (qq) { if (!dead) setPlazaQ(qq); }).catch(function () {});
+    return function () { dead = true; };
+  }, [currentUser, plazaHome]);
+  function plazaMarkSeen(qid) { setPlazaSeen(qid); try { localStorage.setItem("plazaSeen", qid); } catch (e) {} }
+  var plazaNew = plazaQ && plazaSeen !== plazaQ.id ? plazaQ : null;
+  function plazaBannerEl(extra) {
+    if (!plazaNew) return null;
+    return React.createElement("button", {
+      key: "plaza-banner",
+      onClick: function () { setPlazaBack("island"); setPage("plaza"); },
+      style: { ...bSoft, display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 14px", fontSize: 13,
+               color: "#0e7490", background: "#e6f4f7", border: "1px solid #99d8c9", pointerEvents: "auto", ...(extra || {}) }
+    }, "📣 광장에 오늘의 질문이 올라왔어요", React.createElement("span", { style: { fontSize: 12, color: "#5b9bb5" } }, "광장으로 →"));
+  }
   const [trialEntries, setTE] = useState([]);
   const [trialId] = useState("trial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8));
   const trialNoop = useCallback(async function (e) {}, []);
@@ -12037,6 +12780,30 @@ function App() {
       setPage("island");
     }
   })));
+  // ⑤ 광장. 반 공용. 오늘의 질문(교사가 올릴 때만)과 오늘 많이 쓴 어휘. 자유 게시판이 아니다(§8).
+  if (page === "plaza" && currentUser) return React.createElement("div", {
+    style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
+  }, React.createElement("div", {
+    style: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, pointerEvents: "none",
+             padding: "10px 16px", textAlign: "center",
+             background: "linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0))" }
+  }, React.createElement("h1", {
+    className: "diary-h1",
+    style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0, fontSize: "clamp(15px, 4vw, 22px)" }
+  }, "우리 반 광장")), React.createElement("div", {
+    style: { position: "absolute", inset: 0 }
+  }, React.createElement(PlazaView, {
+    me: currentUser,
+    myState: islandState(myEntries),
+    arrive: true,
+    backLabel: plazaBack === "friend" && friendInfo ? friendInfo.name + "의 섬으로" : "내 섬으로",
+    onSeen: plazaMarkSeen,
+    onBack: function () {
+      setIsleFrom(null);
+      if (plazaBack === "friend" && friendInfo) { setFriendInfo({ ...friendInfo, boatDir: null }); setPage("friend"); }
+      else setPage("island");
+    }
+  })));
   if (page === "island" && currentUser) return React.createElement("div", {
     style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
   }, React.createElement("div", {
@@ -12046,7 +12813,9 @@ function App() {
   }, React.createElement("h1", {
     className: "diary-h1",
     style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0, fontSize: "clamp(15px, 4vw, 22px)" }
-  }, currentUser.name, "의 마음 섬")), React.createElement("div", {
+  }, currentUser.name, "의 마음 섬")), plazaNew ? React.createElement("div", {
+    style: { position: "absolute", left: "50%", top: 44, transform: "translateX(-50%)", zIndex: 4 }
+  }, plazaBannerEl()) : null, React.createElement("div", {
     style: { position: "absolute", inset: 0 }
   }, React.createElement(IslandView, {
     entries: myEntries,
@@ -12058,6 +12827,7 @@ function App() {
       setIsleFrom(null);
       if (where === "diary") setPage("studentDiary");
       else if (where === "sea") { setSeaFrom(info || null); setPage("sea"); }
+      else if (where === "plaza") { setPlazaBack("island"); setPage("plaza"); }
     }
   })));
   // ⑥-2 친구 섬. 걸어다니고, 어휘를 발견하고, 나도 그래를 보낸다. 일기 본문은 없다.
@@ -12085,6 +12855,7 @@ function App() {
     onHome: function () { setSeaFrom({ fromId: friendInfo.id, autoHome: true }); setPage("sea"); },
     onGo: function (where, info) {
       if (where === "sea") { setSeaFrom(info || null); setPage("sea"); }
+      else if (where === "plaza") { setPlazaBack("friend"); setPage("plaza"); }   // 친구 섬의 표지도 같은 광장이다
     }
   })));
   if (page === "studentDiary" && currentUser) return React.createElement("div", {
@@ -12129,7 +12900,7 @@ function App() {
       flexWrap: "wrap",
       justifyContent: "center"
     }
-  }, React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9", marginRight: 6 } }, "내 섬 보기"), React.createElement("button", { onClick: function () { openEmotionReport(currentUser.name, myEntries); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "리포트 저장"), React.createElement("button", {
+  }, plazaBannerEl({ flexBasis: "100%", justifyContent: "center", marginBottom: 4 }), React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9", marginRight: 6 } }, "내 섬 보기"), React.createElement("button", { onClick: function () { openEmotionReport(currentUser.name, myEntries); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "리포트 저장"), React.createElement("button", {
     onClick: function () {
       setShowPwChange(!showPwChange);
       setPwF({
@@ -12770,6 +13541,8 @@ function App() {
     React.createElement("div", { style: { fontSize: 14, color: "#3f5560", lineHeight: 1.8 } },
       React.createElement("div", null, React.createElement("b", null, "받지 못한 학생"), " · ", empGapText(empGap.none, empGap.total, "받지")),
       React.createElement("div", null, React.createElement("b", null, "보내지 않은 학생"), " · ", empGapText(empGap.silent, empGap.total, "보내지")))) : null,
+  // ⑤ 광장 — 질문 올리기·마감, 답변 관리(§8·§9 ④).
+  plazaCard(),
   React.createElement("div", {
     style: {
       ...crd,
