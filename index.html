@@ -7112,6 +7112,57 @@ function fireflySpots(list, plants) {
 // 화면을 다녀와도 캐릭터가 그 자리에 있어야 한다. 랜드마크 앞에서 일기를
 // 쓰고 돌아왔는데 처음 자리로 되돌아가 있으면 다시 걸어가야 한다.
 var CHAR_LAST = {};
+// ── 사운드 (2026-09-07) ──
+// 기본 음소거. 3D 화면 오른쪽 위의 버튼으로 켜고, 선택은 기기에 남는다(localStorage snd=on).
+// 파일은 sounds/<이름>.ogg 와 .m4a 두 벌. <audio>가 재생 가능한 첫 <source>를 고르고, 없는 파일은 다음 <source>로 넘어간다.
+// 파일이 하나도 없어도 조용히 지나간다 — 소리는 있으면 좋은 것이지 없으면 안 되는 것이 아니다.
+// CC0만 쓰고 출처는 sounds/CREDITS.md에 적는다.
+var SND = {
+  cfg: { waves: { loop: true, vol: 0.35 }, step1: { vol: 0.45 }, step2: { vol: 0.45 }, step3: { vol: 0.45 },
+         dive: { vol: 0.7 }, sail: { vol: 0.5 }, tap: { vol: 0.4 } },
+  els: {}, loopEl: null, loopName: null,
+  on: function () { try { return localStorage.getItem("snd") === "on"; } catch (e) { return false; } },
+  set: function (on) {
+    try { if (on) localStorage.setItem("snd", "on"); else localStorage.removeItem("snd"); } catch (e) {}
+    if (!on) SND.stopLoop(); else if (SND.loopName) SND.loop(SND.loopName);
+  },
+  el: function (name) {
+    if (SND.els[name]) return SND.els[name];
+    var a = document.createElement("audio"); a.preload = "auto";
+    [["ogg", "audio/ogg"], ["m4a", "audio/mp4"]].forEach(function (f) {
+      var src = document.createElement("source"); src.src = "sounds/" + name + "." + f[0]; src.type = f[1]; a.appendChild(src);
+    });
+    var c = SND.cfg[name] || {}; a.loop = !!c.loop; a.volume = c.vol == null ? 0.5 : c.vol;
+    SND.els[name] = a; return a;
+  },
+  play: function (name, rate) {
+    if (!SND.on()) return;
+    try { var a = SND.el(name); a.currentTime = 0; a.playbackRate = rate || 1; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+  },
+  // 배경음. 화면이 바뀌어도 이름을 기억해 두었다가, 소리를 켜는 순간 이어서 튼다.
+  loop: function (name) {
+    SND.loopName = name;
+    if (!SND.on()) return;
+    try {
+      var a = SND.el(name);
+      if (SND.loopEl && SND.loopEl !== a) SND.loopEl.pause();
+      SND.loopEl = a;
+      if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
+    } catch (e) {}
+  },
+  stopLoop: function () { if (SND.loopEl) { try { SND.loopEl.pause(); } catch (e) {} } SND.loopEl = null; },
+  leave: function () { SND.stopLoop(); SND.loopName = null; }
+};
+// 소리 버튼. 3D 화면마다 오른쪽 위 버튼 아래에 선다.
+function SndBtn({ top, small }) {
+  const [on, setOn] = useState(SND.on());
+  return React.createElement("button", {
+    onClick: function () { var nv = !on; SND.set(nv); setOn(nv); if (nv) SND.play("tap"); },
+    title: on ? "소리 끄기" : "소리 켜기",
+    style: { position: "absolute", right: 10, top: top == null ? 46 : top, ...bSoft, padding: "5px 11px", fontSize: small ? 12 : 13,
+             color: on ? "#0e7490" : "#7a8f9a", border: on ? "1px solid #99d8c9" : "1px solid #dbe6ea" }
+  }, on ? "🔊 소리" : "🔇 소리");
+}
 // ── 허브 승격 (2026-09-07, DESIGN.md §3) ──
 // true면 로그인 뒤 첫 화면이 내 섬이다. 거기서 걸어 일기·바다·광장으로 간다.
 // **되돌리기는 이 한 줄이다.** false로 바꾸면 예전처럼 일기 화면이 먼저 뜨고 내 섬은 "내 섬 보기" 버튼 뒤의 별도 페이지가 된다.
@@ -7224,6 +7275,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.appendChild(renderer.domElement);
+    SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
 
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
@@ -7332,7 +7384,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
     var keys = {}, dbgMarks = null;
-    var walkT = 0, faceDir = Math.PI * 0.75;
+    var walkT = 0, faceDir = Math.PI * 0.75, stepT = 0, stepN = 0;
     function walk(dt) {
       if (!charGrp || !theIsle) return;
       var mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -7344,6 +7396,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         walkMove(theIsle, charGrp.position, v.x, v.z);
         faceDir = Math.atan2(v.x, v.z);
         walkT += dt;
+        if (walkT - stepT > 0.32) { stepT = walkT; SND.play("step" + (1 + (stepN++ % 3)), 0.94 + Math.random() * 0.12); }
       }
       if (charGrp.userData.step) charGrp.userData.step(walkT, moving, faceDir);
       // 높이는 매 프레임 지면에서 다시 잡는다. 지금 높이를 함께 넘겨야
@@ -7483,6 +7536,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         going.splash.visible = false;
         scene.add(going.splash);
       }
+      SND.play(sail ? "sail" : dive ? "tap" : "tap");
       // 부두는 배가 떠나는 것을 보여준 뒤에 덮는다. 처음부터 덮으면 승선이 안 보인다.
       setWipe({ dir: dive ? "down" : "side", ms: going.dur,
                 run: sail ? Math.round(going.dur * 0.34) : going.dur,
@@ -7588,6 +7642,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
             // 물보라는 캐릭터가 수면에 닿는 순간부터
             var sp = (u - 0.44) / 0.30;
             going.splash.visible = sp > 0 && sp < 1;
+            if (going.splash.visible && !going.splashed) { going.splashed = true; SND.play("dive"); }
             if (going.splash.visible) going.splash.userData.at(sp);
           }
           cam.position.y = camHome.y - 4.2 * ease;
@@ -7669,6 +7724,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         if (o.geometry) o.geometry.dispose();
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.dispose(); });
       });
+      SND.leave();
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
@@ -7712,6 +7768,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13,
                color: isFriend ? "#0e7490" : undefined, border: isFriend ? "1px solid #99d8c9" : undefined }
     }, isFriend ? "내 섬으로" : hub ? "로그아웃" : "돌아가기"),
+    React.createElement(SndBtn, { small: small }),
     // 느린 기기. 걸어서 잠수 지점까지 가기 힘들면 여기서 바로 간다. "일기로 가기"를 고르면 이 기기는 다음부터 일기가 먼저다.
     slow === 1 ? React.createElement("div", {
       style: { position: "absolute", left: "50%", top: small ? 70 : 60, transform: "translateX(-50%)", zIndex: 6,
@@ -8185,6 +8242,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.appendChild(renderer.domElement);
+    SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
     function halfFor(a) { return Math.max(5.6, 7.0 / a); }   // 뒤쪽 게시판 머리 여유
@@ -8247,6 +8305,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
         // 팻말 텍스처는 모듈 캐시(LABEL_TEX)라 재질만 지운다. material.dispose는 map을 건드리지 않는다.
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { if (m) m.dispose(); });
       });
+      SND.leave();
       renderer.dispose();
       if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
@@ -8407,6 +8466,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
       onClick: onBack,
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
     }, backLabel || "내 섬으로"),
+    React.createElement(SndBtn, { small: small }),
     React.createElement("div", {
       style: { position: "absolute", left: "50%", bottom: small ? 8 : 16, transform: "translateX(-50%)",
                width: "min(94vw, 600px)", maxHeight: small ? "66vh" : "min(70vh, 600px)", overflowY: "auto", boxSizing: "border-box",
@@ -8469,6 +8529,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     renderer.shadowMap.enabled = O.shadow > 0;                                // 카드 D
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.appendChild(renderer.domElement);
+    SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
     host.style.touchAction = "none";
 
     var scene = new THREE.Scene();
@@ -8723,6 +8784,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     var sail = null;
     function sailTo(e) {
       if (!e || sail || intro) return;
+      SND.play("sail");
       var to, th;
       if (e.home) {
         // 내 부두로. 섬 화면의 도착 연출이 여기서 이어받는다
@@ -8976,6 +9038,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       host.removeEventListener("pointercancel", onUp);
       host.removeEventListener("wheel", onWheel);
       disposeObj(scene);
+      SND.leave();
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
@@ -9009,6 +9072,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       onClick: function () { if (api.current.homeSail) api.current.homeSail(); else onBack(null); },
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
     }, "내 섬으로"),
+    React.createElement(SndBtn, { small: small }),
     // 친구 찾기 — 검색과 명단 둘 다.
     React.createElement("div", {
       style: { position: "absolute", left: "50%", top: small ? 66 : 52, transform: "translateX(-50%)", width: small ? "min(92vw, 340px)" : 360, zIndex: 4 }
