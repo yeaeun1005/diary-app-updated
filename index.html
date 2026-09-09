@@ -888,6 +888,43 @@ function dKey(id) {
 function stuKey(code) {
   return "stu_" + code;
 }
+// ── ⑨ 계정 정보 보호 (DESIGN §13) ─────────────────────────────────
+// 비밀번호는 저장하지 않는다. PBKDF2-SHA256(입력, 소금 = 역할:학교코드:아이디, 10만 회)의
+// 64자 hex를 경로에 쓴다: app/tcred/<교사아이디>/<해시>, app/scred/<학교코드>/<아이디>/<해시>.
+// 규칙이 부모 읽기를 막으므로 해시 목록은 내려받을 수 없고, 로그인은 그 경로 하나를 읽어 본다.
+const PW_ITER = 100000;
+const PW_DEFAULT = "1234";
+const PW_HTTPS_MSG = "보안 연결(https)에서만 로그인할 수 있어요. 주소가 https로 시작하는지 확인해주세요.";
+async function pwHash(role, code, lid, pw) {
+  if (!(window.crypto && window.crypto.subtle)) throw new Error("no-subtle");
+  var enc = new TextEncoder();
+  var key = await crypto.subtle.importKey("raw", enc.encode(String(pw)), "PBKDF2", false, ["deriveBits"]);
+  var bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(role + ":" + code + ":" + lid), iterations: PW_ITER }, key, 256);
+  return Array.from(new Uint8Array(bits)).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+}
+// Firebase 키에 못 쓰는 문자. 아이디가 경로의 일부가 되므로 만들 때 막는다.
+function keyOk(s) {
+  return typeof s === "string" && s.length > 0 && s.length <= 64 && !/[.#$\[\]\/]/.test(s);
+}
+function schPubKey(code) {
+  return "sch/" + code + "/pub";
+}
+function tcredKey(tid, h) {
+  return "tcred/" + tid + (h ? "/" + h : "");
+}
+function scredKey(code, lid, h) {
+  return "scred/" + code + "/" + lid + (h ? "/" + h : "");
+}
+// 자격 노드를 통째로 놓는다. 옛 해시가 같이 지워져 비밀번호는 언제나 하나다.
+async function credSetStudent(code, lid, h) {
+  await firebase.database().ref("app/" + scredKey(code, lid)).set({ [h]: true });
+}
+function omitPw(s) {
+  if (!s || s.password == null) return s;
+  var r = Object.assign({}, s);
+  delete r.password;
+  return r;
+}
 function chatKey(id) {
   return "chat_" + id;
 }
@@ -11495,7 +11532,7 @@ function ScrollHero({
 }
 function App() {
   const [page, setPage] = useState("home");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     var link = document.createElement("link");
     link.href = "https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum:wght@400;700&display=swap";
@@ -11503,7 +11540,6 @@ function App() {
     document.head.appendChild(link);
   }, []);
   const [msg, setMsg] = useState("");
-  const [schools, setSchools] = useState([]);
   const [currentUser, setCU] = useState(null);
   const [loginForm, setLF] = useState({
     schoolCode: "",
@@ -11560,16 +11596,10 @@ function App() {
   const [migProg, setMigProg] = useState("");
   const [migDone, setMigDone] = useState(null);
 
-  // 전체 학교를 훑는다. 읽기만 한다.
+  // ⑨ 로그인한 교사의 학교만 훑는다 (DESIGN §13). 전체 학교 목록(t-schools-v3)은 더 이상 읽지 않는다.
   const runMigScan = async () => {
     setMigOpen(true); setMigBusy(true); setMigReport(null); setMigDone(null);
-    setMigProg("학교 목록을 읽는 중…");
-    var sc;
-    try { sc = (await sGetStrict(SK.schools)) || []; }
-    catch (e) {
-      setMigReport({ rows: [], errs: ["학교 목록을 읽지 못했습니다: " + (e && e.message ? e.message : String(e))], nSchool: 0, tStu: 0, tEnt: 0, tKey: 0, tDup: 0, tMig: 0, tErr: 1 });
-      setMigProg(""); setMigBusy(false); return;
-    }
+    var sc = [{ schoolCode: currentUser.schoolCode, schoolName: currentUser.schoolName, teacherName: currentUser.teacherName }];
     var out = [], errs = [], tStu = 0, tEnt = 0, tKey = 0, tDup = 0, tMig = 0, tErr = 0;
     for (var i = 0; i < sc.length; i++) {
       var sch = sc[i];
@@ -12021,35 +12051,42 @@ function App() {
   const [trialEntries, setTE] = useState([]);
   const [trialId] = useState("trial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8));
   const trialNoop = useCallback(async function (e) {}, []);
-  useEffect(() => {
-    (async () => {
-      const sc = await sGet(SK.schools);
-      if (sc) setSchools(sc);
-      setLoading(false);
-    })();
-  }, []);
+  // ⑨ 로그인 전에는 아무것도 읽지 않는다. 옛 학교 목록(t-schools-v3)은 로그인 버튼을 누른 뒤,
+  // 새 경로에 자격이 없을 때만 읽는다 — 이전 기간 한정 (DESIGN §13).
   const genCode = () => "SCH" + Math.random().toString(36).substring(2, 8).toUpperCase();
   const createSchool = async () => {
     if (!schoolForm.schoolName.trim() || !schoolForm.teacherName.trim() || !schoolForm.teacherId.trim() || !schoolForm.teacherPw.trim()) {
       setMsg("모든 항목을 입력해주세요.");
       return;
     }
-    if (schools.some(x => x.teacherId === schoolForm.teacherId.trim())) {
+    const tid = schoolForm.teacherId.trim();
+    if (!keyOk(tid)) {
+      setMsg("아이디에는 . # $ [ ] / 를 쓸 수 없어요.");
+      return;
+    }
+    // 아직 이전되지 않은 옛 계정과 겹치지 않게. 4단계 뒤에는 읽히지 않아 null이 되고 건너뛴다.
+    const legacy = (await sGet(SK.schools)) || [];
+    if (legacy.some(x => x && x.teacherId === tid)) {
       setMsg("이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요.");
       return;
     }
+    let h;
+    try { h = await pwHash("t", "", tid, schoolForm.teacherPw.trim()); } catch (e) { setMsg(PW_HTTPS_MSG); return; }
     const code = genCode();
     const ns = {
-      id: Date.now(),
       schoolName: schoolForm.schoolName.trim(),
       teacherName: schoolForm.teacherName.trim(),
-      teacherId: schoolForm.teacherId.trim(),
-      teacherPw: schoolForm.teacherPw.trim(),
+      teacherId: tid,
       schoolCode: code
     };
-    const updated = [...schools, ns];
-    setSchools(updated);
-    await sSet(SK.schools, updated);
+    // tcred/<아이디>는 규칙상 한 번만 쓸 수 있다. 막히면 이미 있는 아이디다 — 따로 읽어 확인하지 않는다.
+    try {
+      await firebase.database().ref("app/" + tcredKey(tid)).set({ [h]: { schoolCode: code, schoolName: ns.schoolName, teacherName: ns.teacherName } });
+    } catch (e) {
+      setMsg("이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요.");
+      return;
+    }
+    await sSet(schPubKey(code), { schoolName: ns.schoolName });
     await sSet(stuKey(code), []);
     setCU(ns);
     setMS([]);
@@ -12063,46 +12100,82 @@ function App() {
     setMsg("✅ 학교가 생성되었습니다! 학교 코드: " + code);
   };
   const teacherLogin = async () => {
-    const s = schools.find(s => s.teacherId === loginForm.loginId.trim() && s.teacherPw === loginForm.password.trim());
-    if (s) {
-      setCU(s);
-      const st = (await sGet(stuKey(s.schoolCode))) || [];
-      setMS(st);
-      setPage("teacherDash");
-      setLF({
-        schoolCode: "",
-        loginId: "",
-        password: "",
-        role: "student"
-      });
-      setMsg("");
-    } else setMsg("아이디 또는 비밀번호가 일치하지 않습니다.");
+    const tid = loginForm.loginId.trim(), pw = loginForm.password.trim();
+    let h;
+    try { h = await pwHash("t", "", tid, pw); } catch (e) { setMsg(PW_HTTPS_MSG); return; }
+    let s = keyOk(tid) ? await sGet(tcredKey(tid, h)) : null;
+    if (!s || !s.schoolCode) {
+      // 옛 방식(평문 비교). 맞으면 그 자리에서 새 경로에 해시를 쓰고 옛 목록의 평문을 지운다.
+      const legacy = (await sGet(SK.schools)) || [];
+      const ls = legacy.find(x => x && x.teacherId === tid && x.teacherPw != null && x.teacherPw === pw);
+      if (!ls) {
+        setMsg("아이디 또는 비밀번호가 일치하지 않습니다.");
+        return;
+      }
+      s = { schoolCode: ls.schoolCode, schoolName: ls.schoolName || "", teacherName: ls.teacherName || "" };
+      if (keyOk(tid) && s.schoolCode) {
+        try {
+          await firebase.database().ref("app/" + tcredKey(tid)).set({ [h]: s });
+          await sSet(schPubKey(s.schoolCode), { schoolName: s.schoolName });
+          await sSet(SK.schools, legacy.map(x => { if (x !== ls) return x; var r = Object.assign({}, x); delete r.teacherPw; return r; }));
+        } catch (e) { console.error("tcred migrate:", e); }
+      }
+    }
+    setCU({ teacherId: tid, schoolCode: s.schoolCode, schoolName: s.schoolName || "", teacherName: s.teacherName || "" });
+    const st = (await sGet(stuKey(s.schoolCode))) || [];
+    setMS(st);
+    setPage("teacherDash");
+    setLF({
+      schoolCode: "",
+      loginId: "",
+      password: "",
+      role: "student"
+    });
+    setMsg("");
   };
   const studentLogin = async () => {
     const code = loginForm.schoolCode.trim().toUpperCase();
-    const school = schools.find(s => s.schoolCode === code);
-    if (!school) {
-      setMsg("학교 코드가 존재하지 않습니다.");
-      return;
+    const lid = loginForm.loginId.trim(), pw = loginForm.password.trim();
+    let school = await sGet(schPubKey(code));
+    if (!school || !school.schoolName) {
+      // 새 경로에 없으면 옛 목록. 4단계 뒤에는 읽히지 않으니 "존재하지 않습니다"로 끝난다.
+      const legacy = (await sGet(SK.schools)) || [];
+      const ls = legacy.find(x => x && x.schoolCode === code);
+      if (!ls) {
+        setMsg("학교 코드가 존재하지 않습니다.");
+        return;
+      }
+      school = { schoolName: ls.schoolName || "" };
     }
+    let h;
+    try { h = await pwHash("s", code, lid, pw); } catch (e) { setMsg(PW_HTTPS_MSG); return; }
+    const ok = keyOk(lid) && (await sGet(scredKey(code, lid, h))) === true;
     const stuList = (await sGet(stuKey(code))) || [];
-    const found = stuList.find(s => s.loginId === loginForm.loginId.trim() && s.password === loginForm.password.trim());
-    if (!found) {
+    const found = stuList.find(s => s && s.loginId === lid);
+    if (!found || (!ok && (found.password == null || found.password !== pw))) {
       setMsg("아이디 또는 비밀번호가 일치하지 않습니다.");
       return;
     }
+    if (!ok && keyOk(lid)) {
+      // 옛 방식으로 통과. 그 자리에서 해시를 쓰고 명단의 평문을 지운다 — 이전 기간 한정.
+      try {
+        await credSetStudent(code, lid, h);
+        await sSet(stuKey(code), stuList.map(s => s === found ? omitPw(s) : s));
+      } catch (e) { console.error("scred migrate:", e); }
+    }
+    const me = omitPw(found);
     setCU({
-      ...found,
+      ...me,
       schoolCode: code,
       schoolName: school.schoolName
     });
     // 실패해도 로그인은 진행한다. dLoad가 옛 경로로 폴백하므로 일기는 보인다.
-    try { await d2Ensure(found.id); } catch (e) { console.error("d2Ensure:", e); }
-    const entries = await dLoad(found.id);
+    try { await d2Ensure(me.id); } catch (e) { console.error("d2Ensure:", e); }
+    const entries = await dLoad(me.id);
     setME(entries);
     // 섬 요약과 학급 온도계를 채운다. 기존 학생은 일기는 있어도 isle 노드가 없다.
     // 실패해도 로그인은 진행한다. 일기 기능과 무관하다.
-    var meNow = { ...found, schoolCode: code };
+    var meNow = { ...me, schoolCode: code };
     try { await isleSync(meNow, islandState(entries)); } catch (e) { console.error("isleSync:", e); }
     try { await dayMark(meNow, entries); } catch (e) { console.error("dayMark:", e); }
     setPage(hubStart());   // 허브 승격: 내 섬이 먼저. ISLE_HUB=false면 일기 화면
@@ -12130,24 +12203,36 @@ function App() {
     }
   };
   const addStudent = async () => {
-    if (!studentForm.loginId.trim() || !studentForm.password.trim()) {
+    const lid = studentForm.loginId.trim(), pw = studentForm.password.trim();
+    if (!lid || !pw) {
       setMsg("아이디와 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (!keyOk(lid)) {
+      setMsg("아이디에는 . # $ [ ] / 를 쓸 수 없어요.");
       return;
     }
     const code = currentUser.schoolCode;
     const list = (await sGet(stuKey(code))) || [];
-    if (list.some(s => s.loginId === studentForm.loginId.trim())) {
+    if (list.some(s => s && s.loginId === lid)) {
       setMsg("이미 사용 중인 아이디입니다.");
       return;
     }
     const ns = {
       id: Date.now(),
-      name: studentForm.studentName.trim() || studentForm.loginId.trim(),
-      loginId: studentForm.loginId.trim(),
-      password: studentForm.password.trim(),
+      name: studentForm.studentName.trim() || lid,
+      loginId: lid,
       grade: studentForm.grade.trim(),
       classNumber: studentForm.classNumber.trim()
     };
+    // 비밀번호는 명단에 넣지 않는다. 해시만 자격 노드에 (DESIGN §13).
+    try {
+      await credSetStudent(code, lid, await pwHash("s", code, lid, pw));
+    } catch (e) {
+      console.error("addStudent:", e);
+      setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "학생 추가 중 오류가 발생했습니다.");
+      return;
+    }
     const updated = [...list, ns];
     await sSet(stuKey(code), updated);
     setMS(updated);
@@ -12178,32 +12263,41 @@ function App() {
     const list = (await sGet(stuKey(code))) || [];
     var added = 0;
     var updated = [...list];
-    for (var i = 1; i <= count; i++) {
-      var name = i + "번";
-      var lid = "s" + i;
-      var lpw = "1234";
-      if (!updated.some(function (s) {
-        return s.loginId === lid;
-      })) {
-        var ns = {
-          id: Date.now() + i,
-          name: name,
-          loginId: lid,
-          password: lpw,
-          grade: bulkGrade.trim(),
-          classNumber: bulkClass.trim()
-        };
-        updated.push(ns);
-        await d2Clear(ns.id);
-        added++;
+    var creds = {};
+    setMsg("등록 중…");
+    try {
+      for (var i = 1; i <= count; i++) {
+        var name = i + "번";
+        var lid = "s" + i;
+        if (!updated.some(function (s) {
+          return s && s.loginId === lid;
+        })) {
+          var ns = {
+            id: Date.now() + i,
+            name: name,
+            loginId: lid,
+            grade: bulkGrade.trim(),
+            classNumber: bulkClass.trim()
+          };
+          // 기본 비밀번호 1234 — 알고 있는 한계 (DESIGN §13). 명단에는 넣지 않고 해시만 자격 노드에.
+          creds[lid + "/" + (await pwHash("s", code, lid, PW_DEFAULT))] = true;
+          updated.push(ns);
+          await d2Clear(ns.id);
+          added++;
+        }
       }
+      if (added) await firebase.database().ref("app/scred/" + code).update(creds);
+    } catch (e) {
+      console.error("bulk:", e);
+      setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "등록 중 오류가 발생했습니다.");
+      return;
     }
     await sSet(stuKey(code), updated);
     setMS(updated);
     setBulkCount("");
     setBulkGrade("");
     setBulkClass("");
-    setMsg("✅ " + added + "명의 학생이 일괄 등록되었습니다. (1번~" + count + "번)");
+    setMsg("✅ " + added + "명의 학생이 일괄 등록되었습니다. (1번~" + count + "번) 비밀번호는 " + PW_DEFAULT + "예요. 첫 로그인 뒤 바꾸게 해주세요.");
   };
   const delStudent = async stu => {
     if (!confirm(stu.name + " 학생을 삭제할까요?")) return;
@@ -12214,6 +12308,7 @@ function App() {
         return s.id !== stu.id && s.name !== stu.name;
       });
       await sSet(stuKey(code), updated);
+      if (keyOk(stu.loginId)) await sSet(scredKey(code, stu.loginId), null); // 자격 노드 (§13)
       setMS(updated);
       await d2Drop(stu.id);
       await sSet(dKey(stu.id), null);
@@ -12227,6 +12322,61 @@ function App() {
       setMsg("삭제 중 오류가 발생했습니다.");
     }
   };
+  // ⑨ 이전 기간 한정: 명단에 남아 있는 평문 비밀번호를 해시로 옮기고 지운다 (DESIGN §13, 3단계).
+  const plainCount = myStudents.filter(function (s) { return s && s.password != null; }).length;
+  const protectPasswords = async () => {
+    const code = currentUser.schoolCode;
+    var list;
+    try { list = (await sGetStrict(stuKey(code))) || []; } // 읽기 실패를 빈 명단으로 오해하면 안 된다
+    catch (e) { setMsg("학생 명단을 읽지 못했습니다. 다시 시도해주세요."); return; }
+    var todo = list.filter(function (s) { return s && s.password != null; });
+    if (!todo.length) { setMS(list); setMsg("✅ 모든 학생의 비밀번호가 이미 보호되어 있어요."); return; }
+    setMsg("보호 적용 중… (" + todo.length + "명)");
+    var creds = {}, skipped = [];
+    try {
+      for (var i = 0; i < todo.length; i++) {
+        var s = todo[i];
+        if (!keyOk(s.loginId)) { skipped.push(s.name || s.loginId); continue; }
+        creds[s.loginId + "/" + (await pwHash("s", code, s.loginId, String(s.password)))] = true;
+      }
+      // 자격은 한 번의 update로 놓는다. 경로마다 규칙이 따로 검사된다.
+      if (Object.keys(creds).length) await firebase.database().ref("app/scred/" + code).update(creds);
+    } catch (e) {
+      console.error("protect:", e);
+      setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "보호 적용 중 오류가 발생했습니다. 다시 시도해주세요.");
+      return;
+    }
+    var cleaned = list.map(function (s) { return s && s.password != null && keyOk(s.loginId) ? omitPw(s) : s; });
+    await sSet(stuKey(code), cleaned);
+    setMS(cleaned);
+    setMsg("✅ " + (todo.length - skipped.length) + "명의 비밀번호를 보호했어요." + (skipped.length ? " 아이디에 쓸 수 없는 문자가 있어 건너뜀: " + skipped.join(", ") : ""));
+  };
+  const resetStudentPw = async stu => {
+    if (!keyOk(stu.loginId)) { setMsg("아이디에 쓸 수 없는 문자가 있어 초기화할 수 없어요."); return; }
+    if (!confirm(stu.name + " 학생의 비밀번호를 " + PW_DEFAULT + "로 되돌릴까요?")) return;
+    const code = currentUser.schoolCode;
+    try {
+      await credSetStudent(code, stu.loginId, await pwHash("s", code, stu.loginId, PW_DEFAULT));
+      if (stu.password != null) {
+        const list = (await sGet(stuKey(code))) || [];
+        const cleaned = list.map(function (s) { return s && s.id === stu.id ? omitPw(s) : s; });
+        await sSet(stuKey(code), cleaned);
+        setMS(cleaned);
+      }
+      setMsg("✅ " + stu.name + " 학생의 비밀번호를 " + PW_DEFAULT + "로 되돌렸어요. 첫 로그인 뒤 바꾸게 해주세요.");
+    } catch (e) {
+      console.error("resetPw:", e);
+      setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "초기화 중 오류가 발생했습니다.");
+    }
+  };
+  const pwNotice = () => React.createElement("div", {
+    style: { fontSize: 13, color: "#475569", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "8px 12px", margin: "0 0 10px", lineHeight: 1.6, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }
+  }, React.createElement("span", { style: { flex: 1, minWidth: 200 } },
+    "일괄 등록 비밀번호는 " + PW_DEFAULT + "예요. 첫 로그인 뒤 비밀번호를 바꾸게 해주세요. 잊으면 '비밀번호 " + PW_DEFAULT + "' 버튼으로 되돌릴 수 있어요."),
+    plainCount > 0 && React.createElement("button", {
+      onClick: protectPasswords,
+      style: { ...bPri, padding: "6px 12px", fontSize: 13, whiteSpace: "nowrap" }
+    }, "비밀번호 보호 적용 (" + plainCount + "명)"));
   const viewStudentRecords = async stu => {
     setVS(stu);
     const e = await dLoad(stu.id);
@@ -12280,10 +12430,6 @@ function App() {
       setMsg("모든 항목을 입력해주세요.");
       return;
     }
-    if (pwForm.current !== currentUser.password) {
-      setMsg("현재 비밀번호가 일치하지 않습니다.");
-      return;
-    }
     if (pwForm.newPw.length < 4) {
       setMsg("새 비밀번호는 4자리 이상이어야 합니다.");
       return;
@@ -12292,20 +12438,21 @@ function App() {
       setMsg("새 비밀번호가 일치하지 않습니다.");
       return;
     }
+    const code = currentUser.schoolCode, lid = currentUser.loginId;
+    if (!keyOk(lid)) {
+      setMsg("이 아이디는 비밀번호를 바꿀 수 없어요. 선생님께 말씀해주세요.");
+      return;
+    }
     try {
-      const code = currentUser.schoolCode;
-      const list = (await sGet(stuKey(code))) || [];
-      const updated = list.map(function (s) {
-        return s.id === currentUser.id ? {
-          ...s,
-          password: pwForm.newPw
-        } : s;
-      });
-      await sSet(stuKey(code), updated);
-      setCU({
-        ...currentUser,
-        password: pwForm.newPw
-      });
+      // 현재 비밀번호는 어디에도 저장돼 있지 않다. 해시를 만들어 자격 노드가 있는지 본다 (§13).
+      const hCur = await pwHash("s", code, lid, pwForm.current);
+      const ok = (await sGet(scredKey(code, lid, hCur))) === true;
+      if (!ok) {
+        setMsg("현재 비밀번호가 일치하지 않습니다.");
+        return;
+      }
+      const hNew = await pwHash("s", code, lid, pwForm.newPw);
+      await credSetStudent(code, lid, hNew);
       setPwF({
         current: "",
         newPw: "",
@@ -12314,7 +12461,8 @@ function App() {
       setShowPwChange(false);
       setMsg("✅ 비밀번호가 변경되었습니다.");
     } catch (e) {
-      setMsg("비밀번호 변경 중 오류가 발생했습니다.");
+      console.error("changePassword:", e);
+      setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "비밀번호 변경 중 오류가 발생했습니다.");
     }
   };
   const msgBox = msg ? React.createElement("div", {
@@ -13888,7 +14036,7 @@ function App() {
     border: "1px solid #bae6fd",
     whiteSpace: "nowrap"
   }
-}, "오늘 참여 현황")), myStudents.length === 0 && React.createElement("p", {
+}, "오늘 참여 현황")), pwNotice(), myStudents.length === 0 && React.createElement("p", {
     style: {
       color: "#475569",
       fontSize: 14
@@ -13932,7 +14080,10 @@ function App() {
       color: viewStu && viewStu.id === s.id ? "#6366f1" : "#475569",
       border: "1px solid " + (viewStu && viewStu.id === s.id ? "#c7d2fe" : "#e2e8f0")
     }
-  }, "\uD56D\uD574 \uC77C\uC9C0"), React.createElement("button", {
+  }, "항해 일지"), React.createElement("button", {
+    onClick: () => resetStudentPw(s),
+    style: { ...bSoft, padding: "6px 12px", fontSize: 14, color: "#0369a1", border: "1px solid #bae6fd", background: "#f0f9ff" }
+  }, "비밀번호 " + PW_DEFAULT), React.createElement("button", {
     onClick: () => clearStuRecords(s),
     style: {
       ...bSoft,

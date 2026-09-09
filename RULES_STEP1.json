@@ -1,0 +1,31 @@
+{
+  "sch": {
+    "$code": {
+      "pub": {
+        ".read": true,
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['schoolName']) && newData.child('schoolName').isString() && newData.child('schoolName').val().length <= 60"
+      }
+    }
+  },
+  "tcred": {
+    "$tid": {
+      ".write": "!data.exists()",
+      "$h": {
+        ".read": true,
+        ".validate": "$h.length == 64 && newData.hasChildren(['schoolCode','schoolName','teacherName']) && newData.child('schoolCode').isString() && newData.child('schoolName').isString() && newData.child('teacherName').isString()"
+      }
+    }
+  },
+  "scred": {
+    "$code": {
+      "$lid": {
+        ".write": true,
+        "$h": {
+          ".read": true,
+          ".validate": "$h.length == 64 && newData.isBoolean()"
+        }
+      }
+    }
+  }
+}
