@@ -376,6 +376,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .mbpv::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#0ea5e9;border:2px solid #fff;box-shadow:0 1px 4px rgba(14,165,233,.45);cursor:pointer}
 .mbpv::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#0ea5e9;border:2px solid #fff;cursor:pointer}
 .mbpv::-moz-range-track{height:6px;border-radius:3px;background:#e0f2fe}
+#demo-ribbon{position:fixed;right:10px;top:96px;z-index:9999;background:#f59e0b;color:#1f2937;font:600 12px/1 'Gowun Dodum',sans-serif;padding:7px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;white-space:nowrap}
 </style>
 <script>
 var firebaseConfig = {
@@ -392,6 +393,7 @@ firebase.initializeApp(firebaseConfig);
 </script>
 </head>
 <body>
+<div id="demo-ribbon" hidden>시연용 가상 데이터 · 실제 학생이 아닙니다</div>
 <div id="root"><div style="text-align:center;padding:64px 20px;color:#475569;font-family:'Gowun Dodum',sans-serif;">바다를 준비하는 중이에요…<div id="boot-err" style="margin-top:14px;color:#e07070;font-size:13px;line-height:1.5;"></div></div></div>
 <script>
 "use strict";
@@ -6772,6 +6774,11 @@ function walkMove(isle, pos, dx, dz) {
 function devMode() {
   try { return /(?:^|[#&])dev\b/.test(window.location.hash || ""); } catch (e) { return false; }
 }
+// ⑩ #seed 일 때만 첫 화면 아래에 시연 학급 패널이 뜬다. DEMO01 아래만 건드린다 (DESIGN.md §14).
+function seedMode() {
+  try { return /(?:^|[#&])seed\b/.test(window.location.hash || ""); } catch (e) { return false; }
+}
+var DEMO_CODE = "DEMO01";
 // lv층 평지가 가장 좁아지는 각도. ③-5에서 1층만 0.85를 지키고 2층은
 // 둘레의 10%쯤에서 눌린다는 것을 눈으로 확인하려고 둔다.
 function narrowestTier(isle, lv) {
@@ -11530,6 +11537,64 @@ function ScrollHero({
     }
   }, children))), footerComponent));
 }
+// ⑩ 시연 학급 패널 (DESIGN.md §14). demo/seed-*.js를 이때만 불러온다. 재료·생성기·검사는 그 파일들에 있다.
+function DemoSeedPanel() {
+  const [ready, setReady] = useState(!!window.DEMO_SEED);
+  const [busy, setBusy] = useState(false);
+  const [date, setDate] = useState(dayStamp());
+  const [mood, setMood] = useState("bright");
+  const [tpw, setTpw] = useState("");   // 시연 교사 비밀번호. 저장소에 두지 않고 여기서 받는다
+  const [lines, setLines] = useState([]);
+  const log = function (m) { setLines(function (l) { return l.concat([m]); }); };
+  useEffect(function () {
+    if (window.DEMO_SEED) return;
+    var files = ["demo/seed-data.js", "demo/seed-gen.js", "demo/seed.js"], i = 0;
+    (function next() {
+      if (i >= files.length) { setReady(true); return; }
+      var el = document.createElement("script");
+      el.src = files[i++] + "?v=" + Date.now();
+      el.onload = next;
+      el.onerror = function () { log("불러오기 실패: " + el.src); };
+      document.head.appendChild(el);
+    })();
+  }, []);
+  const run = function (label, fn) {
+    if (busy || !ready) return;
+    if (!confirm(label + " — 시연 학급(" + DEMO_CODE + ")에만 씁니다. 계속할까요?")) return;
+    var D = new Date(date + "T00:00:00");
+    if (isNaN(D.getTime())) { log("기준일이 이상해요: " + date); return; }
+    setBusy(true); setLines([]);
+    Promise.resolve().then(function () { return fn(D); })
+      .catch(function (e) { log("오류: " + (e && e.message || e)); })
+      .then(function () { setBusy(false); });
+  };
+  const btn = function (label, fn, danger, off) {
+    var dis = busy || !ready || !!off;
+    return React.createElement("button", { onClick: function () { if (!dis) run(label, fn); }, disabled: dis,
+      style: { ...bSoft, ...(danger ? { color: "#b45309", border: "1px solid #fcd34d" } : {}), opacity: dis ? 0.5 : 1 } }, label);
+  };
+  return React.createElement("div", { style: { ...crd, maxWidth: 560, margin: "24px auto 48px", border: "2px dashed #f59e0b", background: "#fffbeb" } },
+    React.createElement("h3", { style: { margin: "0 0 6px", fontFamily: "'Jua',sans-serif", fontWeight: 400 } }, "시연 학급 만들기 (#seed)"),
+    React.createElement("p", { style: { margin: "0 0 12px", fontSize: 13, color: "#78350f", lineHeight: 1.5 } },
+      "가상 학급 ", DEMO_CODE, "에만 씁니다. 실제 학급 데이터는 건드리지 않아요. 만드는 방법은 demo/ 폴더와 DESIGN §14에 있어요. ",
+      "심사가 며칠에 걸치면 아침마다 기준일을 오늘로 두고 \"전체 다시 만들기\"를 누르세요."),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 } },
+      React.createElement("label", { style: { fontSize: 13 } }, "기준일 ",
+        React.createElement("input", { type: "date", value: date, onChange: function (e) { setDate(e.target.value); }, style: { ...inp, width: 160, display: "inline-block", padding: "8px 10px" } })),
+      React.createElement("label", { style: { fontSize: 13 } },
+        React.createElement("input", { type: "radio", checked: mood === "bright", onChange: function () { setMood("bright"); } }), " 밝은 날"),
+      React.createElement("label", { style: { fontSize: 13 } },
+        React.createElement("input", { type: "radio", checked: mood === "heavy", onChange: function () { setMood("heavy"); } }), " 무거운 날")),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 } },
+      React.createElement("input", { type: "password", value: tpw, placeholder: "시연 교사 비밀번호 (처음 한 번만 · 나중에 못 바꿔요)", autoComplete: "new-password",
+        onChange: function (e) { setTpw(e.target.value); }, style: { ...inp, width: 330, display: "inline-block", padding: "8px 10px" } })),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 } },
+      btn("시연 학교 만들기 (처음 한 번)", function () { return window.DEMO_SEED.bootstrap(tpw, log); }, false, !tpw.trim()),
+      btn("전체 다시 만들기", function (D) { return window.DEMO_SEED.rebuild(D, mood, log); }, true),
+      btn("오늘 일기만 다시 쓰기", function (D) { return window.DEMO_SEED.today(D, mood, log); }, true)),
+    React.createElement("pre", { style: { margin: 0, padding: 10, background: "#fff", border: "1px solid #fde68a", borderRadius: 8, fontSize: 12, lineHeight: 1.5, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap" } },
+      ready ? (lines.length ? lines.join("\n") : (busy ? "쓰는 중…" : "준비됐어요.")) : "demo/seed-*.js 불러오는 중…"));
+}
 function App() {
   const [page, setPage] = useState("home");
   const [loading, setLoading] = useState(false);
@@ -11541,6 +11606,11 @@ function App() {
   }, []);
   const [msg, setMsg] = useState("");
   const [currentUser, setCU] = useState(null);
+  // ⑩ 시연 학급이면 화면 아래에 띠. 가명이 실명처럼 보이는 것을 띠가 가린다 (DESIGN.md §14).
+  useEffect(function () {
+    var r = document.getElementById("demo-ribbon");
+    if (r) r.hidden = !(currentUser && currentUser.schoolCode === DEMO_CODE);
+  }, [currentUser]);
   const [loginForm, setLF] = useState({
     schoolCode: "",
     loginId: "",
@@ -12914,7 +12984,7 @@ function App() {
       color: "#0c4a6e",
       lineHeight: 1.5
     }
-  }, "\uD0D0\uD5D8\uB300 \uC0DD\uC131 \uD6C4 \uACE0\uC720 \uCF54\uB4DC\uAC00 \uBC1C\uAE09\uB429\uB2C8\uB2E4. \uC774 \uCF54\uB4DC\uB97C \uD559\uC0DD\uB4E4\uC5D0\uAC8C \uACF5\uC720\uD558\uC138\uC694."))))));
+  }, "\uD0D0\uD5D8\uB300 \uC0DD\uC131 \uD6C4 \uACE0\uC720 \uCF54\uB4DC\uAC00 \uBC1C\uAE09\uB429\uB2C8\uB2E4. \uC774 \uCF54\uB4DC\uB97C \uD559\uC0DD\uB4E4\uC5D0\uAC8C \uACF5\uC720\uD558\uC138\uC694."))))), seedMode() ? React.createElement(DemoSeedPanel, null) : null);
   if (page === "privacy") return React.createElement("div", {
     style: shell
   }, React.createElement("div", {

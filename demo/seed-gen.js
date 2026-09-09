@@ -237,7 +237,7 @@
     }
     var week = days.filter(function (d) { return d.off <= 6; });
     week.forEach(function (day) {
-      var n = day.off === 0 ? 7 : day.weekend ? 2 : 6 + Math.floor(rng() * 4);
+      var n = day.off === 0 ? 9 : day.weekend ? 3 : 9 + Math.floor(rng() * 4);
       var guard = 0;
       while (n > 0 && guard++ < 60) {
         var from = 1 + Math.floor(rng() * 30);
@@ -251,6 +251,12 @@
     want.forEach(function (off) {
       var day = days.filter(function (d) { return d.off === off; })[0], g = 0;
       while (g++ < 30) { var from = ((a - 1 + 1 + gi++ * 7) % 30) + 1; if (put(from, a, day)) break; }
+    });
+    // 심사 계정 B: 이번 주에 둘은 보낸다 (가장 자란 섬의 아이가 하나도 안 보냈으면 어색하다)
+    var b = DATA.B, bi = 0;
+    [1, 3].forEach(function (off) {
+      var day = days.filter(function (d) { return d.off === off; })[0], g = 0;
+      while (g++ < 30) { var to = ((b - 1 + 2 + bi++ * 5) % 30) + 1; if (put(b, to, day)) break; }
     });
     return out;
   }
