@@ -12304,8 +12304,9 @@ function App() {
     try {
       const code = currentUser.schoolCode;
       const list = (await sGet(stuKey(code))) || [];
+      // 같은 이름(동명이인)이 같이 지워지던 버그. id·loginId가 모두 같은 그 항목 하나만 뺀다.
       const updated = list.filter(function (s) {
-        return s.id !== stu.id && s.name !== stu.name;
+        return !(s && s.id === stu.id && s.loginId === stu.loginId);
       });
       await sSet(stuKey(code), updated);
       if (keyOk(stu.loginId)) await sSet(scredKey(code, stu.loginId), null); // 자격 노드 (§13)

@@ -1,0 +1,13 @@
+{
+  "t-schools-v3": {
+    ".read": false,
+    ".write": false
+  },
+  "$stu": {
+    "$i": {
+      "password": {
+        ".validate": false
+      }
+    }
+  }
+}
