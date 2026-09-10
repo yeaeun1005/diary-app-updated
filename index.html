@@ -595,6 +595,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 }
 @media (prefers-reduced-motion: reduce) {
   .sparkle, .cloud, .sun-glow, .scroll-cue, .hero-zoom, .home-sign { animation: none !important; }
+  .scroll-cue { opacity: 1 !important; }
   .sparkle { opacity: 0 !important; }
 }
 /* ── 첫 화면 클레이 톤 (2026-09-10). 눌리면 2px 내려가고 그림자가 그만큼 줄어든다 ── */
@@ -607,6 +608,39 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .cta-clay:hover { color: #b05a3a; }
 .cta-clay .arrow { transition: transform 0.2s ease; }
 .cta-clay:hover .arrow { transform: translateX(4px); }
+/* ── 첫 화면 아래 소개 섹션(2026-09-10). 첫 화면은 100vh 그대로, 그 아래로 장면이 이어진다. 카드 격자 없이 섬 그림·나무 팻말·점선 항로만 쓴다 ── */
+.home-hero { position: relative; width: 100%; height: 100vh; overflow: hidden; }
+.scroll-cue-wrap { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 3; }
+@media (max-width: 600px) { .scroll-cue-wrap { bottom: 40px; } }   /* 폰에서는 바닥글과 겹친다 */
+.scroll-cue { display: block; background: none; border: none; cursor: pointer; padding: 6px 10px; animation: scrollCue 4s ease-in-out infinite; }
+.intro { --sand: #e8b473; --wood: #845430; --ink: #443124; position: relative; color: #f0c383;
+  /* 첫 화면 그림 아래 가장자리 바다색에서 잠수 지점 물색으로 — 내려갈수록 물속 */
+  background: linear-gradient(180deg, #115792 0%, #0f3a4c 100%); }
+.intro-scene { position: relative; min-height: 100vh; max-width: 1180px; margin: 0 auto; box-sizing: border-box; }
+/* 장면 1: 두 섬을 좌우 48%·52%로 나눠 서로 침범하지 않게 어긋나게 놓는다. 겹치면 부두가 잘린다(2026-09-10) */
+.intro-1 { height: 100vh; min-height: 700px; }
+.intro-chapter { position: absolute; top: 22px; left: 28px; z-index: 2; }
+.intro-isle { position: relative; margin: 0; }
+.intro-isle img { width: 100%; height: auto; display: block; clip-path: ellipse(49% 47% at 50% 50%); }
+.intro-isle-a { position: absolute; left: 0; top: 6vh; width: 48%; transform: rotate(-2deg); z-index: 1; }
+.intro-isle-b { position: absolute; right: 0; top: 30vh; width: 52%; transform: rotate(1.5deg); z-index: 1; }
+.intro-tag { position: absolute; left: 6%; bottom: 5%; display: inline-block; background: var(--sand); color: var(--ink); border: 3px solid var(--wood);
+  border-radius: 10px; padding: 6px 14px; font-weight: 700; font-size: clamp(0.95rem, 1.6vw, 1.15rem); box-shadow: 0 4px 0 var(--wood); transform: rotate(var(--rot)); white-space: nowrap; }
+.intro-chapter.intro-tag { position: absolute; left: 28px; bottom: auto; }
+.intro-route { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.intro-route-v { display: none; }
+.intro-sign { position: absolute; left: 50%; bottom: 5vh; width: min(600px, 92%); text-align: center; transform: translateX(-50%) rotate(var(--rot)); z-index: 3; }
+.intro-sign .sign-board { padding: 18px 22px 16px; font-size: clamp(1.1rem, 2.3vw, 1.5rem); line-height: 1.35; font-weight: 700; }
+.intro-sign .sign-posts { height: 46px; }
+@media (max-width: 760px) {
+  .intro-scene { display: block; padding: 12vh 18px 8vh; }
+  .intro-1 { height: auto; min-height: 0; }
+  .intro-route { display: none; }
+  .intro-isle-a, .intro-isle-b { position: static; width: 100%; margin: 0 auto; transform: rotate(-1.5deg); }
+  .intro-isle-b { transform: rotate(1.5deg); }
+  .intro-route-v { display: block; width: 0; height: 7vh; margin: 0 auto; border-left: 3px dashed #f0c383; opacity: 0.7; }
+  .intro-sign { position: relative; left: auto; bottom: auto; margin: 5vh auto 0; transform: rotate(var(--rot)); }
+}
 .cta-text { transition: color 0.2s ease; }
 .cta-text:hover { color: #0369a1; }
 .cta-text .arrow { transition: transform 0.2s ease; }
@@ -6662,11 +6696,13 @@ function buildVegetation(isle, state, opts) {
   }
   // lv층 평지 안에서 자리를 찾는다. 층 가장자리에서 발자국만큼 물러나므로
   // 잎이나 원판이 허공으로 걸치지 않는다.
-  function spotOnTier(rnd, ang, lv, foot, kind, gm) {
+  function spotOnTier(rnd, ang, lv, foot, kind, gm, spread) {
     // 갈대처럼 넓게 떨어뜨리는 종류가 있어 시도를 넉넉히 준다.
-    for (var t = 0; t < 40; t++) {
+    // spread(기본 1)는 마지막 구조 단계에서만 키운다 — 제 영역이 꽉 찼을 때 이웃 방위까지 훑는다.
+    var W = spread || 1, N = Math.round(40 * W);
+    for (var t = 0; t < N; t++) {
       // 자리가 없으면 각도를 점점 넓게 벌린다. 제 방위는 지키되 붙어 있지는 않게.
-      var a = ang + (rnd() - 0.5) * (0.5 + 1.2 * (t / 40));
+      var a = ang + (rnd() - 0.5) * (0.5 + 1.2 * (t / N)) * W;
       var bd = tierBand(isle, a, lv);
       if (!bd) continue;
       var lo = bd.lo + foot + 0.08, hi = bd.hi - foot - 0.08;
@@ -6703,9 +6739,10 @@ function buildVegetation(isle, state, opts) {
     });
   }
 
-  // 어휘가 많아질수록 어휘당 개수를 줄인다. 적을 땐 풍성하고 많아져도 안 터진다.
-  var n = list.length;
-  var per = n <= 8 ? 6 : n <= 16 ? 4 : n <= 26 ? 3 : 2;
+  // 어휘 하나당 3개, 어휘 수와 무관하게 고정(2026-09-10). 전에는 어휘 수에 따라 6·4·3·2로 줄이는 계단식이었는데,
+  // 문턱(8→9, 16→17, 26→27)을 넘는 날 기존 어휘의 식생이 사라졌다 — §5 "한 번 생긴 식생은 사라지지 않는다"와 어긋난다.
+  // 첫날의 풍성함은 중립 식생이 채우고, 어휘가 많아져 자리가 모자라면 배치 실패로 자연히 멈춘다(어휘 30개 = 시도 90번).
+  var per = 3;
   list.forEach(function (em) {
     var rule = VEG[em.q] || VEG.LA;
     var rnd = mulberry32(hashSeed(em.label));
@@ -6731,15 +6768,19 @@ function buildVegetation(isle, state, opts) {
     // 자리가 빡빡하면 작게라도 심는다 — 없는 것보다 작은 편이 낫다.
     // 자리가 빡빡하면 작게, 그래도 안 되면 간격을 봐준다.
     // 없는 것보다 작고 가까운 편이 낫다.
-    var RESCUE = [[0.62, 0.75], [0.49, 0.55], [0.40, 0.38]];
+    // 네 번째 단계(2026-09-10): 제 영역이 꽉 찼으면(어휘 30개면 한 영역에 24개까지 몰린다) 이웃 방위까지 넓게 훑는다.
+    // 시드 400개 × 어휘 30개 검사에서 세 단계만으로는 15%가 한 어휘를 통째로 놓쳤다.
+    // 다섯 번째는 섬 전체를 훑고, 물가 자리가 없으면 물결 대신 그 영역의 다음 층 식생(바위)을 놓는다.
+    var RESCUE = [[0.62, 0.75, 1], [0.49, 0.55, 1], [0.40, 0.38, 1], [0.45, 0.5, 3], [0.40, 0.38, 5]];
     for (var sh = 0; sh < RESCUE.length && !any; sh++) {
-      var scS = RESCUE[sh][0], gmS = RESCUE[sh][1];
+      var scS = RESCUE[sh][0], gmS = RESCUE[sh][1], spS0 = RESCUE[sh][2];
       for (var kS = 0; kS < 3 && !any; kS++) {
         var lvS = (t0 + kS) % 3;
         var kindS = rule.tiers[lvS][0];
+        if (kindS === "wave" && spS0 > 1) { lvS = (lvS + 1) % 3; kindS = rule.tiers[lvS][0]; }
         var footS = (VEG_FOOT[kindS] || 0.2) * scS;
         var spS = kindS === "wave" ? spotOnShore(rnd, psi, footS, kindS, gmS)
-                                   : spotOnTier(rnd, psi, lvS, footS, kindS, gmS);
+                                   : spotOnTier(rnd, psi, lvS, footS, kindS, gmS, spS0);
         if (spS) { push(kindS, spS, scS, rnd, lvS, em.q, em.label); any = true; }
       }
     }
@@ -11872,6 +11913,28 @@ function HomeSigns(props) {
   React.createElement("span", { className: "sign-posts", style: { height: phone ? 30 : 40, padding: "0 0 0 44%" } }, React.createElement("span", null)),
   React.createElement("span", { className: "sign-shadow", style: { left: "22%", right: "22%" } })));
 }
+// 첫 화면 아래 소개(2026-09-10). 장면 1 "섬이 자란다": 같은 시드(시연 학생 건우)의 섬을 마음 말 5가지(건우 일기)·25가지(윤서 일기)로 뽑아
+// 크게 겹쳐 놓는다. 0가지(빈 섬)는 "자란다"가 아니라 "원래 비어 있다"로 읽혀 뺐다. 식생 수는 5가지 60개 → 25가지 79개(꽃 22·물결 10·등불 7).
+// 좌우로 어긋나게 놓고 점선 항로로 잇는다. 섬 크기는 시드로 정해지고 어휘로는 안 변하므로 자란 것은 식생이다.
+// 그림은 renders/harness/shootIsle.js로 뽑은 intro/*.webp(2320×1380, 100KB쯤). 첫 화면 로딩에 안 걸리게 lazy.
+function IntroSection() {
+  var posts = function (n) { var a = []; for (var i = 0; i < n; i++) a.push(React.createElement("span", { key: i })); return React.createElement("span", { className: "sign-posts" }, a); };
+  return React.createElement("section", { className: "intro", id: "intro" }, React.createElement("div", {
+    className: "intro-scene intro-1", id: "intro-1"
+  }, React.createElement("span", { className: "intro-tag intro-chapter", style: { "--rot": "-3deg" } }, "1 · 섬이 자란다"),
+  React.createElement("figure", { className: "intro-isle intro-isle-a" },
+    React.createElement("img", { src: "intro/isle-5.webp", alt: "마음 말 5가지가 자란 섬", loading: "lazy", width: 2320, height: 1380 }),
+    React.createElement("figcaption", { className: "intro-tag", style: { "--rot": "-4deg" } }, "마음 말 5가지")),
+  React.createElement("svg", { className: "intro-route", viewBox: "0 0 100 100", preserveAspectRatio: "none", "aria-hidden": true },
+    React.createElement("path", { d: "M 44 24 C 50 30, 46 40, 52 46", fill: "none", stroke: "#f0c383", strokeWidth: 3, strokeLinecap: "round",
+      strokeDasharray: "3 12", vectorEffect: "non-scaling-stroke", opacity: 0.9 })),
+  React.createElement("div", { className: "intro-route-v", "aria-hidden": true }),
+  React.createElement("figure", { className: "intro-isle intro-isle-b" },
+    React.createElement("img", { src: "intro/isle-25.webp", alt: "마음 말 25가지가 자란 같은 섬", loading: "lazy", width: 2320, height: 1380 }),
+    React.createElement("figcaption", { className: "intro-tag", style: { "--rot": "3deg", left: "auto", right: "6%" } }, "마음 말 25가지")),
+  React.createElement("div", { className: "intro-sign", style: { "--rot": "-1.5deg" } },
+    React.createElement("span", { className: "sign-board" }, "감정을 표현할 말이 늘어날수록 섬이 자랍니다"), posts(2), React.createElement("span", { className: "sign-shadow" }))));
+}
 function BannerScene(props) {
   var s = "max(100vw / 1672, 100vh / 941)";   // 그림 1px이 화면에서 차지하는 길이 (cover 배율)
   return React.createElement("div", {
@@ -13098,10 +13161,11 @@ function App() {
   }, "\uBD88\uB7EC\uC624\uB294 \uC911..."));
   // 첫 화면 (2026-09-09 개편). 일러스트가 화면을 꽉 채우고 그 위에 반투명 카드 하나. 스크롤 없음.
   // 로그인·체험하기 동선은 그대로다(setAuthOpen / setPage("trial")). #seed면 패널이 무대 아래에 붙어 스크롤된다.
+  // 첫 화면은 100vh 한 장면(home-hero), 그 아래 소개 섹션이 이어진다(2026-09-10). 전에는 fixed라 스크롤이 없었다.
   if (page === "home") return React.createElement("div", {
-    style: { ...shell, position: "fixed", inset: 0, overflow: seedMode() ? "auto" : "hidden", background: "#245a8c" }
+    style: { ...shell, background: "#0f3a4c" }
   }, React.createElement("div", {
-    style: { position: "relative", width: "100%", height: "100%", minHeight: "100%", overflow: "hidden" }
+    className: "home-hero"
   }, React.createElement(BannerScene, null, React.createElement("div", {
     // 비네팅. 가운데는 그대로 두고 가장자리로 갈수록 어두워져 화면 밖으로 이어지는 느낌을 만든다
     style: { position: "absolute", inset: 0, pointerEvents: "none",
@@ -13125,7 +13189,16 @@ function App() {
   }, React.createElement("button", {
     onClick: function () { setPage("privacy"); },
     style: { pointerEvents: "auto", background: "none", border: "none", color: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, textShadow: "inherit" }
-  }, "개인정보 처리방침"), " · © 2026 마음 바다 탐험대")), authOpen && React.createElement("div", {
+  }, "개인정보 처리방침"), " · © 2026 마음 바다 탐험대"), React.createElement("div", { className: "scroll-cue-wrap" }, React.createElement("button", {
+    // 아래로 내려갈 수 있다는 표시. 4초에 한 번 8px 오르내린다. prefers-reduced-motion이면 멈춘다
+    className: "scroll-cue", "aria-label": "아래로 내려가기",
+    onClick: function () {
+      var el = document.getElementById("intro-1");
+      if (el) el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }
+  }, React.createElement("svg", { width: 34, height: 34, viewBox: "0 0 34 34", "aria-hidden": true, style: { display: "block", filter: "drop-shadow(0 2px 0 #443124)" } },
+    React.createElement("path", { d: "M8 12 L17 21 L26 12", fill: "none", stroke: "#f0c383", strokeWidth: 4, strokeLinecap: "round", strokeLinejoin: "round" }))))),
+  React.createElement(IntroSection, null), authOpen && React.createElement("div", {
     onClick: () => setAuthOpen(false),
     style: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(8,17,30,0.45)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
       display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "7vh 16px 40px", overflowY: "auto" }
