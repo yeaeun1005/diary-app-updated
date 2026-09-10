@@ -5374,7 +5374,10 @@ function islePalette(t) {
     grassLow: hslShift(ISLE.grassLow, t.grassH, t.grassL),
     grassHigh: hslShift(ISLE.grassHigh, t.grassH, t.grassL),
     sand: hslShift(ISLE.sand, t.sandH, t.sandL),
-    cliff: hslShift(ISLE.cliff, 0, t.cliffL)
+    cliff: hslShift(ISLE.cliff, 0, t.cliffL),
+    // ③-9 흙길. 모래와 흙벽 사이(0.48)에서 붉은 쪽으로 살짝 데운다. 0.3이면 해변 위에서 모래와 구분되지 않았다.
+    path: (function (sand, cliff) { var c = lerp3(sand, cliff, 0.48); return [c[0] * 1.05, c[1] * 0.98, c[2] * 0.86]; })(
+      hslShift(ISLE.sand, t.sandH, t.sandL), hslShift(ISLE.cliff, 0, t.cliffL))
   };
 }
 // 1층 · 2층 · 3층 평지 높이. 아래가 넓고 위로 갈수록 좁다.
@@ -6008,6 +6011,194 @@ function buildIsland(seedStr, opts) {
 
   }
 
+  // ③-9 흙길 — 지형 위에 얇은 리본 메시로 얹는다. 지형 높이(profileAt)와 걷기(walkY)는 손대지 않는다.
+  // 정점 색으로 칠하는 첫 판은 격자 간격(0.16~0.3) 때문에 0.6보다 좁아지지 않았고 좁은 띠는 통째로
+  // 흙이 됐다(2026-09-10). 리본은 폭이 격자와 무관하고 가장자리를 정점 알파로 부드럽게 한다. 드로우콜 하나.
+  // 시작점(1층 화면 앞쪽, freeStart와 같은 규칙)에서 세 랜드마크까지 가장 짧은 길을 낸다.
+  // 같은 층이면 곧장 잇고, 층이 다르면 계단 발치를 향해 곧장 간 뒤 계단 상단에서 다시 곧장 간다.
+  // 띠(고리) 안에서 직선이 위층 벽에 막히면 팽팽한 줄처럼 벽 밑동에 붙어 돌아간다 — 그것이 최단
+  // 경로다. 띠 가운데를 따라 도는 첫 판(2026-09-09)은 길이 아니라 등고선으로 보였다(2026-09-10).
+  // 폭 0.30(캐릭터 지름 0.4의 0.75배 — 속 0.18 + 양쪽 번짐 0.06) 고정. 오솔길이다. 잔디가 주인공이고 길은 흔적이다.
+  // 0.68은 좁은 띠에서 흙 지대로 보였다(2026-09-10). 띠가 좁으면 띠를 넘지 않는 만큼만 줄인다.
+  // 도착점은 디딤판 둘레가 작은 마당(원판)처럼 넓어진다.
+  var paths = [], pathLv = [], yards = [], PATH_HALF = 0.15;
+  if (detail >= 0.6) {
+    var prnd = mulberry32(hashSeed("path:" + (seedStr || "island")));   // 새 스트림. 부두·계단 각도는 건드리지 않는다
+    var wobP = prnd() * TAU, wobA = 0.09 + prnd() * 0.06, wobW = 1 + Math.floor(prnd() * 2);
+    var angDiff = function (a, b) { var d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+    var pol = function (th, r) { return [Math.cos(th) * r, Math.sin(th) * r]; };
+    // lv층 평지의 반지름 범위. profileAt의 zone "top" 조건 그대로다. 3층은 구멍 없는 원판이다.
+    var bandOf = function (th, lv) {
+      var E = edgesAt(th);
+      if (lv === 2) return { lo: 0, hi: E[2] - B };
+      if (lv === 1) return { lo: E[2] + BAT + FIL, hi: E[1] - B };
+      return { lo: E[1] + BAT + FIL, hi: E[0] };
+    };
+    // 그 각도에서의 길 반폭. 띠가 폭 0.9 아래로 좁아지면 띠를 넘지 않는 선까지만 줄인다.
+    var halfAt = function (th, lv) { var b = bandOf(th, lv); return Math.min(PATH_HALF, Math.max(0.14, (b.hi - b.lo) / 2 - 0.10)); };
+    // 길 중심이 있어도 되는 반지름 범위. 3층은 가운데를 지나도 된다.
+    // 안쪽(위층 벽)에서는 0.14 더 물러난다 — 벽 밑동에 딱 붙어 돌면 길이 아니라 벽 그림자로 보인다.
+    var limOf = function (th, lv) {
+      var b = bandOf(th, lv), hf = halfAt(th, lv);
+      var lo = lv === 2 ? 0 : b.lo + hf + 0.14, hi = b.hi - hf - 0.08;
+      if (lo > hi) lo = hi = (b.lo + b.hi) / 2;
+      return { lo: lo, hi: hi };
+    };
+    var clampPt = function (p, lv) {
+      var th = Math.atan2(p[1], p[0]), r = Math.hypot(p[0], p[1]), L = limOf(th, lv);
+      return pol(th, Math.min(L.hi, Math.max(L.lo, r)));
+    };
+    // A에서 B로, lv층 평지 안에서 가장 짧은 길. 각도 표본마다 반지름 하나를 두고, 이웃 둘을 잇는
+    // 직선 위로 당기기를 되풀이하면 줄이 팽팽해진다. 안쪽 벽에 걸리는 곳만 벽 밑동에 남는다.
+    var taut = function (A, B, lv) {
+      var thA = Math.atan2(A[1], A[0]), thB = Math.atan2(B[1], B[0]);
+      var rA = Math.hypot(A[0], A[1]), rB = Math.hypot(B[0], B[1]);
+      var d = angDiff(thA, thB), n = Math.max(4, Math.ceil(Math.abs(d) / 0.06));
+      var th = [], lo = [], hi = [], r = [], i, k;
+      for (i = 0; i <= n; i++) {
+        th.push(thA + d * i / n);
+        var L = limOf(th[i], lv);
+        lo.push(L.lo); hi.push(L.hi);
+        r.push(Math.min(L.hi, Math.max(L.lo, rA + (rB - rA) * i / n)));
+      }
+      r[0] = Math.min(hi[0], Math.max(lo[0], rA)); r[n] = Math.min(hi[n], Math.max(lo[n], rB));
+      for (k = 0; k < 500; k++) {
+        for (i = 1; i < n; i++) {
+          var px = Math.cos(th[i - 1]) * r[i - 1], pz = Math.sin(th[i - 1]) * r[i - 1];
+          var qx = Math.cos(th[i + 1]) * r[i + 1], qz = Math.sin(th[i + 1]) * r[i + 1];
+          var dx = Math.cos(th[i]), dz = Math.sin(th[i]), ex = qx - px, ez = qz - pz;
+          var den = ex * dz - ez * dx;
+          if (Math.abs(den) < 1e-9) continue;
+          var s = -(px * dz - pz * dx) / den;
+          if (s < 0 || s > 1) continue;
+          var rr = (px + ex * s) * dx + (pz + ez * s) * dz;
+          r[i] = Math.min(hi[i], Math.max(lo[i], rr));
+        }
+      }
+      // 완만한 굴곡 하나. 양 끝은 그대로 두고 가운데만 살짝 흔든다. 흔든 뒤에도 띠 안이다.
+      // 진폭 0.26~0.38은 곧은 길도 가장자리를 도는 듯 보이게 했다(2026-09-10). 지금은 0.09~0.15.
+      var out = [], waves = Math.abs(d) > 1.0 ? wobW : 1;
+      for (i = 0; i <= n; i++) {
+        var u = i / n, w = Math.sin(Math.PI * u), rw = r[i] + Math.sin(u * Math.PI * waves + wobP) * wobA * w;
+        out.push(pol(th[i], Math.min(hi[i], Math.max(lo[i], rw))));
+      }
+      return out;
+    };
+    // 실제 끝점(디딤판·계단 발치)은 띠 밖이거나 가장자리에 붙어 있을 수 있다. 줄은 띠 안에서
+    // 당기고, 끝점까지는 짧게 잇는다. 해변 쪽 끝은 모래 위에 칠해진다.
+    var route = function (A, B, lv) {
+      var A2 = clampPt(A, lv), B2 = clampPt(B, lv), P = [A];
+      taut(A2, B2, lv).forEach(function (p) { P.push(p); });
+      P.push(B);
+      paths.push(P); pathLv.push(lv);
+    };
+    var lmOf = function (id) { for (var i = 0; i < landmarks.length; i++) if (landmarks[i].id === id) return landmarks[i]; return null; };
+    var stOf = function (th) { for (var i = 0; i < stairInfo.length; i++) if (stairInfo[i].kind === "stair" && stairInfo[i].th === th) return stairInfo[i]; return null; };
+    var koHit = function (x, z) {
+      var worst = -1e9;
+      for (var i = 0; i < keepOuts.length; i++) { var v = keepOuts[i].r - Math.hypot(x - keepOuts[i].x, z - keepOuts[i].z); if (v > worst) worst = v; }
+      return worst;
+    };
+    // 시작점 — IslandView.freeStart와 같은 규칙(π/4에서 0.26씩 번갈아 벌리며 빈 각도).
+    var start = null;
+    for (var q = 0; q < 24 && !start; q++) {
+      var th0 = Math.PI / 4 + (q % 2 ? 1 : -1) * Math.ceil(q / 2) * 0.26, b0 = bandOf(th0, 0);
+      var s0 = pol(th0, (b0.lo + b0.hi) / 2);
+      if (koHit(s0[0], s0[1]) < -0.6) start = s0;
+    }
+    if (!start) { var bq = bandOf(Math.PI / 4, 0); start = pol(Math.PI / 4, (bq.lo + bq.hi) / 2); }
+    var dockL = lmOf("dock"), diveL = lmOf("dive"), plazaL = lmOf("plaza"), sA = stOf(stairA), sB = stOf(stairB);
+    yards.push({ x: start[0], z: start[1], r: 0.20, f: 0.12 });
+    // 계단은 지형 위에 얹힌 판이라 그 밑은 안 보인다. 길은 발치 앞에서 끊고 상단 뒤에서 잇는다.
+    var upOk = !!(plazaL && sA && sB);
+    var fA = upOk ? pol(sA.th, sA.rOut + 0.15) : null, tA = upOk ? pol(sA.th, sA.rIn - 0.15) : null;
+    var fB = upOk ? pol(sB.th, sB.rOut + 0.15) : null, tB = upOk ? pol(sB.th, sB.rIn - 0.15) : null;
+    // 1층 목적지 셋(부두·잠수 지점·계단 A 발치). 시작점에서 같은 쪽으로 도는 것들은 한 길로 가다
+    // 가까운 곳에서 갈라진다 — 따로 내면 나란한 두 길이 이중 선로처럼 보였다(2026-09-10).
+    var startTh = Math.atan2(start[1], start[0]), goals = [];
+    // 마당은 디딤판(부두·광장 0.64, 잠수 0.84) 바깥 0.16까지 진하고 0.12 더 번진다. 디딤판 안에서 사라지면 잔디로 보인다.
+    if (dockL) goals.push({ p: [dockL.x, dockL.z], th: dockL.th, yard: 0.80 });
+    if (diveL) goals.push({ p: [diveL.x, diveL.z], th: diveL.th, yard: 1.00 });
+    if (upOk) goals.push({ p: fA, th: sA.th, yard: 0.22 });
+    goals.forEach(function (gl) { gl.d = angDiff(startTh, gl.th); });
+    goals.sort(function (a, b) { return Math.abs(a.d) - Math.abs(b.d); });
+    var lastOn = { pos: start, neg: start };
+    goals.forEach(function (gl) {
+      var side = gl.d >= 0 ? "pos" : "neg";
+      route(lastOn[side], gl.p, 0);
+      yards.push({ x: gl.p[0], z: gl.p[1], r: gl.yard, f: 0.12 });
+      lastOn[side] = gl.p;
+    });
+    if (upOk) {
+      route(tA, fB, 1); route(tB, [plazaL.x, plazaL.z], 2);
+      [tA, fB, tB].forEach(function (p) { yards.push({ x: p[0], z: p[1], r: 0.22, f: 0.12 }); });
+      yards.push({ x: plazaL.x, z: plazaL.z, r: 0.80, f: 0.12 });
+    }
+    if (paths.length) {
+      var rp = [], rc = [], ri = [], nv = 0, dc = s2l(PAL.path);
+      var yAt = function (x, z) { return profileAt(Math.hypot(x, z), Math.atan2(z, x)).y + 0.014; };
+      var onGround = function (x, z) { var zn = profileAt(Math.hypot(x, z), Math.atan2(z, x)).zone; return zn === "top" || zn === "beach"; };
+      // 모서리를 둥글린다(Chaikin 두 번). 끝점은 그대로 둔다.
+      var chaikin = function (P) {
+        if (P.length < 3) return P;
+        var Q = [P[0]];
+        for (var i = 0; i + 1 < P.length; i++) {
+          var p = P[i], q = P[i + 1];
+          Q.push([p[0] * 0.75 + q[0] * 0.25, p[1] * 0.75 + q[1] * 0.25]);
+          Q.push([p[0] * 0.25 + q[0] * 0.75, p[1] * 0.25 + q[1] * 0.75]);
+        }
+        Q.push(P[P.length - 1]);
+        return Q;
+      };
+      var vert = function (x, z, al) { rp.push(x, yAt(x, z), z); rc.push(dc[0], dc[1], dc[2], al); return nv++; };
+      var ACROSS = [-1, -0.62, 0.62, 1], ALPHA = [0, 1, 1, 0];
+      paths.forEach(function (P0, pi) {
+        var P = chaikin(chaikin(P0)), lv = pathLv[pi], row0 = -1;
+        for (var i = 0; i < P.length; i++) {
+          var pa = P[Math.max(0, i - 1)], pb = P[Math.min(P.length - 1, i + 1)];
+          var tx = pb[0] - pa[0], tz = pb[1] - pa[1], tl = Math.hypot(tx, tz) || 1;
+          var nx = -tz / tl, nz = tx / tl;
+          var x = P[i][0], z = P[i][1], th = Math.atan2(z, x);
+          var W = onGround(x, z) && profileAt(Math.hypot(x, z), th).zone === "beach" ? PATH_HALF : halfAt(th, lv);
+          var row = nv;
+          for (var k = 0; k < 4; k++) vert(x + nx * W * ACROSS[k], z + nz * W * ACROSS[k], ALPHA[k]);
+          if (row0 >= 0) for (k = 0; k < 3; k++) ri.push(row0 + k, row0 + k + 1, row + k, row0 + k + 1, row + k + 1, row + k);
+          row0 = row;
+        }
+      });
+      // 마당. 가운데는 진하고 테두리로 갈수록 사라진다. 벽·어깨에 걸리는 방향은 그만큼 줄인다.
+      yards.forEach(function (Y) {
+        var c = vert(Y.x, Y.z, 1), NR = 24, mid = [], rim = [];
+        for (var k = 0; k < NR; k++) {
+          var an = k / NR * TAU, cx = Math.cos(an), cz = Math.sin(an), rr = Y.r + Y.f;
+          while (rr > 0.16 && !onGround(Y.x + cx * rr, Y.z + cz * rr)) rr -= 0.04;
+          mid.push(vert(Y.x + cx * Math.max(0.1, rr - Y.f), Y.z + cz * Math.max(0.1, rr - Y.f), 1));
+          rim.push(vert(Y.x + cx * rr, Y.z + cz * rr, 0));
+        }
+        for (k = 0; k < NR; k++) {
+          var k2 = (k + 1) % NR;
+          ri.push(c, mid[k2], mid[k]);
+          ri.push(mid[k], mid[k2], rim[k], mid[k2], rim[k2], rim[k]);
+        }
+      });
+      var pg = new THREE.BufferGeometry();
+      pg.setAttribute("position", new THREE.Float32BufferAttribute(rp, 3));
+      pg.setAttribute("color", new THREE.Float32BufferAttribute(rc, 4));   // 알파까지 정점 색이다
+      pg.setIndex(ri);
+      pg.computeVertexNormals();
+      var pathMesh = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({
+        color: 0xffffff, vertexColors: true, transparent: true, depthWrite: false,
+        roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+      }));
+      pathMesh.receiveShadow = true;
+      pathMesh.name = "paths";
+      grp.add(pathMesh);
+    }
+  }
+  grp.userData.paths = paths;
+  grp.userData.yards = yards;
+  grp.userData.pathHalf = PATH_HALF;
+
   grp.userData.r = R0;
   grp.userData.traits = traits;
   grp.userData.boat = boat;        // ⑥-1이 이 배를 이어받아 바다를 건넌다
@@ -6097,6 +6288,30 @@ function surfaceY(isle, x, z) {
 // 여유 구역을 얼마나 파고들었는지. 양수면 안쪽, 음수면 그만큼 떨어져 있다.
 // 0에서 자르면 안 된다 — 식생 발자국만큼 더 밀어낼 때 여유가 얼마인지 알아야 한다.
 // 계단·부두·랜드마크를 buildIsland가 등록하고, 나중 랜드마크도 같은 목록에 더하면 된다.
+// ③-9 흙길 폴리라인까지의 최단 거리
+function pathDist(paths, x, z) {
+  var best = 1e9;
+  for (var pi = 0; pi < paths.length; pi++) {
+    var P = paths[pi];
+    for (var i = 0; i + 1 < P.length; i++) {
+      var ax = P[i][0], az = P[i][1], bx = P[i + 1][0], bz = P[i + 1][1];
+      var dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
+      var t = L2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / L2)) : 0;
+      var d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+      if (d < best) best = d;
+    }
+  }
+  return best;
+}
+// 길 안으로 얼마나 들어왔는가(양수면 침범). 식생 배치만 쓴다 — 걷기 판정과 무관하다.
+function pathHit(isle, x, z) {
+  var P = isle.userData.paths;
+  if (!P || !P.length) return -1e9;
+  var worst = (isle.userData.pathHalf || 0.5) + 0.1 - pathDist(P, x, z);
+  var Y = isle.userData.yards || [];
+  for (var i = 0; i < Y.length; i++) { var v = Y[i].r + (Y[i].f || 0) + 0.1 - Math.hypot(x - Y[i].x, z - Y[i].z); if (v > worst) worst = v; }
+  return worst;
+}
 function keepOutHit(isle, x, z) {
   var K = isle.userData.keepOuts || [], worst = -1e9;
   for (var i = 0; i < K.length; i++) {
@@ -6180,6 +6395,7 @@ function buildVegetation(isle, state, opts) {
   function fits(x, z, foot, kind, gm) {
     var g = gm == null ? 1 : gm;
     if (keepOutHit(isle, x, z) > -foot) return false;
+    if (pathHit(isle, x, z) > -foot) return false;   // ③-9 흙길 위에는 서지 않는다
     var own = VEG_GAP[kind] || 0;
     for (var i = 0; i < items.length; i++) {
       // 봐주더라도 캐릭터(지름 0.4)가 지나갈 틈은 남긴다. 여기까지 좁히면
