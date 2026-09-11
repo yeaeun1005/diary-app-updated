@@ -5694,6 +5694,13 @@ function buildIsland(seedStr, opts) {
   var B = 0.075;     // 층 어깨를 깎는 반지름. 여기가 없으면 각진 로우폴리가 된다
   var BAT = 0.05;    // 벽이 내려가면서 바깥으로 눕는 정도. 완전 수직이면 기계처럼 보인다
   var FIL = 0.085;   // 벽 밑동 필렛
+  // 시각 베벨 (2026-09-12). 위 B·FIL은 걷기 판정(profileAt)의 값이고, 보이는 메시는 아래 값으로 더 둥글게 깎는다.
+  // 0.075는 아이소메트릭에서 2px라 칼로 자른 듯 보였다. 벽 위치(Ek~Ek+BAT)와 평지 높이는 같으므로
+  // 시각면이 걷기면과 갈리는 곳은 어깨 안쪽 띠(BV−B)와 밑동 바깥 띠(FV−FIL)뿐이다.
+  // 0.12/0.12·0.18/0.16·0.24/0.20을 견줘 0.12로 정했다(renders 206~209). 0.18부터는 벽의 곧은 부분이
+  // 줄어 층 구분이 뭉개지고 계단식이 흐려진다(DESIGN §4).
+  var BV = 0.12;     // 어깨(층 평지 → 벽 위쪽 모서리) 시각 반지름
+  var FV = 0.12;     // 밑동(벽 → 아래층 평지 아래쪽 모서리) 시각 반지름
   var BEACH_Y = -0.34;
   var TY = TIER_Y;
 
@@ -5786,6 +5793,28 @@ function buildIsland(seedStr, opts) {
     return { y: TY[0] + (BEACH_Y - TY[0]) * sm, zone: "beach", u: ub, lv: 0 };
   }
   function height(t, th) { return profileAt(coast(th) * t, th).y; }
+  // 보이는 지면. profileAt과 같은 구조에 어깨·밑동 반지름만 BV·FV다. 메시 정점(pushVert)만 쓴다.
+  // 걷기·식생·계단·길·랜드마크는 전부 profileAt을 본다 — 판정은 바뀌지 않는다.
+  function visAt(r, th) {
+    var E = edgesAt(th);
+    for (var k = 0; k < 2; k++) {
+      var Ek = E[2 - k], hi = TY[2 - k], lo = TY[1 - k];
+      if (r <= Ek - BV) return { y: hi, zone: "top", u: 0, lv: 2 - k };
+      if (r <= Ek) {
+        var a = (r - (Ek - BV)) / BV;
+        return { y: hi - BV * (1 - Math.sqrt(Math.max(0, 1 - a * a))), zone: "shoulder", u: a, lv: 2 - k };
+      }
+      if (r <= Ek + BAT) {
+        var uw = (r - Ek) / BAT;
+        return { y: (hi - BV) + ((lo + FV) - (hi - BV)) * uw, zone: "wall", u: uw, lv: 2 - k };
+      }
+      if (r <= Ek + BAT + FV) {
+        var b = (r - Ek - BAT) / FV, ib = 1 - b;
+        return { y: lo + FV * (1 - Math.sqrt(Math.max(0, 1 - ib * ib))), zone: "foot", u: b, lv: 1 - k };
+      }
+    }
+    return profileAt(r, th);   // 1층 평지·해변은 같다
+  }
 
   // 평지는 잔디, 벽은 드러난 흙, 물가는 모래. 층이 색으로도 구분된다.
   function zoneColor(p) {
@@ -5793,16 +5822,18 @@ function buildIsland(seedStr, opts) {
     if (p.zone === "top") return g;
     // 잔디가 턱을 살짝 덮고 밑동에서 곧 잔디로 돌아온다. 흙은 벽에만 드러난다.
     // 어깨·밑동까지 갈색으로 칠하면 갈색 띠가 넓어져 다시 경사처럼 보인다.
-    if (p.zone === "shoulder") return lerp3(g, PAL.cliff, p.u * p.u * 0.85);
+    // 시각 베벨이 넓어져도 갈색은 벽 가까운 쪽에만 둔다. 어깨는 바깥 55%(기울기 27° 넘는 곳)에서,
+    // 밑동은 안쪽 60%에서만 전이한다.
+    if (p.zone === "shoulder") { var uc = Math.max(0, (p.u - 0.45) / 0.55); return lerp3(g, PAL.cliff, uc * uc * 0.85); }
     if (p.zone === "wall") return PAL.cliff;
-    if (p.zone === "foot") return lerp3(PAL.cliff, g, Math.sqrt(p.u));
+    if (p.zone === "foot") return lerp3(PAL.cliff, g, Math.sqrt(Math.min(1, p.u / 0.6)));
     var bb = Math.min(1, Math.max(0, (p.u - 0.16) / 0.34));
     return lerp3(g, PAL.sand, bb * bb * (3 - 2 * bb));
   }
 
   var pos = [], col = [], idx = [];
   function pushVert(r, th) {
-    var p = profileAt(r, th);
+    var p = visAt(r, th);   // 보이는 면. 걷기면(profileAt)과는 어깨·밑동에서만 다르다
     pos.push(Math.cos(th) * r, p.y, Math.sin(th) * r);
     var n = 0.965 + rnd() * 0.07;   // 미세한 얼룩. 텍스처 없이 단조로움을 깬다.
     var cl = s2l(zoneColor(p));
@@ -5824,19 +5855,25 @@ function buildIsland(seedStr, opts) {
       (function (t) { ringR.push(function (th) { var A = fromF(th), Z = toF(th); return A + (Z - A) * t; }); })(i / nP);
     }
   }
+  // 호는 0.05마다 링 하나(각도 등분). 멀리 있는 섬(detail < 0.6)은 둘이면 된다.
+  var NBS = detail < 0.6 ? 2 : Math.max(3, Math.ceil(BV / 0.05));
+  var NFS = detail < 0.6 ? 2 : Math.max(3, Math.ceil(FV / 0.05));
   function edgeRings(edgeF) {
     var i;
-    for (i = 1; i <= 3; i++) (function (al) { ringR.push(function (th) { return edgeF(th) - B + B * Math.sin(al); }); })(i / 3 * Math.PI / 2);
+    for (i = 1; i <= NBS; i++) (function (al) { ringR.push(function (th) { return edgeF(th) - BV + BV * Math.sin(al); }); })(i / NBS * Math.PI / 2);
     // 벽은 링 셋으로 뜬다. 둘이면 벽면 노멀이 위아래 필렛과 평균되어 뭉개진다.
     for (i = 1; i <= 3; i++) (function (u) { ringR.push(function (th) { return edgeF(th) + BAT * u; }); })(i / 3);
-    for (i = 1; i <= 3; i++) (function (al) { ringR.push(function (th) { return edgeF(th) + BAT + FIL * (1 - Math.cos(al)); }); })(i / 3 * Math.PI / 2);
+    for (i = 1; i <= NFS; i++) (function (al) { ringR.push(function (th) { return edgeF(th) + BAT + FV * (1 - Math.cos(al)); }); })(i / NFS * Math.PI / 2);
   }
-  plateauRings(function () { return 0; }, function (th) { return E3f(th) - B; });
+  plateauRings(function () { return 0; }, function (th) { return E3f(th) - BV; });
   edgeRings(E3f);
-  plateauRings(function (th) { return E3f(th) + BAT + FIL; }, function (th) { return E2f(th) - B; });
+  plateauRings(function (th) { return E3f(th) + BAT + FV; }, function (th) { return E2f(th) - BV; });
   edgeRings(E2f);
-  plateauRings(function (th) { return E2f(th) + BAT + FIL; }, E1f);
-  for (var bi = 1; bi <= 5; bi++) (function (u) { ringR.push(function (th) { return E1f(th) + (coast(th) - E1f(th)) * u; }); })(bi / 5);
+  plateauRings(function (th) { return E2f(th) + BAT + FV; }, E1f);
+  // 해변은 profileAt 그대로(양 끝 접선이 평평한 smoothstep)다. 다섯 링으로는 1층 잔디와 만나는 첫 칸이
+  // 꺾여 보여 여덟으로 늘렸다. 모양이 아니라 표본 밀도만 바뀐다.
+  var NBE = detail < 0.6 ? 5 : 8;
+  for (var bi = 1; bi <= NBE; bi++) (function (u) { ringR.push(function (th) { return E1f(th) + (coast(th) - E1f(th)) * u; }); })(bi / NBE);
 
   // 극좌표 격자는 중심으로 갈수록 정점이 몰려 삼각형이 바늘처럼 얇아지고,
   // 그 결과 가운데에 부챗살 같은 음영 자국이 생긴다.
@@ -6498,6 +6535,7 @@ function buildIsland(seedStr, opts) {
   grp.userData.keepOuts = keepOuts;
   // ③-6 걷기 · ③-7 식생 · ③-8 랜드마크가 전부 이걸 쓴다.
   grp.userData.profileAt = profileAt;
+  grp.userData.visAt = visAt;   // 보이는 면(검사용). 판정에는 쓰지 않는다
   grp.userData.edgesAt = edgesAt;
   grp.userData.tierY = TY;
   grp.userData.stairs = stairInfo;
