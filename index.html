@@ -6730,6 +6730,12 @@ function buildIsland(seedStr, opts) {
     });
   }
   grp.userData.props = props;
+  // 출발점 여유 구역 (2026-09-12). 아이가 로그인해서 처음 보는 자리인데 갈대가 다리를 관통하고 노두가 몸통을
+  // 뚫었다(renders 211·214). 마당(0.32) + 식생 여유(0.1)로는 발자국보다 넓게 퍼지는 종류(갈대 퍼짐 0.26·노두
+  // 반폭 0.30)가 닿는다. 반경 0.45 = 캐릭터 반지름 0.2 + 퍼짐 초과분 + 여유. 소품(이정표 0.56~)은 이 앞에서
+  // 놓였으므로 그대로다. IslandView.freeStart가 이 점을 그대로 쓴다 — 두 규칙이 어긋나면 여유 구역이 빗나간다.
+  if (start) keepOuts.push({ x: start[0], z: start[1], r: 0.45, why: "출발점" });
+  grp.userData.start = start ? { x: start[0], z: start[1] } : null;
   grp.userData.paths = paths;
   grp.userData.yards = yards;
   grp.userData.pathHalf = PATH_HALF;
@@ -8172,6 +8178,9 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       // 시작 자리가 랜드마크나 팻말 여유 구역 안이면 캐릭터가 구조물에 묻혀
       // 화면에서 찾을 수 없다. 비어 있는 각도를 찾아 세운다.
       function freeStart() {
+        // buildIsland이 정한 출발점. 길·소품·식생 여유 구역이 이 점을 기준으로 잡혀 있다(2026-09-12).
+        var s0 = isleGrp.userData.start;
+        if (s0) return { x: s0.x, z: s0.z, y: surfaceY(isleGrp, s0.x, s0.z) };
         for (var q = 0; q < 24; q++) {
           var th0 = Math.PI / 4 + (q % 2 ? 1 : -1) * Math.ceil(q / 2) * 0.26;
           var sp0 = tierSpot(isleGrp, th0, 0);
