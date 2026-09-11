@@ -6442,15 +6442,17 @@ function buildIsland(seedStr, opts) {
     // 가까운 곳에서 갈라진다 — 따로 내면 나란한 두 길이 이중 선로처럼 보였다(2026-09-10).
     var startTh = Math.atan2(start[1], start[0]), goals = [];
     // 마당은 디딤판(부두·광장 0.64, 잠수 0.84) 바깥 0.16까지 진하고 0.12 더 번진다. 디딤판 안에서 사라지면 잔디로 보인다.
-    if (dockL) goals.push({ p: [dockL.x, dockL.z], th: dockL.th, yard: 0.80 });
-    if (diveL) goals.push({ p: [diveL.x, diveL.z], th: diveL.th, yard: 1.00 });
+    if (dockL) goals.push({ p: [dockL.x, dockL.z], th: dockL.th, yard: 0.80, id: "dock" });
+    if (diveL) goals.push({ p: [diveL.x, diveL.z], th: diveL.th, yard: 1.00, id: "dive" });
     if (upOk) goals.push({ p: fA, th: sA.th, yard: 0.22 });
     goals.forEach(function (gl) { gl.d = angDiff(startTh, gl.th); });
     goals.sort(function (a, b) { return Math.abs(a.d) - Math.abs(b.d); });
-    var lastOn = { pos: start, neg: start };
+    var lastOn = { pos: start, neg: start }, firstRoute = { pos: null, neg: null }, goalSide = {};
     goals.forEach(function (gl) {
       var side = gl.d >= 0 ? "pos" : "neg";
       route(lastOn[side], gl.p, 0);
+      if (!firstRoute[side]) firstRoute[side] = paths[paths.length - 1];   // 시작점에서 그쪽으로 처음 나가는 길
+      if (gl.id) goalSide[gl.id] = side;
       yards.push({ x: gl.p[0], z: gl.p[1], r: gl.yard, f: 0.12 });
       lastOn[side] = gl.p;
     });
@@ -6520,6 +6522,214 @@ function buildIsland(seedStr, opts) {
       grp.add(pathMesh);
     }
   }
+  // ── 소품 (2026-09-12) ──────────────────────────────────────────
+  // 식생은 감정 어휘의 지도다(DESIGN §5). 소품은 감정과 무관한 장식이며 어휘 수와 무관하게 섬이 만들어질 때
+  // 함께 놓인다. 규칙: 붉은 나무색(ISLE.wood) = 사람이 만든 것, 초록·흰·회색 = 자란 것(DESIGN §4). 형태도
+  // 직선·판·통이라 구·잎·줄기인 식생과 갈린다. 등불은 슬픔 3층의 감정 식생이라 소품으로 쓰지 않는다.
+  // 길·마당·계단·랜드마크 여유 구역은 식생과 같은 판정(pathDist·koHit)으로 피하고, 놓은 소품은 keepOuts에
+  // 더해 식생이 그 위에 서지 않게 한다. 소품은 식생보다 먼저 놓이므로 어휘가 늘어도 움직이지 않는다.
+  // 걷기는 지형만 보므로 소품이 길을 물리적으로 막지는 않지만, 길·층 띠에 0.6(캐릭터 지름 + 여유)을 남긴다.
+  // 소품 전부가 인스턴스 메시 둘(둥근 상자 roundedSlab · 원기둥)이라 섬당 드로우콜 +2다.
+  // 먼 섬(detail < 0.6)은 계단·다리·길과 같이 생략한다.
+  var props = [];
+  if (detail >= 0.6 && paths.length) {
+    var srnd = mulberry32(hashSeed("props:" + (seedStr || "island")));   // 새 스트림. 부두·계단·길은 안 바뀐다
+    var slabs = [], drums = [];
+    var pq = new THREE.Quaternion(), pe = new THREE.Euler(), pv = new THREE.Vector3(), ps = new THREE.Vector3();
+    var WOOD = new THREE.Color(ISLE.wood), CREAM = new THREE.Color(0xe8d9b8);   // 판은 이름 팻말과 같은 크림색
+    var slab = function (x, y, z, sx, sy, sz, rot, col, tilt) {
+      pe.set(tilt || 0, rot || 0, 0); pq.setFromEuler(pe); pv.set(x, y, z); ps.set(sx, sy, sz);
+      slabs.push({ m: new THREE.Matrix4().compose(pv, pq, ps), c: col || WOOD });
+    };
+    var pAt = function (x, z) { return profileAt(Math.hypot(x, z), Math.atan2(z, x)); };
+    // 자리 판정. 식생 fits와 같은 기준: 평지 위(해변은 허용할 때만, 물가 위), 길·마당·여유 구역 밖,
+    // 다른 소품과 gap(기본 0.6) 이상, 층 가장자리에서 발자국만큼 안쪽.
+    //    lv를 주면 그 층에서만 — 랜드마크 곁 소품이 위아래 층으로 떨어지면 안 된다(나무통이 부두 위 2층에 선 적이 있다).
+    //    nearPath(말뚝)면 길 여유(+0.1)를 빼고, 벽 밑동(foot)과 층 띠 안쪽 마진도 허용한다 — 길이 벽 밑동에
+    //    붙어 도는 구간에서 카메라 반대쪽은 그 자리뿐이다. 말뚝은 가늘어 필렛 위에 서도 어색하지 않다.
+    var freeAt = function (x, z, foot, allowBeach, gap, lv, nearPath) {
+      var p = pAt(x, z);
+      if (p.zone !== "top" && !(allowBeach && p.zone === "beach" && p.y > 0.12) && !(nearPath && p.zone === "foot")) return false;
+      if (lv != null && p.lv !== lv) return false;
+      if (koHit(x, z) > -foot) return false;
+      var ph = PATH_HALF + (nearPath ? 0 : 0.1) - pathDist(paths, x, z);
+      for (var i = 0; i < yards.length; i++) { var v = yards[i].r + yards[i].f + 0.1 - Math.hypot(x - yards[i].x, z - yards[i].z); if (v > ph) ph = v; }
+      if (ph > -foot) return false;
+      var g = gap == null ? 0.6 : gap;
+      for (var j = 0; j < props.length; j++) if (Math.hypot(x - props[j].x, z - props[j].z) < Math.max(g, foot + props[j].foot)) return false;
+      if (p.zone === "top") {
+        var th = Math.atan2(z, x), r = Math.hypot(x, z), bd = bandOf(th, p.lv);
+        if ((!nearPath && r < bd.lo + foot + 0.06) || r > bd.hi - foot - 0.06) return false;
+      }
+      return true;
+    };
+    var place = function (kind, x, z, foot, clear) {
+      props.push({ kind: kind, x: x, z: z, foot: foot });
+      keepOuts.push({ x: x, z: z, r: clear, why: "소품 " + kind });
+    };
+
+    // 1) 길가 말뚝 — 1층 길을 따라 1.2 간격, 리본 가장자리에서 0.10 밖, 한쪽에만(양쪽이면 울타리 길이 된다).
+    //    등불 대신 "사람이 다니는 길"의 리듬을 만든다. 최대 8개. 그려진 리본(Chaikin 두 번)을 따라 잰다 —
+    //    원 폴리라인 기준 0.25 밖에 세웠더니 잔디 한가운데 흩어진 기둥으로 보였다(2026-09-12).
+    //    길의 카메라 반대쪽(먼 쪽)에 세운다. 발치가 리본 밖이라도 카메라 쪽에 선 기둥은 화면에서 길을 덮어
+    //    길 위에 선 것으로 보였다(2026-09-12, 발치 거리는 전부 0.25로 확인). 먼 쪽이 막힐 때만 가까운 쪽.
+    //    높이 0.26·굵기 0.055 — 흰 들꽃(0.28~0.44)보다 낮게. 0.36이면 배경이 아니라 주인공처럼 보였다.
+    var nStake = 0, side = srnd() < 0.5 ? 1 : -1, acc = 0.55;
+    for (var pi2 = 0; pi2 < paths.length && nStake < 8; pi2++) {
+      if (pathLv[pi2] !== 0) continue;
+      var P2 = chaikin(chaikin(paths[pi2]));
+      for (var i2 = 0; i2 + 1 < P2.length && nStake < 8; i2++) {
+        var ax = P2[i2][0], az = P2[i2][1], bx = P2[i2 + 1][0], bz = P2[i2 + 1][1];
+        var segL = Math.hypot(bx - ax, bz - az); if (segL < 1e-6) continue;
+        var nx = -(bz - az) / segL, nz = (bx - ax) / segL, t = acc;
+        while (t <= segL && nStake < 8) {
+          var sx = ax + (bx - ax) * t / segL, sz = az + (bz - az) * t / segL, off = PATH_HALF + 0.10;
+          // 카메라(+x+z) 반대쪽을 먼저, 막히면 반대쪽. 길이 벽 밑동에 붙어 도는 구간은 한쪽이 늘 막힌다.
+          var farSg = Math.abs(nx + nz) < 1e-6 ? side : (nx + nz > 0 ? -1 : 1);
+          for (var sd = 0; sd < 2; sd++) {
+            var sg = sd === 0 ? farSg : -farSg, kx = sx + nx * off * sg, kz = sz + nz * off * sg;
+            if (!freeAt(kx, kz, 0.06, true, 0.45, null, true)) continue;
+            place("stake", kx, kz, 0.06, 0.30);
+            slab(kx, visAt(Math.hypot(kx, kz), Math.atan2(kz, kx)).y + 0.11, kz, 0.055, 0.26, 0.055, srnd() * TAU, WOOD, (srnd() - 0.5) * 0.14);
+            nStake++; break;
+          }
+          t += 1.2;
+        }
+        acc = t - segL;
+      }
+    }
+
+    // 2) 울타리 — 1층 바깥 가장자리와 2층 가장자리에 한 구간씩. 기둥 4개(간격 0.5) + 가로대 2단.
+    //    계단·다리·길·랜드마크에서 떨어진 각도만. 40번 안에 못 찾으면 그 층은 없다.
+    [0, 1].forEach(function (lv) {
+      for (var tr = 0; tr < 40; tr++) {
+        var th0 = srnd() * TAU, pts = [], ok = true, thk = th0;
+        for (var k = 0; k < 4 && ok; k++) {
+          var bdk = bandOf(thk, lv), rk = bdk.hi - 0.24;
+          if (rk < bdk.lo + 0.5) { ok = false; break; }
+          var fx = Math.cos(thk) * rk, fz = Math.sin(thk) * rk;
+          if (!freeAt(fx, fz, 0.10, false, 0.3)) ok = false; else { pts.push([fx, fz, pAt(fx, fz).y]); thk += 0.5 / rk; }
+        }
+        if (!ok) continue;
+        pts.forEach(function (q) { place("fence", q[0], q[1], 0.10, 0.36); slab(q[0], q[2] + 0.20, q[1], 0.08, 0.44, 0.08, -thk, WOOD); });
+        for (var gI = 0; gI + 1 < pts.length; gI++) {
+          var a0 = pts[gI], a1 = pts[gI + 1], dx = a1[0] - a0[0], dz = a1[1] - a0[1], L = Math.hypot(dx, dz);
+          var mx = (a0[0] + a1[0]) / 2, mz = (a0[1] + a1[1]) / 2, my = (a0[2] + a1[2]) / 2, rot = -Math.atan2(dz, dx);
+          slab(mx, my + 0.36, mz, L * 1.04, 0.045, 0.05, rot, WOOD);
+          slab(mx, my + 0.20, mz, L * 1.04, 0.045, 0.05, rot, WOOD);
+        }
+        break;
+      }
+    });
+
+    // 3) 이정표 — 길이 처음 갈라지는 시작점 곁. 글자 없는 화살판 둘이 부두와 잠수 지점으로 가는 길을 가리킨다.
+    //    랜드마크를 직선으로 가리키면 안 된다 — 길은 층 띠를 따라 돌아가므로 "길 없는 쪽"을 가리키게 된다
+    //    (2026-09-12). 그 랜드마크 쪽으로 시작점에서 처음 나가는 길의 1.0 지점을 가리키고, 끝에 화살촉을 단다.
+    var dockL2 = lmOf("dock"), diveL2 = lmOf("dive"), plazaL2 = lmOf("plaza");
+    var alongPath = function (P, d) {   // 폴리라인 P의 시작점에서 거리 d 지점
+      var acc2 = 0;
+      for (var i = 0; i + 1 < P.length; i++) {
+        var L = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]);
+        if (acc2 + L >= d) { var u = (d - acc2) / L; return [P[i][0] + (P[i + 1][0] - P[i][0]) * u, P[i][1] + (P[i + 1][1] - P[i][1]) * u]; }
+        acc2 += L;
+      }
+      return P[P.length - 1];
+    };
+    //    시작점에서 길 셋이 갈라져 나가므로 남는 각도가 적다 — 가는 기둥이라 발자국 0.05. 0.56~0.86에서 60번,
+    //    없으면 1.3까지 넓혀 120번 더. 모든 섬에 있어야 한다 — "내 섬엔 없네"가 되면 안 된다.
+    //    그래도 없으면(시드 40개 중 1개) 시작점에서 나가는 첫 길을 0.8~3.0 따라가며 양옆 0.38에서 찾는다.
+    var signCands = [];
+    ["pos", "neg"].forEach(function (sd2) {
+      var R2 = firstRoute[sd2]; if (!R2) return;
+      for (var dd2 = 0.8; dd2 <= 3.0; dd2 += 0.3) {
+        var q0 = alongPath(R2, dd2), q1 = alongPath(R2, dd2 + 0.05), tl = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) || 1;
+        var qn = [-(q1[1] - q0[1]) / tl, (q1[0] - q0[0]) / tl];
+        signCands.push([q0[0] + qn[0] * 0.38, q0[1] + qn[1] * 0.38], [q0[0] - qn[0] * 0.38, q0[1] - qn[1] * 0.38]);
+      }
+    });
+    for (var sa = 0; sa < 180 + signCands.length; sa++) {
+      var sx2, sz2;
+      if (sa < 180) { var ang = srnd() * TAU, sdist = sa < 60 ? 0.56 + srnd() * 0.3 : 0.6 + srnd() * 0.7; sx2 = start[0] + Math.cos(ang) * sdist; sz2 = start[1] + Math.sin(ang) * sdist; }
+      else { sx2 = signCands[sa - 180][0]; sz2 = signCands[sa - 180][1]; }
+      if (!freeAt(sx2, sz2, 0.05, false)) continue;
+      var gy = pAt(sx2, sz2).y;
+      place("sign", sx2, sz2, 0.05, 0.42);
+      slab(sx2, gy + 0.31, sz2, 0.07, 0.64, 0.07, 0, WOOD);
+      [["dock", 0.56], ["dive", 0.43]].forEach(function (e) {
+        var R = firstRoute[goalSide[e[0]]];
+        if (!R) return;
+        var tgt = alongPath(R, 1.0), a = Math.atan2(tgt[1] - sz2, tgt[0] - sx2);
+        // 판은 가리키는 쪽으로 빼서 달고, 끝에 45° 돌린 작은 판을 화살촉으로 붙인다
+        slab(sx2 + Math.cos(a) * 0.13, gy + e[1], sz2 + Math.sin(a) * 0.13, 0.32, 0.10, 0.035, -a, CREAM);
+        slab(sx2 + Math.cos(a) * 0.30, gy + e[1], sz2 + Math.sin(a) * 0.30, 0.085, 0.10, 0.085, -a + Math.PI / 4, CREAM);
+      });
+      break;
+    }
+
+    // 4) 벤치 — 광장 표지 마당 가장자리. 자리가 없으면 잠수 지점, 그다음 부두 마당. 마당을 보고 앉는다.
+    //    모든 섬에 하나는 있어야 한다. 랜드마크 곁에 자리가 없으면 3층·2층·1층 순으로 아무 평지에 두고
+    //    가장 가까운 랜드마크를 보게 한다.
+    var benchDone = false;
+    var putBench = function (bx2, bz2, Lm) {
+        var face = Math.atan2(Lm.z - bz2, Lm.x - bx2), rot2 = -(face + Math.PI / 2);
+        var ux = Math.cos(face + Math.PI / 2), uz = Math.sin(face + Math.PI / 2), gy2 = pAt(bx2, bz2).y;
+        place("bench", bx2, bz2, 0.30, 0.55);
+        slab(bx2, gy2 + 0.24, bz2, 0.62, 0.06, 0.24, rot2, WOOD);
+        slab(bx2 + ux * 0.24, gy2 + 0.105, bz2 + uz * 0.24, 0.06, 0.21, 0.20, rot2, WOOD);
+        slab(bx2 - ux * 0.24, gy2 + 0.105, bz2 - uz * 0.24, 0.06, 0.21, 0.20, rot2, WOOD);
+        benchDone = true;
+    };
+    [[plazaL2, 0.80, 2], [diveL2, 1.00, 0], [dockL2, 0.80, 0]].forEach(function (e) {
+      if (benchDone || !e[0]) return;
+      var Lm = e[0], dist = e[1] + 0.12 + 0.1 + 0.30 + 0.06;
+      for (var ba = 0; ba < 30 && !benchDone; ba++) {
+        var ang2 = srnd() * TAU, bx2 = Lm.x + Math.cos(ang2) * dist, bz2 = Lm.z + Math.sin(ang2) * dist;
+        if (freeAt(bx2, bz2, 0.30, false, null, e[2])) putBench(bx2, bz2, Lm);
+      }
+    });
+    [2, 1, 0].forEach(function (lv) {
+      for (var bb = 0; bb < 80 && !benchDone; bb++) {
+        var th3 = srnd() * TAU, bd3 = bandOf(th3, lv), r3 = bd3.lo + 0.4 + srnd() * Math.max(0, bd3.hi - bd3.lo - 0.8);
+        var bx3 = Math.cos(th3) * r3, bz3 = Math.sin(th3) * r3;
+        if (!freeAt(bx3, bz3, 0.30, false, null, lv)) continue;
+        var near = null, nd = 1e9;
+        landmarks.forEach(function (Lk) { var d = Math.hypot(Lk.x - bx3, Lk.z - bz3); if (d < nd) { nd = d; near = Lk; } });
+        putBench(bx3, bz3, near || { x: 0, z: 0 });
+      }
+    });
+
+    // 5) 나무통 둘 — 부두 진입부 곁. 부두와 짝이다.
+    if (dockL2) {
+      var dd0 = 0.80 + 0.12 + 0.1 + 0.14 + 0.06;   // 마당 바깥. 48번 안에 없으면 0.5까지 더 멀리서 96번
+      //    그래도 없으면(시드 40개 중 3개 — 부두 쪽 1층이 좁은 섬) 1층 아무 평지. 모든 섬에 하나는 있다.
+      for (var da = 0; da < 264; da++) {
+        var wx, wz;
+        if (da < 144) { var dd = da < 48 ? dd0 : dd0 + srnd() * 0.5, ang3 = srnd() * TAU; wx = dockL2.x + Math.cos(ang3) * dd; wz = dockL2.z + Math.sin(ang3) * dd; }
+        else { var th4 = srnd() * TAU, bd4 = bandOf(th4, 0), r4 = bd4.lo + 0.3 + srnd() * Math.max(0, bd4.hi - bd4.lo - 0.6); wx = Math.cos(th4) * r4; wz = Math.sin(th4) * r4; }
+        if (!freeAt(wx, wz, 0.14, true, null, 0)) continue;
+        var tang = ang3 + Math.PI / 2, wx2 = wx + Math.cos(tang) * 0.30, wz2 = wz + Math.sin(tang) * 0.30;
+        var two = freeAt(wx2, wz2, 0.12, true, 0.26, 0);
+        [[wx, wz, 1], two ? [wx2, wz2, 0.86] : null].forEach(function (b) {
+          if (!b) return;
+          place("drum", b[0], b[1], 0.14 * b[2], 0.34);
+          pe.set(0, srnd() * TAU, 0); pq.setFromEuler(pe); pv.set(b[0], pAt(b[0], b[1]).y + 0.15 * b[2], b[1]); ps.set(b[2], b[2], b[2]);
+          drums.push({ m: new THREE.Matrix4().compose(pv, pq, ps), c: WOOD });
+        });
+        break;
+      }
+    }
+
+    var propMat = function () { return new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 }); };
+    [["props", roundedSlab(), slabs], ["drums", new THREE.CylinderGeometry(0.13, 0.115, 0.30, 10), drums]].forEach(function (e) {
+      if (!e[2].length) { e[1].dispose(); return; }
+      var im = new THREE.InstancedMesh(e[1], propMat(), e[2].length);
+      e[2].forEach(function (it, i) { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
+      im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true;
+      im.castShadow = true; im.receiveShadow = true; im.name = e[0];
+      grp.add(im);
+    });
+  }
+  grp.userData.props = props;
   grp.userData.paths = paths;
   grp.userData.yards = yards;
   grp.userData.pathHalf = PATH_HALF;
