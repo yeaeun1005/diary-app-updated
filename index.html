@@ -591,12 +591,25 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
   50%      { transform: scale(1.15); opacity: 0.92; }
 }
 .sun-glow { animation: sunPulse 8s ease-in-out infinite; }
+/* 첫 화면 물속 마음 말(2026-09-12): 아래에서 --rise만큼 오르며 18%까지 나타나고 78%부터 사라진다. 투명도 최대는 --o */
+.hero-words { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.hero-word { position: absolute; color: #fff; opacity: 0; white-space: nowrap; letter-spacing: 0.06em; line-height: 1;
+  animation: wordRise var(--dur) linear var(--delay) infinite; }
+@keyframes wordRise {
+  0%   { transform: translateY(0); opacity: 0; }
+  18%  { opacity: var(--o); }
+  78%  { opacity: var(--o); }
+  100% { transform: translateY(calc(-1 * var(--rise))); opacity: 0; }
+}
 @keyframes scrollCue {
   0%, 100% { transform: translateY(0); opacity: 0.45; }
   50%      { transform: translateY(8px); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sparkle, .cloud, .sun-glow, .scroll-cue, .hero-zoom, .home-sign, .home-title, .home-title img { animation: none !important; }
+  .sparkle, .cloud, .sun-glow, .scroll-cue, .hero-zoom, .home-sign, .home-title, .home-title img, .hero-word { animation: none !important; }
+  /* 마음 말은 멈추고 앞 3개만 오르는 길 한가운데에 고정 */
+  .hero-word { opacity: var(--o); transform: translateY(calc(var(--rise) * -0.5)); }
+  .hero-word:nth-child(n+4) { display: none; }
   .scroll-cue { opacity: 1 !important; }
   .sparkle { opacity: 0 !important; }
 }
@@ -12201,6 +12214,43 @@ function IntroSection() {
   React.createElement("div", { className: "intro-sign", style: { "--rot": "-1.5deg" } },
     React.createElement("span", { className: "sign-board" }, "감정을 표현할 말이 늘어날수록 섬이 자랍니다"), posts(2), React.createElement("span", { className: "sign-shadow" }))));
 }
+// 첫 화면 물속에 떠오르는 마음 말(2026-09-12). 이 앱이 감정 어휘를 다룬다는 것이 첫 화면에서 보이게 한다.
+// EMOTIONS_28의 실제 어휘를 Russell 네 영역(활기·평온·슬픔·떨림)에서 번갈아 뽑는다 — 영역마다 목록을 한 번 섞어 두고 차례로 돌리므로
+// 나오는 횟수가 네 영역에서 같다(기쁨 계열만 나오면 "긍정만 다루는 앱"으로 보인다). 자리(slot) 5개가 각자 다른 x·주기·크기·투명도로
+// 아래에서 위로 오르며 서서히 나타났다 사라지고(CSS wordRise), 한 바퀴 돌 때마다(animationiteration) 다음 말로 바뀐다. 화면에는 한 번에 3~4개.
+// 자리는 빈 물(x 22~78%, y 시작 62~72% → 끝 32~38%)에만 둬 제목(위 20%)·표지판·앞쪽 산호(왼쪽 아래)를 피한다. 오른쪽 자리 둘은 로그인
+// 표지판(넓은 화면에서 x 64~84%, 위 71~74%) 위에서 시작하도록 y 62~64%에서 출발한다. 세로 화면은 표지판이 아래 22%라 겹칠 일이 없다.
+// 흰 글자 투명도 0.50~0.62, 크기 19~28px, 메이플스토리 Light(2026-09-12 두 번째 판: 처음 0.32~0.46·16~25px는 자세히 봐야 보였다).
+// 또렷하면 산만해서 제목·표지판을 방해한다. prefers-reduced-motion이면 멈추고 3개만 고정(CSS).
+var HERO_WORD_SLOTS = [
+  { left: 22, top: 70, rise: 36, dur: 17, size: 24, o: 0.58, delay: -4 },
+  { left: 38, top: 66, rise: 34, dur: 20, size: 20, o: 0.50, delay: -13 },
+  { left: 52, top: 72, rise: 38, dur: 14, size: 28, o: 0.62, delay: -8 },
+  { left: 68, top: 64, rise: 33, dur: 18, size: 22, o: 0.55, delay: -16 },
+  { left: 78, top: 62, rise: 30, dur: 15, size: 19, o: 0.52, delay: -1 }
+];
+function heroWordSeq() {
+  var order = ["HA", "LA", "LV", "HV"], lists = {}, at = {};
+  order.forEach(function (q) {
+    var a = EMOTIONS_28.filter(function (e) { return e.q === q; }).map(function (e) { return e.label.replace(/\(.*\)$/, ""); });
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    lists[q] = a; at[q] = 0;
+  });
+  var k = 0;
+  return function () { var q = order[k++ % 4], a = lists[q]; return { q: q, w: a[at[q]++ % a.length] }; };
+}
+function HeroWords() {
+  var seq = useRef(null); if (!seq.current) seq.current = heroWordSeq();
+  var st = useState(function () { return HERO_WORD_SLOTS.map(function () { return seq.current(); }); }), words = st[0], setWords = st[1];
+  var next = function (i) { return function () { var w = seq.current(); setWords(function (c) { var d = c.slice(); d[i] = w; return d; }); }; };
+  return React.createElement("div", { className: "hero-words", "aria-hidden": true }, HERO_WORD_SLOTS.map(function (sl, i) {
+    return React.createElement("span", {
+      key: i, className: "hero-word", "data-q": words[i].q, onAnimationIteration: next(i),
+      style: { left: sl.left + "%", top: sl.top + "%", fontSize: sl.size, fontFamily: HOME_FONT.body, fontWeight: HOME_FONT.rw,
+        "--rise": sl.rise + "vh", "--dur": sl.dur + "s", "--delay": sl.delay + "s", "--o": sl.o }
+    }, words[i].w);
+  }));
+}
 function BannerScene(props) {
   var s = "max(100vw / 1672, 100vh / 941)";   // 그림 1px이 화면에서 차지하는 길이 (cover 배율)
   return React.createElement("div", {
@@ -13432,7 +13482,7 @@ function App() {
     style: { ...shell, background: "#0f3a4c" }
   }, React.createElement("div", {
     className: "home-hero"
-  }, React.createElement(BannerScene, null, React.createElement("div", {
+  }, React.createElement(BannerScene, null, React.createElement(HeroWords, null), React.createElement("div", {
     // 비네팅. 가운데는 그대로 두고 가장자리로 갈수록 어두워져 화면 밖으로 이어지는 느낌을 만든다
     style: { position: "absolute", inset: 0, pointerEvents: "none",
       background: "radial-gradient(ellipse 72% 62% at 50% 46%, rgba(3,16,32,0) 0%, rgba(3,16,32,0.22) 55%, rgba(3,16,32,0.68) 100%)" }
