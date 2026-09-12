@@ -550,9 +550,13 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 /* 기둥은 --post가 있으면 그 색(첫 화면: 테두리보다 어두운 바위 그늘), 없으면 테두리색(소개 섹션). 오른쪽 띠는 어두운 그늘 */
 .sign-posts span { display: block; width: 14px; background: var(--post, var(--wood)); box-shadow: inset -4px 0 0 rgba(0,0,0,0.28); border-radius: 0 0 3px 3px; }
 .sign-shadow { position: absolute; left: 8%; right: 8%; bottom: -7px; height: 16px; border-radius: 50%; background: rgba(68,49,36,0.42); filter: blur(3px); z-index: 0; }
-/* 제목: 흰 글자에 얇은 갈색 테두리, 입체감은 아래로 층진 단단한 그림자로. 테두리가 두꺼우면 획이 뭉개진다(2026-09-10) */
-.home-title { color: #fff; -webkit-text-stroke: 0.04em #443124; paint-order: stroke fill;
-  text-shadow: 0 0.05em 0 #845430, 0 0.10em 0 #443124, 0 0.16em 0.10em rgba(0,0,0,0.38); }
+/* 제목: 그림(title.webp). 글자 자체에 얇은 흰 테두리가 들어 있다(2026-09-12)
+   모션은 CSS만: 처음 뜰 때 아래에서 떠오르며 나타남(h1, 0.8초 한 번) + 물속에 떠 있는 듯 6초에 6px 위아래(img, 계속).
+   두 transform이 겹치지 않게 다른 요소에 둔다. prefers-reduced-motion이면 둘 다 끈다(아래 @media) */
+@keyframes titleRise  { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes titleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.home-title { animation: titleRise 0.8s ease-out both; }
+.home-title img { user-select: none; -webkit-user-drag: none; animation: titleFloat 6s ease-in-out infinite; }
 /* 로그인 창(2026-09-10): 흐린 배경 위에 놓인 나무판 한 장. 탭은 판 위에 꽂힌 꼬리표, 입력칸은 판에 파인 홈, 버튼은 표지판과 같은 재질 */
 .auth-board { background: #f0c383; border: 3px solid #845430; border-radius: 18px; color: #443124;
   box-shadow: 0 10px 0 #845430, 0 16px 0 rgba(68,49,36,0.32), inset 0 2px 0 rgba(255,255,255,0.4); transform: rotate(-1.2deg); }
@@ -592,7 +596,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
   50%      { transform: translateY(8px); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sparkle, .cloud, .sun-glow, .scroll-cue, .hero-zoom, .home-sign { animation: none !important; }
+  .sparkle, .cloud, .sun-glow, .scroll-cue, .hero-zoom, .home-sign, .home-title, .home-title img { animation: none !important; }
   .scroll-cue { opacity: 1 !important; }
   .sparkle { opacity: 0 !important; }
 }
@@ -12120,7 +12124,7 @@ const HERO_CLOUDS = [
 ];
 // 첫 화면 표지판 자리(2026-09-10, 새 그림에 맞춰 2026-09-12). 그림 좌표(1672×941)로 두고 object-fit: cover와 같은 식으로 화면에 옮긴다 — 해 빛무리와 같다.
 // 배경을 셀 32px로 분류한 결과(renders/banner_map.txt): 넓은 화면에서 표지판이 설 땅은 물속 바닥 모래뿐이다 — 오른쪽 물속 바위(1330~1550, 640~760) 앞
-// 모래(1150~1330, 780~830)에 로그인 표지판, 그 왼쪽 가운데 모래(450~1180, 780~900)에 체험 팻말. 물 밖 땅(왼쪽 섬 모래띠 y 218~240)은 높이 22px뿐이라
+// 모래(1150~1330, 780~900)에 로그인 표지판, 그 왼쪽 가운데 모래(450~1180, 780~941)에 체험 팻말. 물 밖 땅(왼쪽 섬 모래띠 y 218~240)은 높이 22px뿐이라
 // 표지판이 섬과 제목을 가린다. 세로 화면에서는 바위 앞 모래가 화면 밖이라 가운데 모래(660,872)로 옮긴다. 폰에서는 그마저 왼쪽으로 밀려 화면 안으로 당긴다.
 // 색은 배경 픽셀 평균에서 뽑았다: 판 바탕은 바닥 모래 밝은 곳 #e8e3cb, 테두리는 물속 바위 회갈색 #877868, 기둥·글자는 바위 그늘 #59544b.
 // 산호색(#c78557)은 안 쓴다 — 산호는 자연물이라 "붉은 나무 = 사람이 만든 것" 규칙과 부딪힌다. 화면에 없는 색은 쓰지 않는다.
@@ -12128,13 +12132,14 @@ const HERO_CLOUDS = [
 const HOME_SIGN = { sand: "#e8e3cb", wood: "#877868", ink: "#59544b", post: "#59544b" };
 // 첫 화면·로그인 창의 표시 서체. 둥글고 말랑한 것으로(2026-09-10 후보: Bagel Fat One 136KB · Dongle 73KB · Gaegu 172KB — 첫 화면 글자에 필요한
 // 슬라이스 합계. 지금까지 쓰던 Jua는 169KB였다). k는 서체마다 다른 글자 크기를 맞추는 배율(Dongle은 작아서 1.3).
-// title은 제목 한 줄에만, body는 표지판·로그인 창 전부에 쓴다(게임 화면처럼 제목만 특별한 서체).
-// 굵기: tw 제목, bw 표지판·탭·버튼(굵게), rw 안내문·입력칸(보통). k·kb는 서체마다 다른 글자 크기 배율.
+// body는 표지판·로그인 창 전부에 쓴다. 제목은 2026-09-12부터 그림(title.webp)이라 서체가 없다(전에는 title·tw·k로 제목 서체를 따로 뒀다).
+// 굵기: bw 표지판·탭·버튼(굵게), rw 안내문·입력칸(보통). kb는 서체마다 다른 글자 크기 배율.
 // 2026-09-10 후보(renders 158~165) 중 메이플스토리(넥슨, Light 300·Bold 700)로 확정. fonts/maplestory.css가 자체 호스팅 슬라이스다.
 // 3D 섬 팻말(labelTexture)도 같은 서체다.
-const HOME_FONT = { title: "'Maplestory', 'Jua', sans-serif", tw: 700, body: "'Maplestory', 'Gowun Dodum', sans-serif", bw: 700, rw: 300, k: 1, kb: 1 };
-// 로그인 표지판 발치는 오른쪽 물속 바위 앞 바닥 모래(그림 1240,812). 작은 팻말은 그 왼쪽 모래(1040,850)에 따로. 세로 화면은 가운데 모래(660,872).
-const HOME_ANCHORS = { wide: { login: [1240, 812], trial: [1040, 850] }, tall: { login: [660, 872], trial: [842, 900] } };
+const HOME_FONT = { body: "'Maplestory', 'Gowun Dodum', sans-serif", bw: 700, rw: 300, kb: 1 };
+// 로그인 표지판 발치는 오른쪽 물속 바위 앞 바닥 모래(그림 1200,862). 작은 팻말은 그 왼쪽 모래(1000,902)에 따로. 세로 화면은 가운데 모래(660,895).
+// 처음 잡은 (1240,812)·(1040,850)·(660,872)는 기둥 아래가 모래에 닿지 않고 떠 보여 50px쯤 내렸다(2026-09-12). 오른쪽 아래 바위(x>1280, y>836)는 피한다.
+const HOME_ANCHORS = { wide: { login: [1200, 862], trial: [1000, 902] }, tall: { login: [660, 895], trial: [842, 900] } };
 function heroMap(vw, vh, p) { var s = Math.max(vw / 1672, vh / 941); return { x: vw / 2 + (p[0] - 836) * s, y: vh / 2 + (p[1] - 470.5) * s }; }
 function HomeSigns(props) {
   var vp = useState({ w: window.innerWidth, h: window.innerHeight }), v = vp[0], setV = vp[1];
@@ -12151,8 +12156,10 @@ function HomeSigns(props) {
   if (footImgX < 1150 || footImgX > 1330) { A = HOME_ANCHORS.tall; L = heroMap(v.w, v.h, A.login); }
   L.x = clampX(L.x, W1 / 2); L.y = Math.min(v.h - 12, L.y);
   // 작은 팻말은 따로 꽂힌다: 넓은 화면은 로그인 왼쪽 모래(그림 좌표), 세로 화면의 가운데 모래에서는 오른쪽으로 떨어뜨려. 각도도 다르다(+12°)
-  var T = A === HOME_ANCHORS.wide ? heroMap(v.w, v.h, A.trial) : { x: L.x + W1 / 2 + W2 / 2 - 10, y: L.y + 26 };
-  T.x = clampX(T.x, W2 / 2); T.y = Math.min(v.h - 10, T.y);
+  // 세로 화면의 오른쪽 간격 +70은 기둥이 아래 가운데 내려가기 화살표(scroll-cue) 위에 서지 않게 한 것(태블릿 820 기준). 폰에서는 어차피 오른쪽 가장자리에 붙는다.
+  // 아래 여유(폰 26·그 밖 30)는 기울어진 판·기둥이 화면 밖으로 나가지 않게
+  var T = A === HOME_ANCHORS.wide ? heroMap(v.w, v.h, A.trial) : { x: L.x + W1 / 2 + W2 / 2 + 70, y: L.y + 20 };
+  T.x = clampX(T.x, W2 / 2); T.y = Math.min(v.h - (A === HOME_ANCHORS.wide ? 10 : phone ? 26 : 30), T.y);
   var vars = { "--sand": HOME_SIGN.sand, "--wood": HOME_SIGN.wood, "--ink": HOME_SIGN.ink, "--post": HOME_SIGN.post };
   return React.createElement(React.Fragment, null, React.createElement("button", {
     className: "home-sign", onClick: props.onLogin, "aria-label": "로그인",
@@ -13434,13 +13441,13 @@ function App() {
     onLogin: function () { setMsg(""); setAuthOpen(true); },
     onTrial: function () { setTE([]); setPage("trial"); }
   })), React.createElement("div", {
-    // 제목: 왼쪽 위, 크게, 살짝 기울여. 부제는 2026-09-12에 뺐다(제목만)
+    // 제목: 왼쪽 위, 크게, 살짝 기울여. 부제는 2026-09-12에 뺐고, 같은 날 글자를 그림(title.webp, 1431×269, 투명 배경)으로 바꿨다.
+    // 폭은 글자였을 때(1440에서 570px)보다 25% 크게 clamp(320px, 52vw, 750px) — 넓은 화면에서 왼쪽 구석에 작게 있던 것을 키움(2026-09-12). 높이는 그림 비율(5.3:1)
     style: { position: "absolute", left: "clamp(18px, 5vw, 76px)", top: "clamp(16px, 5vh, 54px)", pointerEvents: "none",
-      transform: "rotate(-2deg)", transformOrigin: "0 0", maxWidth: "min(88vw, 720px)" }
-  }, React.createElement("h1", {
-    className: "home-title",
-    style: { fontFamily: HOME_FONT.title, fontWeight: HOME_FONT.tw, fontSize: "calc(clamp(2.4rem, 7vw, 5.2rem) * " + HOME_FONT.k + ")", margin: 0, lineHeight: 1.05, letterSpacing: "0.02em" }
-  }, "마음 바다 탐험대")), React.createElement("div", {
+      transform: "rotate(-2deg)", transformOrigin: "0 0" }
+  }, React.createElement("h1", { className: "home-title", style: { margin: 0, width: "clamp(320px, 52vw, 750px)", maxWidth: "88vw" } },
+    React.createElement("img", { src: "title.webp", alt: "마음 바다 탐험대", width: 1431, height: 269, draggable: false,
+      style: { display: "block", width: "100%", height: "auto" } }))), React.createElement("div", {
     style: { position: "absolute", right: 14, bottom: "max(10px, env(safe-area-inset-bottom))", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.72)", pointerEvents: "none", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }
   }, React.createElement("button", {
     onClick: function () { setPage("privacy"); },
