@@ -5654,8 +5654,8 @@ function hashSeed(str) {
 // 그림자를 제대로 잡아서 만든다. 색은 따뜻하고 선명하게 간다.
 // 텍스처는 쓰지 않고 색과 조명만으로 질감을 만든다.
 var ISLE = {
-  grassLow:  [0.44, 0.62, 0.27],   // 노란기 있는 선명한 잔디
-  grassHigh: [0.61, 0.75, 0.36],   // 볕 드는 능선
+  grassLow:  [0.47, 0.61, 0.31],   // 크림빛 도는 따뜻한 잔디(2026-09-13, 전 0.44/0.62/0.27은 채도가 높아 플라스틱 같았다 — renders 402·407)
+  grassHigh: [0.64, 0.75, 0.41],   // 볕 드는 능선(전 0.61/0.75/0.36)
   // 모래는 팔레트에서 가장 밝은 색이다. 계단식으로 바꾸면서 해변이 완만해져
   // 볕을 정면으로 받게 되었고, 그 상태로는 붉은 채널이 255에서 잘린다(③-2 목표).
   sand:      [0.84, 0.75, 0.53],   // 따뜻한 모래
@@ -5926,13 +5926,23 @@ function buildIsland(seedStr, opts) {
     return lerp3(g, PAL.sand, bb * bb * (3 - 2 * bb));
   }
 
-  var pos = [], col = [], idx = [];
+  // 셰이더 얼룩용 구역 비율 (모래, 벽). zoneColor의 전이와 같은 곡선
+  function zoneMix(p) {
+    if (p.zone === "top") return [0, 0];
+    if (p.zone === "shoulder") { var uc = Math.max(0, (p.u - 0.45) / 0.55); return [0, uc * uc * 0.85]; }
+    if (p.zone === "wall") return [0, 1];
+    if (p.zone === "foot") return [0, 1 - Math.sqrt(Math.min(1, p.u / 0.6))];
+    var bb = Math.min(1, Math.max(0, (p.u - 0.16) / 0.34));
+    return [bb * bb * (3 - 2 * bb), 0];
+  }
+  var pos = [], col = [], idx = [], zn = [];
   function pushVert(r, th) {
     var p = visAt(r, th);   // 보이는 면. 걷기면(profileAt)과는 어깨·밑동에서만 다르다
     pos.push(Math.cos(th) * r, p.y, Math.sin(th) * r);
-    var n = 0.965 + rnd() * 0.07;   // 미세한 얼룩. 텍스처 없이 단조로움을 깬다.
+    var n = 0.985 + rnd() * 0.03;   // 정점 잡음은 아주 조금만(얼룩은 셰이더 landShade가 맡는다, 2026-09-13. 전 0.965+0.07)
     var cl = s2l(zoneColor(p));
     col.push(cl[0] * n, cl[1] * n, cl[2] * n);
+    var zm = zoneMix(p); zn.push(zm[0], zm[1]);
   }
 
   // 표본 반지름 계획. 높이와 색은 profileAt이 정하므로 여기서는 어디를 자를지만
@@ -6019,13 +6029,13 @@ function buildIsland(seedStr, opts) {
   for (var j5 = 0; j5 < segs; j5++) {
     var th5 = j5 / segs * TAU, r5 = coast(th5);
     pos.push(Math.cos(th5) * r5, BEACH_Y, Math.sin(th5) * r5);
-    col.push.apply(col, s2l(lerp3(PAL.sand, PAL.cliff, 0.35)));
+    col.push.apply(col, s2l(lerp3(PAL.sand, PAL.cliff, 0.35))); zn.push(0.35, 0.65);
   }
   var skirtLow = pos.length / 3;
   for (var j6 = 0; j6 < segs; j6++) {
     var th6 = j6 / segs * TAU, r6 = coast(th6) * 0.9;
     pos.push(Math.cos(th6) * r6, -SKIRT, Math.sin(th6) * r6);
-    col.push.apply(col, s2l(PAL.cliff));
+    col.push.apply(col, s2l(PAL.cliff)); zn.push(0, 1);   // 스커트 아래 링도 벽
   }
   for (var j7 = 0; j7 < segs; j7++) {
     var A2 = skirtStart + j7, B2 = skirtStart + (j7 + 1) % segs;
@@ -6035,10 +6045,12 @@ function buildIsland(seedStr, opts) {
   var g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  if (zn.length / 2 !== pos.length / 3) console.warn("aZone 수가 정점 수와 다르다", zn.length / 2, pos.length / 3);
+  g.setAttribute("aZone", new THREE.Float32BufferAttribute(zn, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   // 클레이: 거칠기 최대, 금속성 0. 반사가 있으면 점토로 보이지 않는다.
-  var land = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, flatShading: false }));
+  var land = new THREE.Mesh(g, landShade(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, flatShading: false }), "land"));
   land.castShadow = true; land.receiveShadow = true;
 
   var grp = new THREE.Group();
@@ -6660,10 +6672,10 @@ function buildIsland(seedStr, opts) {
       pg.setAttribute("color", new THREE.Float32BufferAttribute(rc, 4));   // 알파까지 정점 색이다
       pg.setIndex(ri);
       pg.computeVertexNormals();
-      var pathMesh = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({
+      var pathMesh = new THREE.Mesh(pg, landShade(new THREE.MeshStandardMaterial({
         color: 0xffffff, vertexColors: true, transparent: true, depthWrite: false,
         roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
-      }));
+      }), "path"));
       pathMesh.receiveShadow = true;
       pathMesh.name = "paths";
       grp.add(pathMesh);
@@ -7513,14 +7525,18 @@ function buildSplash() {
 var LIGHT = {
   keyColor: 0xffe9c4, keyPower: 1.85,
   keyDir: [-12, 8.2, 3],     // 고도 약 33도
-  hemiSky: 0xbfe4f2, hemiGround: 0x6b5b45, hemiPower: 0.24,
-  fillColor: 0x9fc6e0, fillPower: 0.16, fillDir: [9, 5, -8]
+  // 그늘 색은 바탕색 계열로(2026-09-13): 바닥 반구광을 회갈(0x6b5b45)에서 풀빛으로, 채움광을 찬 하늘색(0x9fc6e0·0.16)에서 따뜻한 연두로.
+  // 그늘이 회색이 아니라 초록 어둠이 되어 잔디에 스며든다(renders 411·412)
+  hemiSky: 0xbfe4f2, hemiGround: 0x5f6b3c, hemiPower: 0.26,
+  fillColor: 0xb9cfae, fillPower: 0.14, fillDir: [9, 5, -8]
 };
 function addIsleLights(scene, shadowHalf, shadowFar) {
   var key = new THREE.DirectionalLight(LIGHT.keyColor, LIGHT.keyPower);
   key.position.set(LIGHT.keyDir[0], LIGHT.keyDir[1], LIGHT.keyDir[2]);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  // VSM(renderer.shadowMap.type) + 반지름 5·표본 12로 가장자리를 부드럽게(2026-09-13, 클레이 느낌). 지도는 1024 — 블러가 해상도 손실을 가리고 블러 비용이 2048의 1/4.
+  // 반지름 9는 나무가 떠 보였다(renders 408~410). 바다 화면은 카드 D 기본 shadow=0
+  key.shadow.mapSize.set(1024, 1024);
   // 그림자 카메라를 섬에 딱 맞춘다. 넓게 잡으면 해상도가 흩어져 흐려진다.
   var SH = shadowHalf;
   key.shadow.camera.left = -SH; key.shadow.camera.right = SH;
@@ -7528,6 +7544,7 @@ function addIsleLights(scene, shadowHalf, shadowFar) {
   key.shadow.camera.near = 1; key.shadow.camera.far = shadowFar;
   key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.018;
+  key.shadow.radius = 5; key.shadow.blurSamples = 12;
   scene.add(key);
   // 채움광은 낮게. 높으면 그늘이 떠서 대비가 죽는다.
   scene.add(new THREE.HemisphereLight(LIGHT.hemiSky, LIGHT.hemiGround, LIGHT.hemiPower));
@@ -7884,8 +7901,25 @@ function seaRetone(tone) {
 var SEA_GLSL = {
   common: "\nuniform float uTime, uRipple, uSparkle, uFoam, uCaustic, uWet, uTone, uLitDir, uAmp, uPhase; uniform vec2 uLightDir; uniform vec3 uShallow, uShore;\nvarying vec3 vWp; varying vec2 vLp; varying float vT, vBr, vAng;\n",
   vtx: "\n#include <begin_vertex>\n{ vec3 sp = transformed;\n#ifdef SEA_FOAM\n  float ph = uTime * 1.26 + aAng * 2.0 + uPhase; float push = sin(ph); vBr = push;\n  vec2 nrm = normalize(sp.xz + 1e-5);\n  sp.xz += nrm * (push * 0.18 + aSide * uAmp * (0.5 + 0.5 * sin(ph + 1.2))) * uFoam;\n  sp.y += 0.10 * max(0.0, -push) * uFoam; transformed = sp;\n#endif\n#ifdef SEA_T\n  vT = aT;\n#endif\n#ifdef SEA_ANG\n  vAng = aAng;\n#endif\n  vLp = sp.xz; vec4 wp4 = vec4(sp, 1.0);\n#ifdef USE_INSTANCING\n  wp4 = instanceMatrix * wp4;\n#endif\n  vWp = (modelMatrix * wp4).xyz; }\n",
-  frag: "\n#include <color_fragment>\n{ float tm = uTime;\n  float w1 = sin((vWp.x * 0.62 + vWp.z * 0.41) * 2.4 + tm * 0.6);\n  float w2 = sin((vWp.x * -0.35 + vWp.z * 0.71) * 1.45 - tm * 0.4);\n  float w3 = sin((vWp.x * 0.2 + vWp.z * 0.9) * 0.9 + tm * 0.25);\n  float rip = (w1 * 0.5 + w2 * 0.35 + w3 * 0.3) * 0.09 * (0.4 + 1.2 * uTone) * uRipple;\n#ifdef SEA_SHORE\n  vec3 c = mix(uShore, uShallow, smoothstep(0.0, 0.45, vT)); c = mix(c, diffuseColor.rgb, smoothstep(0.35, 1.0, vT));\n  diffuseColor.rgb = c; diffuseColor.a = 1.0 - smoothstep(0.7, 1.0, vT); rip *= 0.6;\n  float c1 = sin(vWp.x * 3.1 + tm * 0.35) * sin(vWp.z * 2.7 - tm * 0.28);\n  float c2 = sin((vWp.x + vWp.z) * 2.2 - tm * 0.3) * sin((vWp.x - vWp.z) * 2.6 + tm * 0.22);\n  float ca = (pow(max(c1, 0.0), 3.0) + pow(max(c2, 0.0), 3.0)) * (1.0 - smoothstep(0.15, 0.75, vT));\n  diffuseColor.rgb += ca * 0.16 * (0.4 + 1.2 * uTone) * uCaustic;\n#endif\n#ifdef SEA_WET\n  float wph = uTime * 1.26 + vAng * 2.0;\n  float f1 = 0.3 * max(0.0, -sin(wph)), f2 = 0.3 * max(0.0, -sin(wph - 1.5));   /* 파도 앞선(해안 안쪽 깊이 비율)과 1.5초 늦은 앞선 */\n  float w1 = clamp(1.0 - (vT - f1) / 0.22, 0.0, 1.0), w2 = clamp(1.0 - (vT - f2) / 0.22, 0.0, 1.0);\n  float wet = max(w1, 0.75 * w2) * (1.0 - smoothstep(0.8, 1.0, vT));\n  diffuseColor.a = wet * 0.5 * uWet;\n#endif\n#ifdef SEA_RADIAL\n  float rr = length(vLp) / 8.6; vec3 c = mix(uShallow, diffuseColor.rgb, smoothstep(0.45, 1.0, rr));\n  diffuseColor.rgb = c; diffuseColor.a = 1.0 - smoothstep(0.85, 1.0, rr); rip *= 0.6;\n#endif\n#if defined(SEA_FOAM)\n  diffuseColor.a *= (1.0 - 0.75 * vT) * (0.75 - 0.25 * vBr);   /* 밀려들 때(vBr<0) 짙고 물러날 때 옅게 */\n#elif defined(SEA_WET)\n#else\n  diffuseColor.rgb *= 1.0 + rip;\n  float sp = sin(vWp.x * 7.1 + tm * 0.9) * sin(vWp.z * 6.3 - tm * 0.7) * sin((vWp.x + vWp.z) * 4.7 + tm * 0.5);\n  sp = pow(max(sp, 0.0), 20.0) * (0.55 + 0.45 * sin(vWp.x * 0.9 + vWp.z * 0.7 + tm * 0.3));\n  float lit = mix(0.7, smoothstep(-0.2, 1.0, dot(normalize(vWp.xz + 1e-4), uLightDir)), uLitDir);\n  diffuseColor.rgb += sp * lit * 0.45 * (0.3 + 1.4 * uTone) * uSparkle;\n#endif\n}\n"
+  frag: "\n#include <color_fragment>\n{ float tm = uTime;\n  float w1 = sin((vWp.x * 0.62 + vWp.z * 0.41) * 2.4 + tm * 0.6);\n  float w2 = sin((vWp.x * -0.35 + vWp.z * 0.71) * 1.45 - tm * 0.4);\n  float w3 = sin((vWp.x * 0.2 + vWp.z * 0.9) * 0.9 + tm * 0.25);\n  float rip = (w1 * 0.5 + w2 * 0.35 + w3 * 0.3) * 0.09 * (0.4 + 1.2 * uTone) * uRipple;\n#ifdef SEA_SHORE\n  vec3 c = mix(uShore, uShallow, smoothstep(0.0, 0.45, vT)); c = mix(c, diffuseColor.rgb, smoothstep(0.35, 1.0, vT));\n  diffuseColor.rgb = c; diffuseColor.a = 1.0 - smoothstep(0.7, 1.0, vT); rip *= 0.6;\n  float c1 = sin(vWp.x * 3.1 + tm * 0.35) * sin(vWp.z * 2.7 - tm * 0.28);\n  float c2 = sin((vWp.x + vWp.z) * 2.2 - tm * 0.3) * sin((vWp.x - vWp.z) * 2.6 + tm * 0.22);\n  float ca = (pow(max(c1, 0.0), 3.0) + pow(max(c2, 0.0), 3.0)) * (1.0 - smoothstep(0.15, 0.75, vT));\n  diffuseColor.rgb += ca * 0.16 * (0.4 + 1.2 * uTone) * uCaustic;\n#endif\n#ifdef SEA_WET\n  float wph = uTime * 1.26 + vAng * 2.0;\n  float f1 = 0.3 * max(0.0, -sin(wph)), f2 = 0.3 * max(0.0, -sin(wph - 1.5));   /* 파도 앞선(해안 안쪽 깊이 비율)과 1.5초 늦은 앞선 */\n  float ww1 = clamp(1.0 - (vT - f1) / 0.22, 0.0, 1.0), ww2 = clamp(1.0 - (vT - f2) / 0.22, 0.0, 1.0);   /* w1·w2는 위 물결 변수라 이름을 달리한다 */\n  float wet = max(ww1, 0.75 * ww2) * (1.0 - smoothstep(0.8, 1.0, vT));\n  diffuseColor.a = wet * 0.5 * uWet;\n#endif\n#ifdef SEA_RADIAL\n  float rr = length(vLp) / 8.6; vec3 c = mix(uShallow, diffuseColor.rgb, smoothstep(0.45, 1.0, rr));\n  diffuseColor.rgb = c; diffuseColor.a = 1.0 - smoothstep(0.85, 1.0, rr); rip *= 0.6;\n#endif\n#if defined(SEA_FOAM)\n  diffuseColor.a *= (1.0 - 0.75 * vT) * (0.75 - 0.25 * vBr);   /* 밀려들 때(vBr<0) 짙고 물러날 때 옅게 */\n#elif defined(SEA_WET)\n#else\n  diffuseColor.rgb *= 1.0 + rip;\n  float sp = sin(vWp.x * 7.1 + tm * 0.9) * sin(vWp.z * 6.3 - tm * 0.7) * sin((vWp.x + vWp.z) * 4.7 + tm * 0.5);\n  sp = pow(max(sp, 0.0), 20.0) * (0.55 + 0.45 * sin(vWp.x * 0.9 + vWp.z * 0.7 + tm * 0.3));\n  float lit = mix(0.7, smoothstep(-0.2, 1.0, dot(normalize(vWp.xz + 1e-4), uLightDir)), uLitDir);\n  diffuseColor.rgb += sp * lit * 0.45 * (0.3 + 1.4 * uTone) * uSparkle;\n#endif\n}\n"
 };
+// 지형 얼룩(2026-09-13). 텍스처 없이(§4) 값 잡음(world xz, 두 옥타브 0.9·0.35 단위)으로 밝기만 흔든다 — 색상은 그대로.
+// 잔디 ±5%, 모래 ±3%(aZone.x 모래 비율), 흙벽은 세로로 흘러내린 결 ±4.5%(aZone.y 벽 비율: 가로로만 변하고 세로로는 거의 일정한 잡음), 흙길 리본 ±4%.
+// 멀리서는 단색, 가까이서 결. 정점 색·조명·그림자는 그대로(onBeforeCompile). 정적이라 시간 uniform 없음. 픽셀당 산술 30개쯤.
+var LAND_GLSL = {
+  vtx: "\n#include <begin_vertex>\n{ vec4 wp4 = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n  wp4 = instanceMatrix * wp4;\n#endif\n  vWpL = (modelMatrix * wp4).xyz;\n#ifdef LAND_ZONE\n  vZone = aZone;\n#endif\n}\n",
+  frag: "\n#include <color_fragment>\n{ float m = landVn(vWpL.xz * 1.1) * 0.6 + landVn(vWpL.xz * 2.9) * 0.4;\n#ifdef LAND_ZONE\n  float amp = mix(0.05, 0.03, vZone.x) * (1.0 - vZone.y);\n  float st = landVn(vec2((vWpL.x * 0.7 + vWpL.z * 0.7) * 3.2, vWpL.y * 0.35));\n  diffuseColor.rgb *= 1.0 + (m * 2.0 - 1.0) * amp + (st * 2.0 - 1.0) * 0.045 * vZone.y;\n#else\n  diffuseColor.rgb *= 1.0 + (m * 2.0 - 1.0) * 0.04;\n#endif\n}\n",
+  common: "\nvarying vec3 vWpL; varying vec2 vZone;\nfloat landH21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat landVn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);\n  return mix(mix(landH21(i), landH21(i + vec2(1.0, 0.0)), f.x), mix(landH21(i + vec2(0.0, 1.0)), landH21(i + vec2(1.0, 1.0)), f.x), f.y); }\n"
+};
+function landShade(mat, kind) {   // kind: "land"(aZone 있음) | "path"
+  mat.onBeforeCompile = function (sh) {
+    var def = kind === "land" ? "#define LAND_ZONE\n" : "";
+    sh.vertexShader = def + (kind === "land" ? "attribute vec2 aZone;\n" : "") + LAND_GLSL.common + sh.vertexShader.replace("#include <begin_vertex>", LAND_GLSL.vtx);
+    sh.fragmentShader = def + LAND_GLSL.common + sh.fragmentShader.replace("#include <color_fragment>", LAND_GLSL.frag);
+  };
+  mat.customProgramCacheKey = function () { return "land-" + kind; };
+  return mat;
+}
 // kind: "deep" | "shore" | "radial" | "foam". o: { tone, litDir(깊은 물: 원점 기준 빛 쪽 마스크 1/0), amp·phase(foam), deepBase(톤 바뀔 때 color도 갱신) }
 function seaShade(mat, kind, o) {
   o = o || {}; var t = o.tone == null ? 0.5 : Math.max(0, Math.min(1, o.tone));
@@ -8328,7 +8362,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(W, H);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.VSMShadowMap;   // 부드러운 가장자리(2026-09-13). addIsleLights의 radius·blurSamples가 세기
     host.appendChild(renderer.domElement);
     SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
 
@@ -9300,7 +9334,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(W, H);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.VSMShadowMap;   // 부드러운 가장자리(2026-09-13). addIsleLights의 radius·blurSamples가 세기
     host.appendChild(renderer.domElement);
     SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
     var scene = new THREE.Scene();
@@ -9587,7 +9621,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, O.dpr));   // 카드 F
     renderer.setSize(W, H);
     renderer.shadowMap.enabled = O.shadow > 0;                                // 카드 D
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.VSMShadowMap;   // 부드러운 가장자리(2026-09-13). addIsleLights의 radius·blurSamples가 세기
     host.appendChild(renderer.domElement);
     SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
     host.style.touchAction = "none";
