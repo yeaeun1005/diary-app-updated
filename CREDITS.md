@@ -17,4 +17,4 @@ DESIGN §4 "참고와 모방의 선"에 따라, 외부에서 가져온 자료는
 | `title.webp` | 첫 화면 제목 | 제작 ChatGPT(생성 도구) · 2026-09-12 |
 | `panel.webp` | 로그인 창 배경(나무판 틀) | 제작 ChatGPT(생성 도구) · 2026-09-12 |
 | `sign-login.webp` · `sign-guest.webp` | 첫 화면 표지판(로그인·체험, 글자는 그림 안에) | 제작 ChatGPT(생성 도구) · 2026-09-13 |
-| `intro/isle-*.webp` | 첫 화면 아래 소개 섹션의 섬 그림 | 이 앱의 3D 섬을 헤드리스 크롬으로 찍은 것(renders/harness/shootIsle.js) · 시연 학급 가상 데이터 · 2026-09-10 |
+| `intro/isle-*.webp` · `intro/zoom-*.webp` | 첫 화면 아래 소개 섹션의 섬 그림과 네 영역 확대 | 이 앱의 3D 섬을 헤드리스 크롬으로 찍은 것(renders/harness/shootIsle.js · shootIntro.js) · 시연 학급 가상 데이터 · 2026-09-10 · 2026-09-13 |

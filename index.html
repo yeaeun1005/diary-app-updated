@@ -559,12 +559,6 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .home-sign:active .sign-body { transform: scale(1); filter: brightness(0.96); }
 .home-sign:active .sign-shadow { transform: scaleX(0.94); opacity: 0.8; }
 .home-sign:focus-visible { outline: 3px solid #fff; outline-offset: 4px; border-radius: 12px; }
-.sign-board { display: block; position: relative; z-index: 1; box-sizing: border-box; background: var(--sand); color: var(--ink);
-  border: 3px solid var(--wood); border-radius: 12px; box-shadow: 0 5px 0 var(--wood), inset 0 2px 0 rgba(255,255,255,0.35);
-  transition: box-shadow 0.08s ease; }
-.sign-posts { display: flex; justify-content: space-between; padding: 0 22%; margin-top: -2px; }
-/* 기둥은 --post가 있으면 그 색(첫 화면: 테두리보다 어두운 바위 그늘), 없으면 테두리색(소개 섹션). 오른쪽 띠는 어두운 그늘 */
-.sign-posts span { display: block; width: 14px; background: var(--post, var(--wood)); box-shadow: inset -4px 0 0 rgba(0,0,0,0.28); border-radius: 0 0 3px 3px; }
 .sign-shadow { position: absolute; left: 8%; right: 8%; bottom: -7px; height: 16px; border-radius: 50%; background: rgba(68,49,36,0.42); filter: blur(3px); z-index: 0; }
 /* 제목: 그림(title.webp). 글자 자체에 얇은 흰 테두리가 들어 있다(2026-09-12)
    모션은 CSS만: 처음 뜰 때 아래에서 떠오르며 나타남(h1, 0.8초 한 번) + 물속에 떠 있는 듯 6초에 6px 위아래(img, 계속).
@@ -654,34 +648,91 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .scroll-cue-wrap { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 3; }
 @media (max-width: 600px) { .scroll-cue-wrap { bottom: 40px; } }   /* 폰에서는 바닥글과 겹친다 */
 .scroll-cue { display: block; background: none; border: none; cursor: pointer; padding: 6px 10px; animation: scrollCue 4s ease-in-out infinite; }
-.intro { --sand: #e8b473; --wood: #845430; --ink: #443124; position: relative; color: #f0c383;
-  /* 첫 화면 그림 아래 가장자리 바다색에서 잠수 지점 물색으로 — 내려갈수록 물속 */
-  background: linear-gradient(180deg, #115792 0%, #0f3a4c 100%); }
-.intro-scene { position: relative; min-height: 100vh; max-width: 1180px; margin: 0 auto; box-sizing: border-box; }
-/* 장면 1: 두 섬을 좌우 48%·52%로 나눠 서로 침범하지 않게 어긋나게 놓는다. 겹치면 부두가 잘린다(2026-09-10) */
-.intro-1 { height: 100vh; min-height: 700px; }
-.intro-chapter { position: absolute; top: 22px; left: 28px; z-index: 2; }
-.intro-isle { position: relative; margin: 0; }
-.intro-isle img { width: 100%; height: auto; display: block; clip-path: ellipse(49% 47% at 50% 50%); }
-.intro-isle-a { position: absolute; left: 0; top: 6vh; width: 48%; transform: rotate(-2deg); z-index: 1; }
-.intro-isle-b { position: absolute; right: 0; top: 30vh; width: 52%; transform: rotate(1.5deg); z-index: 1; }
-.intro-tag { position: absolute; left: 6%; bottom: 5%; display: inline-block; background: var(--sand); color: var(--ink); border: 3px solid var(--wood);
-  border-radius: 10px; padding: 6px 14px; font-weight: 700; font-size: clamp(0.95rem, 1.6vw, 1.15rem); box-shadow: 0 4px 0 var(--wood); transform: rotate(var(--rot)); white-space: nowrap; }
-.intro-chapter.intro-tag { position: absolute; left: 28px; bottom: auto; }
-.intro-route { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-.intro-route-v { display: none; }
-.intro-sign { position: absolute; left: 50%; bottom: 5vh; width: min(600px, 92%); text-align: center; transform: translateX(-50%) rotate(var(--rot)); z-index: 3; }
-.intro-sign .sign-board { padding: 18px 22px 16px; font-size: clamp(1.1rem, 2.3vw, 1.5rem); line-height: 1.35; font-weight: 700; }
-.intro-sign .sign-posts { height: 46px; }
-@media (max-width: 760px) {
-  .intro-scene { display: block; padding: 12vh 18px 8vh; }
-  .intro-1 { height: auto; min-height: 0; }
-  .intro-route { display: none; }
-  .intro-isle-a, .intro-isle-b { position: static; width: 100%; margin: 0 auto; transform: rotate(-1.5deg); }
-  .intro-isle-b { transform: rotate(1.5deg); }
-  .intro-route-v { display: block; width: 0; height: 7vh; margin: 0 auto; border-left: 3px dashed #f0c383; opacity: 0.7; }
-  .intro-sign { position: relative; left: auto; bottom: auto; margin: 5vh auto 0; transform: rotate(var(--rot)); }
+/* 소개 섹션 "어떤 마음이든 자란다"(2026-09-13). 장면 1 "섬이 자란다"(2026-09-10, 섬 5가지·25가지 두 장)를 대신한다 — 세 장면을 세로로 쌓으면
+   심사위원이 세 번 스크롤해야 해서 끝까지 안 본다. 100vh 한 장면에 가장 강한 내용 하나: Russell 네 영역에 무엇이 자라는지, "슬픈 날을 적어도 섬이 나빠지지 않습니다".
+   배치는 나침반 — 가운데 어휘 16가지(네 영역 4개씩) 섬, 둘레 네 방향에 영역 확대(위 활기·오른쪽 평온·아래 슬픔·왼쪽 떨림 = 실제 섬 방위, DESIGN §5 표).
+   슬픔 조각이 가장 크다(핵심 문구가 실린다). 사각 카드·격자 없음. 그림은 renders/harness/shootIntro.js(dpr 2 렌더에서 잘라냄, intro/*.webp 합계 170KB).
+   배경은 첫 화면 배너에서 이어진다: 배너 아래 34vh를 이 섹션 맨 위 물색(#1a86ad, 청록)으로 녹이고(.hero-fade), 여기서 아래로 갈수록 청록이 짙어지며(#0a4a63) 빛줄기(.intro-rays)는 60%에서 사라진다.
+   움직임(전부 transform·opacity, 합성기만): 배경 층이 스크롤보다 조금 느리게(.intro-bg, animation-timeline: view(), ±5vh) · 기포 7개(.bubble) · 내용이 뷰에 들어올 때
+   아래에서 한 번 떠오름(.rise — IntersectionObserver가 .in을 붙인다, 되감기지 않게). prefers-reduced-motion이면 전부 끈다 */
+.intro { position: relative; color: #f0c383; overflow: clip; contain: paint; background: #1a86ad; }   /* hidden이면 스크롤 컨테이너가 돼 view() 타임라인이 멈춘다 */
+.intro-bg { position: absolute; left: 0; right: 0; top: -6vh; bottom: -6vh; z-index: 0; pointer-events: none; will-change: transform;
+  /* 청록 계열만(남색 금지). 맨 위 12%는 배너 아래 물색(#1a86ad, 배너 물 #1b9abc보다 한 단계 깊게)으로 평평하게 — 첫 화면 아래 녹임 띠(.hero-fade)와 같은 색이라 경계선이 없다 */
+  background: linear-gradient(180deg, #1a86ad 0%, #1a86ad 12%, #14718f 45%, #0d5a75 78%, #0a4a63 100%);
+  animation: introDrift linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
+@keyframes introDrift { from { transform: translateY(-5vh); } to { transform: translateY(5vh); } }
+.intro-rays { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.6;
+  background: linear-gradient(104deg, rgba(255,255,255,0) 16%, rgba(255,255,255,0.13) 20%, rgba(255,255,255,0) 27%),
+              linear-gradient(104deg, rgba(255,255,255,0) 42%, rgba(255,255,255,0.10) 47%, rgba(255,255,255,0) 55%),
+              linear-gradient(104deg, rgba(255,255,255,0) 66%, rgba(255,255,255,0.11) 70%, rgba(255,255,255,0) 77%);
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 60%); mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 60%); }
+.bubble { position: absolute; bottom: -30px; left: var(--x); width: var(--s); height: var(--s); border-radius: 50%; z-index: 1; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 36% 34%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.04) 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
+  animation: bubbleUp var(--dur) linear var(--delay) infinite; }
+@keyframes bubbleUp { 0% { transform: translate(0, 0); opacity: 0; } 8% { opacity: var(--o); } 50% { transform: translate(var(--sway), -56vh); } 92% { opacity: var(--o); } 100% { transform: translate(0, -112vh); opacity: 0; } }
+.intro-scene { position: relative; z-index: 2; height: 100vh; min-height: 700px; max-width: 1180px; margin: 0 auto; box-sizing: border-box; }
+/* 팻말: 첫 화면 표지판과 같은 재질 — 로그인 창 나무판(panel.webp) 9조각을 작게 쓴다(테두리 폭 22·23·25·24 = 슬라이스 × 0.137). 가로로 짧아도 나사·틀은 모서리 조각이라 안 늘어난다
+   (2026-09-13 시험, renders 296). 글자색은 표지판 그림에서 — 파랑 제목 #2a63b8, 갈색 설명 #7a4a25. 서체 메이플스토리 */
+.tag { display: inline-block; box-sizing: border-box; border-style: solid; border-color: transparent; border-width: 19px 20px 22px 21px; padding: 2px 8px 1px;
+  border-image: url(panel.webp) 160 167 184 170 fill / 1 / 0 stretch; color: #2a63b8; font-family: 'Maplestory', 'Gowun Dodum', sans-serif; font-weight: 700;
+  font-size: 16px; line-height: 1.2; white-space: nowrap; text-align: center; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.3)); transform: rotate(var(--rot, 0deg)); }
+.tag small { display: block; color: #7a4a25; font-weight: 300; font-size: 11px; margin-top: 1px; }
+.tag-title { position: absolute; left: 24px; top: 20px; z-index: 4; font-size: clamp(20px, 2vw, 26px); padding: 5px 12px 4px; border-width: 22px 23px 25px 24px; }
+.tag-key { font-size: clamp(16px, 1.75vw, 23px); padding: 5px 12px 4px; border-width: 22px 23px 25px 24px; white-space: normal; width: max-content; max-width: min(560px, 92vw); }   /* 절대 위치라 width를 주지 않으면 조각 폭의 반에서 줄바꿈된다 */
+.tag-key small { font-size: clamp(12px, 1.1vw, 14px); }
+/* 나침반. 섬은 가운데 44%(중심 48%), 조각은 위·오른쪽·왼쪽 26%, 아래(슬픔) 36%. 옆 조각은 섬 그림의 바다 여백(타원 클립 바깥쪽)에 닿고, 아래 조각은 섬 몸체 바로 밑 — 크롬북 768px 기준.
+   팻말은 조각 아래 가장자리에 반쯤 걸친다(bottom −26px) — 조각을 가리지 않게. 처음(2026-09-13 첫 판)엔 조각 22%에 팻말이 조각을 거의 덮었다(renders 297) */
+.c-isle, .c-piece { position: absolute; margin: 0; z-index: 3; }
+.c-isle { left: 50%; top: 48%; width: 44%; transform: translate(-50%, -50%); }
+.c-isle img, .c-piece img { display: block; width: 100%; height: auto; }
+.c-isle img { clip-path: ellipse(49% 47% at 50% 50%); }
+.c-piece img { clip-path: ellipse(48% 46% at 50% 50%); }
+.c-ha { left: 50%; top: 2vh; width: 26%; transform: translateX(-50%) rotate(-2deg); }
+.c-la { right: 1%; top: 48%; width: 26%; transform: translateY(-50%) rotate(2deg); }
+.c-hv { left: 1%; top: 48%; width: 26%; transform: translateY(-50%) rotate(-2.5deg); }
+.c-lv { left: 50%; bottom: 5vh; width: 36%; transform: translateX(-50%) rotate(1.5deg); z-index: 4; }
+.c-piece .tag { position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%) rotate(var(--rot, 0deg)); }
+.c-lv .tag { bottom: -16px; }
+.c-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+.c-lines line { stroke: #f0c383; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 11; vector-effect: non-scaling-stroke; opacity: 0.55; }
+/* 떠오르기: .in이 붙기 전에는 아래 24px에 투명. 순서는 --d(초) */
+.rise { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease var(--d, 0s), transform 0.7s ease var(--d, 0s); }
+.c-isle.rise { transform: translate(-50%, calc(-50% + 24px)); } .c-ha.rise { transform: translate(-50%, 24px) rotate(-2deg); } .c-la.rise { transform: translateY(calc(-50% + 24px)) rotate(2deg); }
+.c-hv.rise { transform: translateY(calc(-50% + 24px)) rotate(-2.5deg); } .c-lv.rise { transform: translate(-50%, 24px) rotate(1.5deg); }
+.intro.in .rise { opacity: 1; } .intro.in .c-isle { transform: translate(-50%, -50%); } .intro.in .c-ha { transform: translateX(-50%) rotate(-2deg); }
+.intro.in .c-la { transform: translateY(-50%) rotate(2deg); } .intro.in .c-hv { transform: translateY(-50%) rotate(-2.5deg); } .intro.in .c-lv { transform: translateX(-50%) rotate(1.5deg); }
+.intro.in .tag-title.rise { transform: rotate(var(--rot, 0deg)); } .tag-title.rise { transform: translateY(24px) rotate(var(--rot, 0deg)); }
+@media (min-width: 761px) and (max-width: 1000px) and (orientation: portrait) {
+  /* 태블릿 세로: 나침반은 유지하되 폭이 좁으니 비율을 키운다(섬 56%, 옆 24%, 위 30%, 아래 46%) */
+  .c-isle { width: 56%; } .c-ha { width: 30%; top: 14vh; } .c-la, .c-hv { width: 24%; } .c-lv { width: 46%; bottom: 14vh; }   /* 위·아래 조각을 섬 쪽으로 당겨 가운데 빈 물을 줄인다 */
 }
+@media (max-width: 760px) {
+  /* 세로 화면: 나침반이 풀린다. 제목, 섬(폭 88%), 그 아래 조각 넷을 지그재그(활기 왼쪽·평온 오른쪽·슬픔 왼쪽 크게·떨림 오른쪽)로 40px씩 겹쳐 한 화면에 */
+  .intro-scene { height: auto; min-height: 100vh; padding: 3vh 16px 5vh; display: flex; flex-direction: column; }
+  .tag-title { position: static; align-self: flex-start; margin: 0 0 10px 4px; font-size: 19px; }
+  .c-isle, .c-piece { position: static; left: auto; right: auto; top: auto; bottom: auto; transform: none; }   /* .c-piece는 아래에서 relative로 돌아오므로 left·top을 꼭 지운다 */
+  .c-isle { width: 88%; margin: 0 auto; }
+  .c-piece { width: 56%; margin-top: -24px; position: relative; }
+  .c-ha { order: 1; } .c-la { order: 2; } .c-lv { order: 3; margin-top: -6px; } .c-hv { order: 4; }
+  .c-ha { align-self: flex-start; margin-top: -6px; transform: rotate(-2deg); } .c-la { align-self: flex-end; transform: rotate(2deg); }
+  .c-lv { align-self: flex-start; width: 72%; transform: rotate(-1.5deg); } .c-hv { align-self: flex-end; transform: rotate(2deg); }
+  .c-lines { display: none; }
+  .tag { font-size: 15px; border-width: 18px 19px 21px 20px; } .tag small { font-size: 11px; }
+  .c-piece .tag { bottom: -18px; } .c-lv .tag { bottom: -14px; }
+  .rise, .c-isle.rise, .c-ha.rise, .c-la.rise, .c-hv.rise, .c-lv.rise, .tag-title.rise { transform: translateY(24px); }
+  .intro.in .rise { transform: none; } .intro.in .c-ha { transform: rotate(-2deg); } .intro.in .c-la { transform: rotate(2deg); } .intro.in .c-lv { transform: rotate(-1.5deg); } .intro.in .c-hv { transform: rotate(2deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-bg, .bubble { animation: none !important; } .bubble { display: none; }
+  .rise, .intro .rise { opacity: 1 !important; transition: none !important; }
+  .c-isle.rise { transform: translate(-50%, -50%); } .c-ha.rise { transform: translateX(-50%) rotate(-2deg); } .c-la.rise { transform: translateY(-50%) rotate(2deg); }
+  .c-hv.rise { transform: translateY(-50%) rotate(-2.5deg); } .c-lv.rise { transform: translateX(-50%) rotate(1.5deg); } .tag-title.rise { transform: rotate(var(--rot, 0deg)); }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .c-isle.rise, .c-piece.rise, .tag-title.rise { transform: none; } .c-ha.rise { transform: rotate(-2deg); } .c-la.rise { transform: rotate(2deg); } .c-lv.rise { transform: rotate(-1.5deg); } .c-hv.rise { transform: rotate(2deg); } }
+/* 첫 화면 아래 34vh: 모래 바닥이 소개 섹션 맨 위 물색(#1a86ad)으로 녹는다(표지판 뒤, z 2). 끝은 완전 불투명이라 경계에서 위아래 색이 같다.
+   처음(12vh, 0.88)은 짧고 덜 덮어 가로선이 보였다(2026-09-13, renders 303) */
+.hero-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 34vh; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(26,134,173,0) 0%, rgba(26,134,173,0.3) 35%, rgba(26,134,173,0.75) 70%, rgba(26,134,173,1) 100%); }
 .cta-text { transition: color 0.2s ease; }
 .cta-text:hover { color: #0369a1; }
 .cta-text .arrow { transition: transform 0.2s ease; }
@@ -12230,27 +12281,42 @@ function HomeSigns(props) {
     sign(I2, W2, { onClick: props.onTrial, "aria-label": "로그인 없이 체험하기", title: "체험 모드에서는 일기가 저장되지 않습니다" },
       { "--rot": "5deg", "--sway": "4.3s", "--amp": "1.6deg", "--sway-delay": "-1.7s", "--shine": "6s", "--shine-delay": "-2.6s", left: T.x, top: T.y, zIndex: 4, animationDelay: "0.15s" }));
 }
-// 첫 화면 아래 소개(2026-09-10). 장면 1 "섬이 자란다": 같은 시드(시연 학생 건우)의 섬을 마음 말 5가지(건우 일기)·25가지(윤서 일기)로 뽑아
-// 크게 겹쳐 놓는다. 0가지(빈 섬)는 "자란다"가 아니라 "원래 비어 있다"로 읽혀 뺐다. 식생 수는 5가지 60개 → 25가지 79개(꽃 22·물결 10·등불 7).
-// 좌우로 어긋나게 놓고 점선 항로로 잇는다. 섬 크기는 시드로 정해지고 어휘로는 안 변하므로 자란 것은 식생이다.
-// 그림은 renders/harness/shootIsle.js로 뽑은 intro/*.webp(2320×1380, 100KB쯤). 첫 화면 로딩에 안 걸리게 lazy.
+// 소개 섹션 "어떤 마음이든 자란다"(2026-09-13). 배치·움직임은 CSS(.intro …)에, 여기는 구조와 IntersectionObserver뿐.
+// 그림: intro/isle-16.webp(시연 시드 sc=24에 어휘 16가지를 네 영역 4개씩, 2320×1380) + 영역 확대 zoom-ha·la·lv·hv(같은 렌더의 dpr 2에서 잘라냄). 전부 lazy.
+// 팻말 내용은 DESIGN §5 식생 표 그대로 — 활기 꽃·열매나무, 평온 물웅덩이·큰 나무, 슬픔 갈대·흰 들꽃·등불, 떨림 물결·바위.
+// 떠오르기는 뷰에 25% 들어온 순간 .in을 한 번 붙이고 관찰을 끝낸다 — 위아래로 스크롤할 때마다 다시 떠오르면 산만하다.
+var INTRO_BUBBLES = [[8, 14, 13, 0, 0.45, 18], [22, 8, 10, -4, 0.35, -12], [37, 20, 16, -7, 0.5, 26], [55, 11, 12, -2, 0.4, -20], [68, 17, 14, -9, 0.45, 14], [81, 7, 9, -5, 0.3, -24], [91, 12, 15, -1, 0.4, 20]];   // x% · 지름px · 주기s · 지연s · 투명도 · 좌우px
 function IntroSection() {
-  var posts = function (n) { var a = []; for (var i = 0; i < n; i++) a.push(React.createElement("span", { key: i })); return React.createElement("span", { className: "sign-posts" }, a); };
-  return React.createElement("section", { className: "intro", id: "intro" }, React.createElement("div", {
-    className: "intro-scene intro-1", id: "intro-1"
-  }, React.createElement("span", { className: "intro-tag intro-chapter", style: { "--rot": "-3deg" } }, "1 · 섬이 자란다"),
-  React.createElement("figure", { className: "intro-isle intro-isle-a" },
-    React.createElement("img", { src: "intro/isle-5.webp", alt: "마음 말 5가지가 자란 섬", loading: "lazy", width: 2320, height: 1380 }),
-    React.createElement("figcaption", { className: "intro-tag", style: { "--rot": "-4deg" } }, "마음 말 5가지")),
-  React.createElement("svg", { className: "intro-route", viewBox: "0 0 100 100", preserveAspectRatio: "none", "aria-hidden": true },
-    React.createElement("path", { d: "M 44 24 C 50 30, 46 40, 52 46", fill: "none", stroke: "#f0c383", strokeWidth: 3, strokeLinecap: "round",
-      strokeDasharray: "3 12", vectorEffect: "non-scaling-stroke", opacity: 0.9 })),
-  React.createElement("div", { className: "intro-route-v", "aria-hidden": true }),
-  React.createElement("figure", { className: "intro-isle intro-isle-b" },
-    React.createElement("img", { src: "intro/isle-25.webp", alt: "마음 말 25가지가 자란 같은 섬", loading: "lazy", width: 2320, height: 1380 }),
-    React.createElement("figcaption", { className: "intro-tag", style: { "--rot": "3deg", left: "auto", right: "6%" } }, "마음 말 25가지")),
-  React.createElement("div", { className: "intro-sign", style: { "--rot": "-1.5deg" } },
-    React.createElement("span", { className: "sign-board" }, "감정을 표현할 말이 늘어날수록 섬이 자랍니다"), posts(2), React.createElement("span", { className: "sign-shadow" }))));
+  var ref = useRef(null);
+  useEffect(function () {
+    var el = ref.current; if (!el || !("IntersectionObserver" in window)) { if (el) el.classList.add("in"); return; }
+    var io = new IntersectionObserver(function (es) { if (es.some(function (e) { return e.isIntersecting; })) { el.classList.add("in"); io.disconnect(); } }, { threshold: 0.25 });
+    io.observe(el);
+    return function () { io.disconnect(); };
+  }, []);
+  var piece = function (cls, src, w, h, alt, rot, tagRot, d, title, sub) {
+    return React.createElement("figure", { className: "c-piece " + cls + " rise", style: { "--d": d } },
+      React.createElement("img", { src: src, alt: alt, loading: "lazy", width: w, height: h }),
+      React.createElement("figcaption", { className: "tag", style: { "--rot": tagRot } }, title, React.createElement("small", null, sub)));
+  };
+  return React.createElement("section", { className: "intro", id: "intro", ref: ref },
+    React.createElement("div", { className: "intro-bg", "aria-hidden": true }), React.createElement("div", { className: "intro-rays", "aria-hidden": true }),
+    INTRO_BUBBLES.map(function (b, i) { return React.createElement("span", { key: i, className: "bubble", "aria-hidden": true,
+      style: { "--x": b[0] + "%", "--s": b[1] + "px", "--dur": b[2] + "s", "--delay": b[3] + "s", "--o": b[4], "--sway": b[5] + "px" } }); }),
+    React.createElement("div", { className: "intro-scene", id: "intro-grow" },
+      React.createElement("h2", { className: "tag tag-title rise", style: { "--rot": "-2deg", "--d": "0s", margin: 0 } }, "어떤 마음이든 자란다"),
+      React.createElement("svg", { className: "c-lines", viewBox: "0 0 100 100", preserveAspectRatio: "none", "aria-hidden": true },
+        React.createElement("line", { x1: 50, y1: 50, x2: 50, y2: 14 }), React.createElement("line", { x1: 50, y1: 50, x2: 86, y2: 50 }),
+        React.createElement("line", { x1: 50, y1: 50, x2: 50, y2: 86 }), React.createElement("line", { x1: 50, y1: 50, x2: 14, y2: 50 })),
+      React.createElement("figure", { className: "c-isle rise", style: { "--d": "0.1s" } },
+        React.createElement("img", { src: "intro/isle-16.webp", alt: "마음 말 16가지가 네 영역에 고르게 자란 섬", loading: "lazy", width: 2320, height: 1380 })),
+      piece("c-ha", "intro/zoom-ha.webp", 740, 340, "활기 영역: 밝은 꽃과 열매나무", "-2deg", "2deg", "0.25s", "활기", "꽃과 열매나무"),
+      piece("c-la", "intro/zoom-la.webp", 480, 330, "평온 영역: 물웅덩이와 큰 나무", "2deg", "-2deg", "0.35s", "평온", "물웅덩이와 큰 나무"),
+      piece("c-hv", "intro/zoom-hv.webp", 638, 370, "떨림 영역: 물결과 바위", "-2.5deg", "2.5deg", "0.45s", "떨림", "물결과 바위"),
+      React.createElement("figure", { className: "c-piece c-lv rise", style: { "--d": "0.55s" } },
+        React.createElement("img", { src: "intro/zoom-lv.webp", alt: "슬픔 영역: 갈대, 흰 들꽃, 등불", loading: "lazy", width: 976, height: 536 }),
+        React.createElement("figcaption", { className: "tag tag-key", style: { "--rot": "-1.5deg" } }, "슬픈 날을 적어도 섬이 나빠지지 않습니다",
+          React.createElement("small", null, "슬픔 영역에는 갈대와 들꽃, 그리고 등불이 자랍니다")))));
 }
 // 첫 화면 물속에 떠오르는 마음 말(2026-09-12). 이 앱이 감정 어휘를 다룬다는 것이 첫 화면에서 보이게 한다.
 // EMOTIONS_28의 실제 어휘를 Russell 네 영역(활기·평온·슬픔·떨림)에서 번갈아 뽑는다 — 영역마다 목록을 한 번 섞어 두고 차례로 돌리므로
@@ -13520,7 +13586,7 @@ function App() {
     style: { ...shell, background: "#0f3a4c" }
   }, React.createElement("div", {
     className: "home-hero"
-  }, React.createElement(BannerScene, null, React.createElement(HeroWords, null), React.createElement("div", {
+  }, React.createElement(BannerScene, null, React.createElement(HeroWords, null), React.createElement("div", { className: "hero-fade", "aria-hidden": true }), React.createElement("div", {
     // 비네팅. 가운데는 그대로 두고 가장자리로 갈수록 어두워져 화면 밖으로 이어지는 느낌을 만든다
     style: { position: "absolute", inset: 0, pointerEvents: "none",
       background: "radial-gradient(ellipse 72% 62% at 50% 46%, rgba(3,16,32,0) 0%, rgba(3,16,32,0.22) 55%, rgba(3,16,32,0.68) 100%)" }
@@ -13544,7 +13610,7 @@ function App() {
     // 아래로 내려갈 수 있다는 표시. 4초에 한 번 8px 오르내린다. prefers-reduced-motion이면 멈춘다
     className: "scroll-cue", "aria-label": "아래로 내려가기",
     onClick: function () {
-      var el = document.getElementById("intro-1");
+      var el = document.getElementById("intro-grow");
       if (el) el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     }
   }, React.createElement("svg", { width: 34, height: 34, viewBox: "0 0 34 34", "aria-hidden": true, style: { display: "block", filter: "drop-shadow(0 2px 0 #443124)" } },
