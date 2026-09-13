@@ -5660,15 +5660,18 @@ var ISLE = {
   // 볕을 정면으로 받게 되었고, 그 상태로는 붉은 채널이 255에서 잘린다(③-2 목표).
   sand:      [0.84, 0.75, 0.53],   // 따뜻한 모래
   cliff:     [0.50, 0.41, 0.31],   // 진한 흙벽
-  foam:      [0.70, 0.89, 0.89],   // 물가 파도선. 순백이 아니라 물색이 섞인 옅은 청록
+  foam:      [0.88, 0.96, 0.96],   // 물가 파도선. 흰 포말에 가깝게(2026-09-13, 전 0.70/0.89/0.89는 얕은 물 띠 위에서 묻혔다)
   // 사람이 만든 나무(부두·다리·사다리·팻말 기둥·깃대)는 한 계열로 묶는다.
   // 전에 쓰던 0x8a6742는 흙벽(cliff)과 색상이 31도 대 31도로 사실상 같아서,
   // 벽 위를 지나는 다리가 통째로 묻혔다. 명도만 올려도 또 묻히므로
   // 색상 자체를 붉은 쪽으로 옮긴다(약 16도) — 잔디·흙 어느 쪽과도 갈린다.
   wood:      0xb05a3a,
   step:      0x877a63,             // 계단 돌. 흙벽보다 밝되 모래·잔디에 묻히지 않게
-  seaDeep:   0x3ba3bb,             // 보통 날 기준값. buildSea(r, tone)이 밝기·채도를 조절한다
-  seaShallow:0x63c3cc
+  // 바다 세 색(2026-09-13, 첫 화면 배너 물색에서: 물가 #cbece7·얕은 곳 #a0ede8·중간 #3fc8e3~먼 곳 #16a1d7). 보통 날(톤 0.5) 기준값이고
+  // seaToned()가 밝기·채도만 조절한다. 물가색은 해안 띠(seaShade "shore")의 안쪽 끝 — 모래가 비치는 느낌.
+  seaDeep:   0x2fa4c4,
+  seaShallow:0x86d9de,
+  seaShore:  0xcfe9dc
 };
 function lerp3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 // 정점 색은 Color.set을 거치지 않으므로 ColorManagement가 변환해주지 않는다.
@@ -6165,13 +6168,19 @@ function buildIsland(seedStr, opts) {
     }
     return (lo + hi) * 0.5;
   }
-  var fPos = [], fIdx = [];
+  var fPos = [], fIdx = [], fSide = [], fAng = [], sPos = [], sT = [];
+  var seaTone = opts.tone == null ? 0.5 : opts.tone, animFoam = detail >= 0.75;   // 먼 섬(detail 낮음)은 파도선을 안 움직인다
   for (var fj = 0; fj < segs; fj++) {
     var fth = fj / segs * TAU;
     var fr = coast(fth) * waterT(fth);
     var w = 0.085 + 0.045 * Math.sin(fth * 5 + p2) + 0.025 * Math.sin(fth * 9 + p1);
     fPos.push(Math.cos(fth) * (fr - 0.02), 0.03, Math.sin(fth) * (fr - 0.02));
     fPos.push(Math.cos(fth) * (fr + w), 0.03, Math.sin(fth) * (fr + w));
+    fSide.push(0, 1); fAng.push(fth, fth);
+    // 해안 띠: 물가(aT 0)에서 2.4 바깥(aT 1)까지. 같은 해안선 표본이라 섬 모양을 그대로 따른다
+    sPos.push(Math.cos(fth) * (fr - 0.06), 0.012, Math.sin(fth) * (fr - 0.06));
+    sPos.push(Math.cos(fth) * (fr + 2.4), 0.012, Math.sin(fth) * (fr + 2.4));
+    sT.push(0, 1);
   }
   for (var fk = 0; fk < segs; fk++) {
     var i0 = fk * 2, i1 = fk * 2 + 1;
@@ -6180,15 +6189,61 @@ function buildIsland(seedStr, opts) {
   }
   var fg = new THREE.BufferGeometry();
   fg.setAttribute("position", new THREE.Float32BufferAttribute(fPos, 3));
+  fg.setAttribute("aSide", new THREE.Float32BufferAttribute(fSide, 1));   // 0 안쪽(해안), 1 바깥 — 바깥만 숨 쉰다
+  fg.setAttribute("aT", new THREE.Float32BufferAttribute(fSide, 1));      // 투명도 풀기(바깥 끝 0.25)
+  fg.setAttribute("aAng", new THREE.Float32BufferAttribute(fAng, 1));
   fg.setIndex(fIdx);
   fg.computeVertexNormals();
-  var foam = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({
-    // Color(r,g,b)는 sRGB 변환을 거치지 않으므로 직접 선형으로 바꿔 넣는다.
-    color: new THREE.Color().fromArray(s2l(ISLE.foam)),
-    roughness: 0.9, metalness: 0, transparent: true, opacity: 0.68
-  }));
-  foam.renderOrder = 1;
+  var foamMat = function (amp, phase, op) {
+    return seaShade(new THREE.MeshStandardMaterial({
+      // Color(r,g,b)는 sRGB 변환을 거치지 않으므로 직접 선형으로 바꿔 넣는다.
+      color: new THREE.Color().fromArray(s2l(ISLE.foam)),
+      roughness: 0.9, metalness: 0, transparent: true, opacity: op, depthWrite: false
+    }), "foam", { tone: seaTone, amp: animFoam ? amp : 0, phase: phase });
+  };
+  var foam = new THREE.Mesh(fg, foamMat(0.08, 0, 0.82));
+  foam.renderOrder = 2;
   grp.add(foam);
+  if (animFoam) {   // 두 번째 링: 더 넓게, 위상 반대로 — 밀려왔다 나가는 것이 겹쳐 보인다
+    var foam2 = new THREE.Mesh(fg, foamMat(0.16, Math.PI, 0.38));
+    foam2.renderOrder = 2; grp.add(foam2);
+  }
+  var sg = new THREE.BufferGeometry();
+  sg.setAttribute("position", new THREE.Float32BufferAttribute(sPos, 3));
+  sg.setAttribute("aT", new THREE.Float32BufferAttribute(sT, 1));
+  sg.setIndex(fIdx);
+  var sn = []; for (var sk = 0; sk < sT.length; sk++) sn.push(0, 1, 0);
+  sg.setAttribute("normal", new THREE.Float32BufferAttribute(sn, 3));
+  var shore = new THREE.Mesh(sg, seaShade(new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaDeep, seaTone), roughness: 0.74, metalness: 0,
+    transparent: true, depthWrite: false }), "shore", { tone: seaTone, deepBase: true }));
+  shore.receiveShadow = true; shore.renderOrder = 1;
+  grp.add(shore);
+  // 젖은 모래 띠: 해안선에서 안쪽 0.6까지, 지형 높이(height)를 따라 3줄(aT 0·0.5·1)로 깐다. 색은 이 섬 모래의 어두운 판. 젖음은 셰이더(SEA_WET)가 정한다
+  if (animFoam) {
+    var wPos = [], wT = [], wAng = [], wIdx = [], WD = 0.6;
+    for (var wj = 0; wj < segs; wj++) {
+      var wth = wj / segs * TAU, wc = coast(wth), wr0 = wc * waterT(wth);
+      [0, 0.5, 1].forEach(function (d) {
+        var rr = wr0 + 0.02 - d * WD, yy = Math.max(0.012, height(rr / wc, wth) + 0.012);
+        wPos.push(Math.cos(wth) * rr, yy, Math.sin(wth) * rr); wT.push(d); wAng.push(wth);
+      });
+    }
+    for (var wk = 0; wk < segs; wk++) {
+      var a0 = wk * 3, b0 = ((wk + 1) % segs) * 3;
+      for (var q = 0; q < 2; q++) wIdx.push(a0 + q, b0 + q, a0 + q + 1, a0 + q + 1, b0 + q, b0 + q + 1);
+    }
+    var wg = new THREE.BufferGeometry();
+    wg.setAttribute("position", new THREE.Float32BufferAttribute(wPos, 3));
+    wg.setAttribute("aT", new THREE.Float32BufferAttribute(wT, 1));
+    wg.setAttribute("aAng", new THREE.Float32BufferAttribute(wAng, 1));
+    wg.setIndex(wIdx);
+    var wn = []; for (var wq = 0; wq < wT.length; wq++) wn.push(0, 1, 0);
+    wg.setAttribute("normal", new THREE.Float32BufferAttribute(wn, 3));
+    var wet = new THREE.Mesh(wg, seaShade(new THREE.MeshStandardMaterial({ color: new THREE.Color().fromArray(s2l(PAL.sand)).multiplyScalar(0.55),
+      roughness: 0.9, metalness: 0, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), "wet", { tone: seaTone }));
+    wet.receiveShadow = true; wet.renderOrder = 1;
+    grp.add(wet);
+  }
 
   function bandAtLocal(th, lv) {
     var C = coast(th), lo = -1, hi = -1;
@@ -7779,18 +7834,83 @@ function seaToned(hex, tone) {
   c.convertSRGBToLinear();
   return c;
 }
-// 바다. 깊은 바다 위에 얕은 바다를 얹어 물가의 투명감을 낸다.
+// ── 바다 표현(2026-09-13). 텍스처 없이 색·산술만(DESIGN §4). 정점은 안 움직이고, MeshStandardMaterial에 onBeforeCompile로 색 계산
+// 몇 줄만 끼운다 — 조명·그림자·안개·seaToned 톤·안개 보정(calibrateFog)이 그대로 돈다. 시간 uniform은 프레임당 한 번(SEA_UNI.uTime), 섬 수와 무관.
+//   deep    깊은 물 원판: 잔물결(사인파 셋, 파장 2.6·4.3·7.0, 초당 0.25쯤, 밝기 ±9% — 2026-09-13 저녁 ±4%에서 올림: 정지 화면에서 안 보였다) + 반짝임(사인 곱 20제곱·0.45, 빛 쪽 마스크)
+//   shore   해안 띠(buildIsland, 해안선 표본 waterT 그대로): aT 0(물가)→1(바깥). 물가색→얕은색→깊은색, 바깥 끝은 투명하게 풀어 깊은 물과 이어진다
+//   radial  바다 화면의 섬마다 깔리는 얕은 물 인스턴스(원): 원 중심 거리로 같은 그라데이션. 대용 섬은 해안선이 없어 이것만
+//   foam    파도선 링: 띠 전체가 해안 각도마다 위상을 달리해(aAng×2) 5초 주기로 섬 쪽으로 0.18 밀려들었다 물러나고, 밀려들 때 모래 위로 0.10 떠서 짙어진다.
+//           바깥 가장자리 폭도 같이 숨 쉰다. 링 둘을 위상 반대로 — 한쪽에서 다른 쪽으로 파도가 흘러가는 것처럼 보인다
+// 무거운 날(톤↓)은 물결 진폭·반짝임이 같이 준다(uTone). 정점 셰이더는 foam만 건드리므로 그림자 지도는 그대로 맞는다.
+//   caustic 해안 띠 얕은 곳의 빛 무늬: 사인 둘을 교차시킨 그물, 천천히 일렁이고 깊어질수록(aT 0.15→0.75) 사라진다. 첫 화면 배너의 바닥 무늬와 톤이 이어진다
+//   wet     젖은 모래 띠(buildIsland): 해안선 안쪽 0.6까지 지형 높이를 따라 깔린 링. 포말과 같은 위상의 파도 앞선(front)이 닿은 곳이 어두워지고,
+//           1.5초 늦은 두 번째 앞선을 겹쳐 포말이 물러난 뒤에도 잠깐 젖은 채 있다가 마른다
+// 스위치 SEA_FX: URL 해시 #ripple=0 #sparkle=0 #foam=0 #caustic=0 #wet=0, #seafx=0(전부 끔), #fxauto=0(자동 축소 끔). 학교 크롬북에서 느리면 바로 끌 수 있게.
+// 자동 축소: 두 화면 tick()이 fps를 잰 값이 시작 5초 뒤부터 3초 연속(500ms×6) SEA_FX_AUTO.below 미만이면 uniform 셋을 0으로(seaFxNote) —
+// 재질을 다시 만들지 않고 즉시 꺼지고 HUD에 auto-off로 뜬다. 기준 20은 크롬북 실측 21fps(2026-09-07, 흙길·베벨·소품 전) 바로 아래.
+var SEA_FX = { ripple: 1, sparkle: 1, foam: 1, caustic: 1, wet: 1, auto: 1 };
+(function () { try {
+  var h = window.location.hash || "", m;
+  if (/(?:^|[#&])seafx=0/.test(h)) SEA_FX.ripple = SEA_FX.sparkle = SEA_FX.foam = SEA_FX.caustic = SEA_FX.wet = 0;
+  var re = /(?:^|[#&])(ripple|sparkle|foam|caustic|wet|fxauto)=(\d)/g;
+  while ((m = re.exec(h))) SEA_FX[m[1] === "fxauto" ? "auto" : m[1]] = parseInt(m[2], 10) ? 1 : 0;
+} catch (e) {} })();
+var SEA_UNI = { uTime: { value: 0 }, uRipple: { value: SEA_FX.ripple }, uSparkle: { value: SEA_FX.sparkle }, uFoam: { value: SEA_FX.foam },
+                uCaustic: { value: SEA_FX.caustic }, uWet: { value: SEA_FX.wet },
+                uLightDir: { value: new THREE.Vector2(-12, 3).normalize() } };   // LIGHT.keyDir의 xz — 반짝임은 빛이 오는 쪽에
+function seaFxApply() { SEA_UNI.uRipple.value = SEA_FX.ripple; SEA_UNI.uSparkle.value = SEA_FX.sparkle; SEA_UNI.uFoam.value = SEA_FX.foam; SEA_UNI.uCaustic.value = SEA_FX.caustic; SEA_UNI.uWet.value = SEA_FX.wet; }
+var SEA_FX_AUTO = { below: 20, need: 6, hits: 0, low: false, t0: (typeof performance !== "undefined" ? performance.now() : 0) };
+function seaFxNote(fps) {
+  if (!SEA_FX.auto || SEA_FX_AUTO.low || performance.now() - SEA_FX_AUTO.t0 < 5000) return;
+  if (fps < SEA_FX_AUTO.below) { if (++SEA_FX_AUTO.hits >= SEA_FX_AUTO.need) { SEA_FX_AUTO.low = true; SEA_FX.ripple = SEA_FX.sparkle = SEA_FX.foam = SEA_FX.caustic = SEA_FX.wet = 0; seaFxApply(); } }
+  else SEA_FX_AUTO.hits = 0;
+}
+function seaFxText() { return SEA_FX_AUTO.low ? "fx auto-off" : "fx ripple=" + SEA_FX.ripple + " sparkle=" + SEA_FX.sparkle + " foam=" + SEA_FX.foam + " caustic=" + SEA_FX.caustic + " wet=" + SEA_FX.wet; }
+if (typeof window !== "undefined") window.__seafx = { fx: SEA_FX, uni: SEA_UNI, apply: seaFxApply, auto: SEA_FX_AUTO };
+// 톤이 바뀌면(바다 화면 setSea) 해안 띠·얕은 물의 색 uniform도 따라가야 한다. 재질을 등록해 두고 seaRetone(tone)이 돈다. dispose되면 빠진다.
+var SEA_MATS = new Set();
+// 물가·얕은 물은 톤 반응을 절반만: 밝은 날(0.85)에 seaToned 그대로 쓰면 거의 흰색이 되어 섬이 우유 위에 뜬 것처럼 보였다(2026-09-13)
+function seaTonedSoft(hex, tone) { return seaToned(hex, 0.5 + (tone - 0.5) * 0.5); }
+function seaRetone(tone) {
+  var t = tone == null ? 0.5 : Math.max(0, Math.min(1, tone));
+  SEA_MATS.forEach(function (m) {
+    var u = m.userData.su; if (!u) return;
+    u.uTone.value = t;
+    if (u.uShallow) u.uShallow.value.copy(seaTonedSoft(ISLE.seaShallow, t));
+    if (u.uShore) u.uShore.value.copy(seaTonedSoft(ISLE.seaShore, t));
+    if (m.userData.deepBase) m.color.copy(seaToned(ISLE.seaDeep, t));
+  });
+}
+var SEA_GLSL = {
+  common: "\nuniform float uTime, uRipple, uSparkle, uFoam, uCaustic, uWet, uTone, uLitDir, uAmp, uPhase; uniform vec2 uLightDir; uniform vec3 uShallow, uShore;\nvarying vec3 vWp; varying vec2 vLp; varying float vT, vBr, vAng;\n",
+  vtx: "\n#include <begin_vertex>\n{ vec3 sp = transformed;\n#ifdef SEA_FOAM\n  float ph = uTime * 1.26 + aAng * 2.0 + uPhase; float push = sin(ph); vBr = push;\n  vec2 nrm = normalize(sp.xz + 1e-5);\n  sp.xz += nrm * (push * 0.18 + aSide * uAmp * (0.5 + 0.5 * sin(ph + 1.2))) * uFoam;\n  sp.y += 0.10 * max(0.0, -push) * uFoam; transformed = sp;\n#endif\n#ifdef SEA_T\n  vT = aT;\n#endif\n#ifdef SEA_ANG\n  vAng = aAng;\n#endif\n  vLp = sp.xz; vec4 wp4 = vec4(sp, 1.0);\n#ifdef USE_INSTANCING\n  wp4 = instanceMatrix * wp4;\n#endif\n  vWp = (modelMatrix * wp4).xyz; }\n",
+  frag: "\n#include <color_fragment>\n{ float tm = uTime;\n  float w1 = sin((vWp.x * 0.62 + vWp.z * 0.41) * 2.4 + tm * 0.6);\n  float w2 = sin((vWp.x * -0.35 + vWp.z * 0.71) * 1.45 - tm * 0.4);\n  float w3 = sin((vWp.x * 0.2 + vWp.z * 0.9) * 0.9 + tm * 0.25);\n  float rip = (w1 * 0.5 + w2 * 0.35 + w3 * 0.3) * 0.09 * (0.4 + 1.2 * uTone) * uRipple;\n#ifdef SEA_SHORE\n  vec3 c = mix(uShore, uShallow, smoothstep(0.0, 0.45, vT)); c = mix(c, diffuseColor.rgb, smoothstep(0.35, 1.0, vT));\n  diffuseColor.rgb = c; diffuseColor.a = 1.0 - smoothstep(0.7, 1.0, vT); rip *= 0.6;\n  float c1 = sin(vWp.x * 3.1 + tm * 0.35) * sin(vWp.z * 2.7 - tm * 0.28);\n  float c2 = sin((vWp.x + vWp.z) * 2.2 - tm * 0.3) * sin((vWp.x - vWp.z) * 2.6 + tm * 0.22);\n  float ca = (pow(max(c1, 0.0), 3.0) + pow(max(c2, 0.0), 3.0)) * (1.0 - smoothstep(0.15, 0.75, vT));\n  diffuseColor.rgb += ca * 0.16 * (0.4 + 1.2 * uTone) * uCaustic;\n#endif\n#ifdef SEA_WET\n  float wph = uTime * 1.26 + vAng * 2.0;\n  float f1 = 0.3 * max(0.0, -sin(wph)), f2 = 0.3 * max(0.0, -sin(wph - 1.5));   /* 파도 앞선(해안 안쪽 깊이 비율)과 1.5초 늦은 앞선 */\n  float w1 = clamp(1.0 - (vT - f1) / 0.22, 0.0, 1.0), w2 = clamp(1.0 - (vT - f2) / 0.22, 0.0, 1.0);\n  float wet = max(w1, 0.75 * w2) * (1.0 - smoothstep(0.8, 1.0, vT));\n  diffuseColor.a = wet * 0.5 * uWet;\n#endif\n#ifdef SEA_RADIAL\n  float rr = length(vLp) / 8.6; vec3 c = mix(uShallow, diffuseColor.rgb, smoothstep(0.45, 1.0, rr));\n  diffuseColor.rgb = c; diffuseColor.a = 1.0 - smoothstep(0.85, 1.0, rr); rip *= 0.6;\n#endif\n#if defined(SEA_FOAM)\n  diffuseColor.a *= (1.0 - 0.75 * vT) * (0.75 - 0.25 * vBr);   /* 밀려들 때(vBr<0) 짙고 물러날 때 옅게 */\n#elif defined(SEA_WET)\n#else\n  diffuseColor.rgb *= 1.0 + rip;\n  float sp = sin(vWp.x * 7.1 + tm * 0.9) * sin(vWp.z * 6.3 - tm * 0.7) * sin((vWp.x + vWp.z) * 4.7 + tm * 0.5);\n  sp = pow(max(sp, 0.0), 20.0) * (0.55 + 0.45 * sin(vWp.x * 0.9 + vWp.z * 0.7 + tm * 0.3));\n  float lit = mix(0.7, smoothstep(-0.2, 1.0, dot(normalize(vWp.xz + 1e-4), uLightDir)), uLitDir);\n  diffuseColor.rgb += sp * lit * 0.45 * (0.3 + 1.4 * uTone) * uSparkle;\n#endif\n}\n"
+};
+// kind: "deep" | "shore" | "radial" | "foam". o: { tone, litDir(깊은 물: 원점 기준 빛 쪽 마스크 1/0), amp·phase(foam), deepBase(톤 바뀔 때 color도 갱신) }
+function seaShade(mat, kind, o) {
+  o = o || {}; var t = o.tone == null ? 0.5 : Math.max(0, Math.min(1, o.tone));
+  var u = { uTone: { value: t }, uLitDir: { value: o.litDir ? 1 : 0 }, uAmp: { value: o.amp || 0.08 }, uPhase: { value: o.phase || 0 },
+            uShallow: { value: seaTonedSoft(ISLE.seaShallow, t) }, uShore: { value: seaTonedSoft(ISLE.seaShore, t) } };
+  mat.userData.su = u; mat.userData.deepBase = !!o.deepBase;
+  mat.onBeforeCompile = function (sh) {
+    for (var k in u) sh.uniforms[k] = u[k];
+    for (var k2 in SEA_UNI) sh.uniforms[k2] = SEA_UNI[k2];
+    var def = kind === "foam" ? "#define SEA_FOAM\n#define SEA_T\nattribute float aSide, aAng, aT;\n" : kind === "shore" ? "#define SEA_SHORE\n#define SEA_T\nattribute float aT;\n" : kind === "radial" ? "#define SEA_RADIAL\n" : kind === "wet" ? "#define SEA_WET\n#define SEA_T\n#define SEA_ANG\nattribute float aT, aAng;\n" : "";
+    sh.vertexShader = def + SEA_GLSL.common + sh.vertexShader.replace("#include <begin_vertex>", SEA_GLSL.vtx);
+    sh.fragmentShader = (kind === "foam" ? "#define SEA_FOAM\n" : kind === "shore" ? "#define SEA_SHORE\n" : kind === "radial" ? "#define SEA_RADIAL\n" : kind === "wet" ? "#define SEA_WET\n" : "") + SEA_GLSL.common + sh.fragmentShader.replace("#include <color_fragment>", SEA_GLSL.frag);
+  };
+  mat.customProgramCacheKey = function () { return "sea-" + kind; };
+  SEA_MATS.add(mat); mat.addEventListener("dispose", function () { SEA_MATS.delete(mat); });
+  return mat;
+}
+// 바다. 깊은 물 원판 하나 — 얕은 물은 섬마다 해안 띠(buildIsland)가 맡는다(2026-09-13, 전에는 원판 위에 원 하나를 더 얹어 후광처럼 보였다).
 function buildSea(radius, tone) {
   var t = tone == null ? 0.5 : Math.max(0, Math.min(1, tone));
   var sea = new THREE.Group();
   var deep = new THREE.Mesh(new THREE.CircleGeometry(radius, 64),
-    new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaDeep, t), roughness: 0.72, metalness: 0 }));
+    seaShade(new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaDeep, t), roughness: 0.72, metalness: 0 }), "deep", { tone: t, litDir: 1, deepBase: true }));
   deep.rotation.x = -Math.PI / 2; deep.position.y = -0.02; deep.receiveShadow = true;
   sea.add(deep);
-  var shallow = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.42, 64),
-    new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaShallow, t), roughness: 0.78, metalness: 0, transparent: true, opacity: 0.82 }));
-  shallow.rotation.x = -Math.PI / 2; shallow.position.y = 0.01; shallow.receiveShadow = true;
-  sea.add(shallow);
   sea.userData.tone = t;
   return sea;
 }
@@ -7879,13 +7999,14 @@ function buildSeaWide(tone, spots) {
   var sea = new THREE.Group();
   var deepC = seaToned(ISLE.seaDeep, t);
   var deep = new THREE.Mesh(new THREE.CircleGeometry(420, 48),
-    new THREE.MeshStandardMaterial({ color: deepC, roughness: 0.72, metalness: 0 }));
+    seaShade(new THREE.MeshStandardMaterial({ color: deepC, roughness: 0.72, metalness: 0 }), "deep", { tone: t, litDir: 0, deepBase: true }));
   deep.rotation.x = -Math.PI / 2; deep.position.y = -0.02; deep.receiveShadow = true;
   deep.frustumCulled = false;
   sea.add(deep);
+  // 섬마다 얕은 물(원, 반지름 8.6). 원 중심 거리로 얕은색→깊은색, 가장자리는 투명. 대용 섬은 이것만, 온전한 섬은 위에 해안 띠가 더 얹힌다
   var sh = new THREE.InstancedMesh(new THREE.CircleGeometry(8.6, 40).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: seaToned(ISLE.seaShallow, t), roughness: 0.78, metalness: 0,
-      transparent: true, opacity: 0.82 }), spots.length);
+    seaShade(new THREE.MeshStandardMaterial({ color: deepC.clone(), roughness: 0.78, metalness: 0, transparent: true, depthWrite: false }),
+      "radial", { tone: t, deepBase: true }), spots.length);
   var mm = new THREE.Matrix4();
   spots.forEach(function (p, i) { sh.setMatrixAt(i, mm.makeTranslation(p.x, 0.01, p.z)); });
   sh.instanceMatrix.needsUpdate = true;
@@ -8232,7 +8353,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var lay = fleetLayout(FLEET), fs = fleetStates(FLEET), totalVocab = 0;
       scene.add(buildSea(Math.max(30 * ISLE_K, lay[lay.length - 1].x + 40 * ISLE_K), seaTone == null ? 0.5 : seaTone));
       for (var fi = 0; fi < FLEET; fi++) {
-        var gI = buildIsland(fs[fi].seed);
+        var gI = buildIsland(fs[fi].seed, { tone: seaTone == null ? 0.5 : seaTone });
         gI.position.set(lay[fi].x, 0, lay[fi].z);
         scene.add(gI);
         var vg = buildVegMeshes(buildVegetation(gI, fs[fi].state, { seed: fs[fi].seed }));
@@ -8243,7 +8364,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       setVocab(totalVocab);
     } else {
       scene.add(buildSea(15 * ISLE_K, seaTone == null ? 0.5 : seaTone));
-      var isleGrp = buildIsland(seed || "island");
+      var isleGrp = buildIsland(seed || "island", { tone: seaTone == null ? 0.5 : seaTone });
       scene.add(isleGrp);
       var st = state || islandState(entries);
       // 식생은 어휘 전체로 놓고, 가린 어휘는 친구에게만 뺀다. 놓기 전에 빼면
@@ -8531,6 +8652,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       if (disposed) return;
       raf = requestAnimationFrame(tick);
       var t0 = performance.now();
+      SEA_UNI.uTime.value = t0 / 1000;   // 바다 물결·반짝임·파도선 시간(프레임당 한 번)
       // 탭을 다시 열면 dt가 몇 초로 튄다. 그대로 쓰면 캐릭터가 순간이동한다.
       if (ffGrp) ffGrp.userData.at(t0 / 1000);
       if (docking) {
@@ -8619,6 +8741,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var now = performance.now();
       if (now - last >= 500) {
         setFps(Math.round(frames * 1000 / (now - last)));
+        seaFxNote(Math.round(frames * 1000 / (now - last)));
         if (noteFpsRef.current) noteFpsRef.current(Math.round(frames * 1000 / (now - last)));
         // 크롬북에서 원인을 가르려면 fps만으로 부족하다.
         // 드로우콜이 많으면 CPU, 삼각형이 많으면 GPU 쪽이다.
@@ -8684,7 +8807,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     React.createElement("div", {
       style: { position: "absolute", left: 10, top: 10, padding: "3px 9px", borderRadius: 8, background: "rgba(255,255,255,0.82)", fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums" }
     }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
-        "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri") : null),
+        "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri  ·  " + seaFxText()) : null),
     fleetN > 0 ? React.createElement("div", {
       style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,214,102,0.9)", fontSize: 12, color: "#6b4a00" }
@@ -9562,6 +9685,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     function setSea(tone, spots) {
       if (seaGrp) { scene.remove(seaGrp); disposeObj(seaGrp); }
       seaGrp = buildSeaWide(tone, spots);
+      seaRetone(tone);   // 이미 서 있는 섬들의 해안 띠·파도선 색도 새 톤으로
       scene.add(seaGrp);
       if (O.fog) { scene.fog = new THREE.Fog(seaGrp.userData.fogColor, CAM_DIST + 8, CAM_DIST + 40); calibrateFog(); }   // 카드 B
     }
@@ -9610,7 +9734,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     function ensureFull(e, det) {
       if (e.full && e.det >= det) return;
       if (e.full) { e.holder.remove(e.full); disposeObj(e.full); e.full = null; }
-      var g = buildIsland(e.seed, { detail: det });
+      var g = buildIsland(e.seed, { detail: det, tone: seaGrp ? seaGrp.userData.tone : 0.5 });
       var h = new THREE.Group();
       h.add(g);
       h.add(buildVegMeshes(buildVegetation(g, e.state, { seed: e.seed })));
@@ -9866,6 +9990,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       raf = requestAnimationFrame(tick);
       var t0 = performance.now(), dt = Math.min(0.05, (t0 - lastT) / 1000);
       lastT = t0;
+      SEA_UNI.uTime.value = t0 / 1000;
       if (intro) {
         var u = Math.min(1, (t0 - intro.t0) / intro.dur), eo = 1 - (1 - u) * (1 - u);
         boatAt(intro.from + (intro.to - intro.from) * eo);
@@ -9944,6 +10069,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       var now = performance.now();
       if (now - last >= 500) {
         setFps(Math.round(frames * 1000 / (now - last)));
+        seaFxNote(Math.round(frames * 1000 / (now - last)));
         var ri = renderer.info.render;
         setStats({ calls: ri.calls, tris: ri.triangles });
         frames = 0; last = now;
@@ -9999,7 +10125,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
                fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums", lineHeight: 1.5 }
     }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
         "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri") : null,
-      React.createElement("div", { style: { fontSize: 11, color: "#7a8f9a", fontFamily: "ui-monospace, Menlo, monospace" } }, seaCardText(cards))),
+      React.createElement("div", { style: { fontSize: 11, color: "#7a8f9a", fontFamily: "ui-monospace, Menlo, monospace" } }, seaCardText(cards) + "  " + seaFxText())),
     React.createElement("style", null, "@keyframes seaCover{from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0 0 0 0)}}"),
     cover ? React.createElement("div", {
       style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6,
