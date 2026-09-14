@@ -8339,52 +8339,111 @@ function fireflySpots(list, plants) {
 // 화면을 다녀와도 캐릭터가 그 자리에 있어야 한다. 랜드마크 앞에서 일기를
 // 쓰고 돌아왔는데 처음 자리로 되돌아가 있으면 다시 걸어가야 한다.
 var CHAR_LAST = {};
-// ── 사운드 (2026-09-07) ──
-// 기본 음소거. 3D 화면 오른쪽 위의 버튼으로 켜고, 선택은 기기에 남는다(localStorage snd=on).
-// 파일은 sounds/<이름>.ogg 와 .m4a 두 벌. <audio>가 재생 가능한 첫 <source>를 고르고, 없는 파일은 다음 <source>로 넘어간다.
-// 파일이 하나도 없어도 조용히 지나간다 — 소리는 있으면 좋은 것이지 없으면 안 되는 것이 아니다.
-// CC0만 쓰고 출처는 sounds/CREDITS.md에 적는다.
+// ── 사운드 (2026-09-07 · 2026-09-14 실제 파일에 맞춤) ──
+// 기본 음소거 — 교실에서 25명이 동시에 켜지면 안 된다. 3D 화면 오른쪽 위의 버튼으로 켜고, 선택은 기기에 남는다(localStorage snd=on).
+// 파일은 sounds/ 의 mp3 셋: 배경음(56초 루프)·발걸음(11초, 발자국 여러 개가 들어 있어 걷는 동안 루프)·전환음(1.5초, 잠수·광장·바다 공통).
+// <audio>는 소리를 켜야 처음 만든다 — 음소거면 mp3를 한 바이트도 받지 않는다(배경음 1.1MB, 크롬북 첫 로딩). 파일이 없어도 조용히 지나간다.
+// 브라우저 autoplay 정책: 첫 상호작용 전에는 play()가 거부된다. 소리 버튼 클릭이 그 첫 상호작용이다(클릭 안에서 바로 play). 켠 채로
+// 새로고침하면 마운트 때의 play()가 거부되므로, 다음 키·포인터 입력 때 한 번 다시 튼다(armRetry).
+// 음량(2026-09-14 실측): 배경음 가장 큰 0.1초 −19 dB·중앙값 −39 dB, 발걸음 가장 큰 0.1초 −39 dB(파일이 작다), 전환음 피크 0 dB.
+//  배경 0.30(−10.5 dB → 큰 구간 −29)·전환 0.10(−20 dB → 큰 구간 −27, 배경의 큰 구간과 같은 높이라 덮지 않는다)·발걸음 1.0(−39, 배경 중앙값과 큰 구간 사이).
+// CC0만 쓰고 출처는 CREDITS.md에 적는다.
 var SND = {
-  cfg: { waves: { loop: true, vol: 0.35 }, step1: { vol: 0.45 }, step2: { vol: 0.45 }, step3: { vol: 0.45 },
-         dive: { vol: 0.7 }, sail: { vol: 0.5 }, tap: { vol: 0.4 } },
-  els: {}, loopEl: null, loopName: null,
+  cfg: { bgm:   { src: "sounds/piano_loop.mp3", loop: true, vol: 0.30 },
+         steps: { src: "sounds/step.mp3",       loop: true, vol: 1.0 },
+         woosh: { src: "sounds/woosh.mp3",      vol: 0.10 } },
+  els: {}, loopEl: null, loopName: null, holdEl: null, leaveTm: 0, retryArmed: false, subs: [],
   on: function () { try { return localStorage.getItem("snd") === "on"; } catch (e) { return false; } },
+  // 버튼이 보여 주는 것은 저장값이 아니라 실제 재생 상태다(2026-09-14). 켠 채 새로고침하면 autoplay 정책으로 재생이 거부되는데,
+  // 그때 "켜짐"으로 보이면 고장처럼 보인다. 배경음 <audio>의 playing/pause 이벤트로 구독자(SndBtn)에게 알린다.
+  playing: function () { return SND.on() && !!SND.loopEl && !SND.loopEl.paused; },
+  sub: function (f) { SND.subs.push(f); },
+  unsub: function (f) { SND.subs = SND.subs.filter(function (g) { return g !== f; }); },
+  emit: function () { SND.subs.forEach(function (f) { try { f(); } catch (e) {} }); },
   set: function (on) {
     try { if (on) localStorage.setItem("snd", "on"); else localStorage.removeItem("snd"); } catch (e) {}
-    if (!on) SND.stopLoop(); else if (SND.loopName) SND.loop(SND.loopName);
+    if (!on) { SND.stopLoop(); SND.release(); SND.emit(); return; }
+    // 켜는 클릭 안에서 바로 튼다(autoplay 해제). 효과음은 미리 받아 두어 첫 전환·첫 걸음이 조용하지 않게 한다(48KB·220KB)
+    if (SND.loopName) SND.loop(SND.loopName);
+    SND.el("woosh"); SND.el("steps");
+    SND.emit();
   },
   el: function (name) {
     if (SND.els[name]) return SND.els[name];
-    var a = document.createElement("audio"); a.preload = "auto";
-    [["ogg", "audio/ogg"], ["m4a", "audio/mp4"]].forEach(function (f) {
-      var src = document.createElement("source"); src.src = "sounds/" + name + "." + f[0]; src.type = f[1]; a.appendChild(src);
-    });
-    var c = SND.cfg[name] || {}; a.loop = !!c.loop; a.volume = c.vol == null ? 0.5 : c.vol;
+    var c = SND.cfg[name]; if (!c) return null;
+    var a = document.createElement("audio"); a.preload = "auto"; a.src = c.src;
+    a.loop = !!c.loop; a.volume = c.vol == null ? 0.5 : c.vol;
+    if (name === "bgm") ["playing", "pause", "ended"].forEach(function (ev) { a.addEventListener(ev, SND.emit); });   // 실제 재생 상태 → 버튼
     SND.els[name] = a; return a;
   },
+  // 한 번 소리(전환음). 이미 나는 중이면 처음부터 다시
   play: function (name, rate) {
     if (!SND.on()) return;
-    try { var a = SND.el(name); a.currentTime = 0; a.playbackRate = rate || 1; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    try { var a = SND.el(name); if (!a) return; a.currentTime = 0; a.playbackRate = rate || 1; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
   },
-  // 배경음. 화면이 바뀌어도 이름을 기억해 두었다가, 소리를 켜는 순간 이어서 튼다.
+  // 배경음. 3D 화면(내 섬·친구 섬·바다·광장)마다 마운트 때 부른다. 화면이 바뀌어도 이름을 기억해 두었다가, 소리를 켜는 순간 이어서 튼다.
+  // 같은 <audio> 하나를 계속 쓰므로 화면을 옮겨도 처음부터 다시 나거나 두 겹으로 나지 않는다. leave()가 미뤄 둔 정지는 여기서 취소한다.
   loop: function (name) {
     SND.loopName = name;
+    if (SND.leaveTm) { clearTimeout(SND.leaveTm); SND.leaveTm = 0; }
     if (!SND.on()) return;
     try {
-      var a = SND.el(name);
+      var a = SND.el(name); if (!a) return;
       if (SND.loopEl && SND.loopEl !== a) SND.loopEl.pause();
       SND.loopEl = a;
-      if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
+      if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () { SND.armRetry(); SND.emit(); }); }
+      SND.el("woosh"); SND.el("steps");   // 켠 채로 새로고침한 경우에도 효과음을 미리 받아 둔다
     } catch (e) {}
   },
-  stopLoop: function () { if (SND.loopEl) { try { SND.loopEl.pause(); } catch (e) {} } SND.loopEl = null; },
-  leave: function () { SND.stopLoop(); SND.loopName = null; }
+  stopLoop: function () { if (SND.loopEl) { try { SND.loopEl.pause(); } catch (e) {} } SND.loopEl = null; SND.emit(); },
+  // 3D 화면을 떠날 때. 다음 화면도 3D면 그 마운트가 0.3초 안에 loop()를 다시 불러 배경음이 끊기지 않는다. 일기 화면으로 가면 그대로 멎는다.
+  leave: function () {
+    SND.release();
+    if (SND.leaveTm) clearTimeout(SND.leaveTm);
+    SND.leaveTm = setTimeout(function () { SND.leaveTm = 0; SND.stopLoop(); SND.loopName = null; }, 300);
+  },
+  // 누르는 동안 나는 소리(발걸음). 걷기 시작하면 루프로 틀고 멈추면 끈다 — 발과 소리를 맞추지 않는다.
+  hold: function (name) {
+    if (!SND.on()) return;
+    try { var a = SND.el(name); if (!a) return; if (SND.holdEl && SND.holdEl !== a) SND.holdEl.pause(); SND.holdEl = a;
+          if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+  },
+  release: function () { if (SND.holdEl) { try { SND.holdEl.pause(); SND.holdEl.currentTime = 0; } catch (e) {} } SND.holdEl = null; },
+  // 켠 채로 새로고침: 첫 입력 때 배경음을 다시 튼다
+  armRetry: function () {
+    if (SND.retryArmed) return;
+    SND.retryArmed = true;
+    var fire = function () {
+      window.removeEventListener("pointerdown", fire, true); window.removeEventListener("keydown", fire, true);
+      SND.retryArmed = false;
+      if (SND.on() && SND.loopName) SND.loop(SND.loopName);
+    };
+    window.addEventListener("pointerdown", fire, true); window.addEventListener("keydown", fire, true);
+  }
 };
-// 소리 버튼. 3D 화면마다 오른쪽 위 버튼 아래에 선다.
-function SndBtn({ top, small }) {
-  const [on, setOn] = useState(SND.on());
+// 작은 나무 팻말 모양(2026-09-14). 3D 팻말 아래 [스페이스] 표시와 첫 화면 소리 버튼이 같이 쓴다 — 팻말과 같은 나무 톤(붉은 틀·밝은 판·어두운 갈색 글자).
+var WOOD_TAG = { borderRadius: 7, border: "2px solid #b05a3a", background: "#e7cc92", color: "#4a3a24", fontWeight: 700, lineHeight: 1.3,
+                 whiteSpace: "nowrap", boxShadow: "0 2px 5px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,248,230,0.45)" };
+// 소리 버튼. 3D 화면마다 오른쪽 위 버튼 아래에 선다. 이 클릭이 autoplay를 푸는 첫 상호작용이다 — 켜는 순간 배경음이 클릭 안에서 바로 시작한다.
+// wood: 첫 화면용 작은 나무 팻말 모양(WOOD_TAG). 첫 화면은 나무 간판·물속 배경이라 흰 알약이 겉돌았다(2026-09-14). 3D 화면 버튼은 그대로다.
+// 켜짐/꺼짐: 아이콘(🔊/🔇)이 바뀌고, 꺼지면 판이 흐려진다(opacity 0.72) — 글자만으로는 멀리서 안 갈리고, 색을 바꾸면 나무 톤을 벗어난다.
+// 표시는 실제 재생 상태(SND.playing)다. 켠 채 새로고침해 재생이 거부됐으면 "꺼짐"으로 보이고, 누르면 그 클릭 안에서 재생이 시작되며
+// playing 이벤트로 "켜짐"이 된다. 다음 입력 때 저절로 재생되는 경우(armRetry)에도 같은 이벤트로 표시가 따라간다.
+function SndBtn({ top, small, wood }) {
+  const [on, setOn] = useState(SND.playing());
+  useEffect(function () {
+    var f = function () { setOn(SND.playing()); };
+    SND.sub(f); f();
+    return function () { SND.unsub(f); };
+  }, []);
+  if (wood) return React.createElement("button", {
+    onClick: function () { SND.set(!on); },
+    title: on ? "소리 끄기" : "소리 켜기",
+    style: { ...WOOD_TAG, position: "absolute", right: 14, top: top == null ? 14 : top, zIndex: 5, padding: "5px 12px", fontSize: 13, cursor: "pointer",
+             fontFamily: HOME_FONT.body, opacity: on ? 1 : 0.72, transition: "opacity 0.2s" }
+  }, on ? "🔊 소리" : "🔇 소리");
   return React.createElement("button", {
-    onClick: function () { var nv = !on; SND.set(nv); setOn(nv); if (nv) SND.play("tap"); },
+    onClick: function () { SND.set(!on); },
     title: on ? "소리 끄기" : "소리 켜기",
     style: { position: "absolute", right: 10, top: top == null ? 46 : top, ...bSoft, padding: "5px 11px", fontSize: small ? 12 : 13,
              color: on ? "#0e7490" : "#7a8f9a", border: on ? "1px solid #99d8c9" : "1px solid #dbe6ea" }
@@ -8503,7 +8562,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.VSMShadowMap;   // 부드러운 가장자리(2026-09-13). addIsleLights의 radius·blurSamples가 세기
     host.appendChild(renderer.domElement);
-    SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
+    SND.loop("bgm");   // 배경음. 음소거면 이름만 기억한다. 3D 화면끼리 옮겨도 같은 <audio>가 이어진다
 
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
@@ -8616,7 +8675,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
     var keys = {}, dbgMarks = null;
-    var walkT = 0, faceDir = Math.PI * 0.75, stepT = 0, stepN = 0;
+    var walkT = 0, faceDir = Math.PI * 0.75, wasMoving = false;
     function walk(dt) {
       if (!charGrp || !theIsle) return;
       var mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -8628,8 +8687,9 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         walkMove(theIsle, charGrp.position, v.x, v.z);
         faceDir = Math.atan2(v.x, v.z);
         walkT += dt;
-        if (walkT - stepT > 0.32) { stepT = walkT; SND.play("step" + (1 + (stepN++ % 3)), 0.94 + Math.random() * 0.12); }
       }
+      // 발걸음은 걷는 동안 루프, 멈추면 끈다(2026-09-14). 파일에 발자국이 여러 개라 발과 맞추지 않는다
+      if (moving !== wasMoving) { wasMoving = moving; if (moving) SND.hold("steps"); else SND.release(); }
       if (charGrp.userData.step) charGrp.userData.step(walkT, moving, faceDir);
       // 높이는 매 프레임 지면에서 다시 잡는다. 지금 높이를 함께 넘겨야
       // 다리 밑을 걸을 때 상판으로 끌려 올라가지 않는다.
@@ -8786,7 +8846,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         going.splash.visible = false;
         scene.add(going.splash);
       }
-      SND.play(sail ? "sail" : dive ? "tap" : "tap");
+      SND.release();   // 키를 누른 채 들어가도 발걸음은 멎는다
+      SND.play("woosh");   // 전환음. 잠수·광장·바다 셋 다 같은 소리로 한 번(2026-09-14)
       // 부두는 배가 떠나는 것을 보여준 뒤에 덮는다. 처음부터 덮으면 승선이 안 보인다.
       setWipe({ dir: dive ? "down" : "side", ms: going.dur,
                 run: sail ? Math.round(going.dur * 0.34) : going.dur,
@@ -8893,7 +8954,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
             // 물보라는 캐릭터가 수면에 닿는 순간부터
             var sp = (u - 0.44) / 0.30;
             going.splash.visible = sp > 0 && sp < 1;
-            if (going.splash.visible && !going.splashed) { going.splashed = true; SND.play("dive"); }
+            if (going.splash.visible && !going.splashed) { going.splashed = true; }   // 전환음은 출발 때 한 번(woosh). 물보라 소리는 따로 없다
             if (going.splash.visible) going.splash.userData.at(sp);
           }
           cam.position.y = camHome.y - 4.2 * ease;
@@ -9074,11 +9135,9 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     nearLm && !wipe && !soon ? React.createElement("button", {
       ref: lmTagRef,
       onClick: nearLm.inert ? undefined : function () { if (goRef.current) goRef.current(); },
-      style: { position: "absolute", left: 0, top: 0, visibility: "hidden", zIndex: 5, willChange: "transform",
+      style: { ...WOOD_TAG, position: "absolute", left: 0, top: 0, visibility: "hidden", zIndex: 5, willChange: "transform",
                padding: nearLm.inert ? "5px 12px" : touch ? "9px 16px" : "3px 10px",
-               borderRadius: 7, border: "2px solid #b05a3a", background: "#e7cc92", color: "#4a3a24",
-               fontSize: nearLm.inert ? 12 : touch ? 14 : 12, fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap", fontFamily: "inherit",
-               boxShadow: "0 2px 5px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,248,230,0.45)",
+               fontSize: nearLm.inert ? 12 : touch ? 14 : 12, fontFamily: "inherit",
                cursor: nearLm.inert ? "default" : "pointer", pointerEvents: nearLm.inert ? "none" : "auto" }
     }, nearLm.inert ? "친구의 안으로는 못 가요" : touch ? "눌러서 가기" : "스페이스") : null,
     // 전환 연출. 잠수는 물이 아래에서 차오르고, 부두·광장은 옆으로 지나간다.
@@ -9496,7 +9555,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.VSMShadowMap;   // 부드러운 가장자리(2026-09-13). addIsleLights의 radius·blurSamples가 세기
     host.appendChild(renderer.domElement);
-    SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
+    SND.loop("bgm");   // 배경음. 음소거면 이름만 기억한다. 3D 화면끼리 옮겨도 같은 <audio>가 이어진다
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcfe6ee);
     function halfFor(a) { return Math.max(5.6, 7.0 / a); }   // 뒤쪽 게시판 머리 여유
@@ -9784,7 +9843,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     renderer.shadowMap.enabled = O.shadow > 0;                                // 카드 D
     renderer.shadowMap.type = THREE.VSMShadowMap;   // 부드러운 가장자리(2026-09-13). addIsleLights의 radius·blurSamples가 세기
     host.appendChild(renderer.domElement);
-    SND.loop("waves");   // 배경 파도. 음소거면 이름만 기억한다
+    SND.loop("bgm");   // 배경음. 음소거면 이름만 기억한다. 3D 화면끼리 옮겨도 같은 <audio>가 이어진다
     host.style.touchAction = "none";
 
     var scene = new THREE.Scene();
@@ -10041,7 +10100,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     var sail = null;
     function sailTo(e) {
       if (!e || sail || intro) return;
-      SND.play("sail");
+      SND.play("woosh");   // 친구 섬으로 떠난다 — 섬 화면의 전환음과 같은 소리
       var to, th;
       if (e.home) {
         // 내 부두로. 섬 화면의 도착 연출이 여기서 이어받는다
@@ -13831,6 +13890,14 @@ function App() {
     setME([]);
     setShowPwChange(false);
   };
+  // 첫 화면 배경음(2026-09-14). 3D 화면과 같은 <audio>(SND "bgm")를 이어 쓴다 — 로그인해 섬으로 들어가도, 로그아웃해 돌아와도 끊기거나
+  // 되감기지 않는다. 떠날 때의 정지는 leave()가 0.3초 미루고, 다음 화면(내 섬)의 마운트가 그 안에 loop()를 불러 취소한다. 음소거면 이름만 기억한다.
+  useEffect(function () {
+    if (page !== "home") return;
+    SND.loop("bgm");
+    return function () { SND.leave(); };
+  }, [page]);
+  useEffect(function () { if (devMode()) window.__app = { setPage: setPage }; });   // #dev: 하네스가 로그인 없이 화면을 바꾼다
   const [showPwChange, setShowPwChange] = useState(false);
   const [pwForm, setPwF] = useState({
     current: "",
@@ -13924,7 +13991,10 @@ function App() {
       transform: "rotate(-2deg)", transformOrigin: "0 0" }
   }, React.createElement("h1", { className: "home-title", style: { margin: 0, width: "clamp(320px, 52vw, 750px)", maxWidth: "88vw" } },
     React.createElement("img", { src: "title.webp", alt: "마음 바다 탐험대", width: 1431, height: 269, draggable: false,
-      style: { display: "block", width: "100%", height: "auto" } }))), React.createElement("div", {
+      style: { display: "block", width: "100%", height: "auto" } }))),
+  // 소리 버튼(2026-09-14). 3D 화면의 것과 같은 컴포넌트·같은 저장값(localStorage snd)이라 어느 쪽에서 끄든 다른 쪽도 꺼져 있다.
+  // 접속 직후라 자동 재생이 막혀 있고, 이 클릭이 첫 상호작용이다.
+  React.createElement(SndBtn, { top: 14, wood: true }), React.createElement("div", {
     style: { position: "absolute", right: 14, bottom: "max(10px, env(safe-area-inset-bottom))", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.72)", pointerEvents: "none", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }
   }, React.createElement("button", {
     onClick: function () { setPage("privacy"); },
