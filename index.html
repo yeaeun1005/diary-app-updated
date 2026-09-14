@@ -1323,7 +1323,10 @@ function chatKey(id) {
 var MEM_ONLY = false;
 var MEM_OPS = [];
 // 4단계 안내 문구(2026-09-14 확정, 후보 C). band: 시연 계정 띠, trialBand: 체험 모드 띠, msg: 저장 성공 안내(✅)에 덧붙이는 꼬리
-var MEM_NOTES = { band: "시연 학급 · 실제 학생이 아닙니다 · 새로고침하면 처음으로 돌아가요",
+var MEM_NOTES = { band: "시연 학급 · 실제 학생이 아닙니다 · 새로고침하면 처음으로 돌아가요",   // 교사 화면. 명단을 보는 사람에게 맞는 말
+                  // 학생 화면(2026-09-14). 체험 간판으로 들어온 사람이 그 학생이 되어 있으므로 "실제 학생이 아닙니다"는 본인을 가리키는 말이 된다.
+                  studentBand: function (name) { var t = String(name || ""), c = t.charCodeAt(t.length - 1), bat = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0;
+                    return "시연 학급 · 가상의 학생 " + t + (bat ? "이" : "가") + " 되어 둘러보는 중 · 새로고침하면 처음으로 돌아가요"; },
                   trialBand: "체험 모드 · 새로고침하면 처음으로 돌아가요",
                   msg: " · 새로고침하면 되돌아와요" };   // 순서대로 { p: [경로 조각], v: 값 | null(삭제) }. 다중 경로 update는 키마다 하나씩
 function memSegs(p) { return String(p).split("/").filter(Boolean); }
@@ -8013,6 +8016,9 @@ function seedMode() {
   try { return /(?:^|[#&])seed\b/.test(window.location.hash || ""); } catch (e) { return false; }
 }
 var DEMO_CODE = "DEMO01";
+// 체험 간판이 들어가는 시연 학생(2026-09-14, C안). DEMO.md의 학생 A 하준(d07). 비밀번호는 demo/seed-data.js의 D.PW와 같고 이미 공개된 가상 계정이다.
+// 학생 계정만 연다 — 시연 교사는 DEMO.md의 비밀번호로만 들어간다. 시연 학급이라 쓰기는 세션 메모리에만 남는다(MEM_ONLY).
+var DEMO_TRIAL = { lid: "d07", pw: "1234" };
 // lv층 평지가 가장 좁아지는 각도. ③-5에서 1층만 0.85를 지키고 2층은
 // 둘레의 10%쯤에서 눌린다는 것을 눈으로 확인하려고 둔다.
 function narrowestTier(isle, lv) {
@@ -13150,7 +13156,7 @@ function App() {
     var r = document.getElementById("demo-ribbon");
     if (!r) return;
     var demo = !!(currentUser && currentUser.schoolCode === DEMO_CODE), trial = page === "trial";
-    r.textContent = demo ? MEM_NOTES.band : MEM_NOTES.trialBand;
+    r.textContent = demo ? (currentUser.teacherId ? MEM_NOTES.band : MEM_NOTES.studentBand(currentUser.name)) : MEM_NOTES.trialBand;
     r.hidden = !(demo || trial);
   }, [currentUser, page]);
   const [loginForm, setLF] = useState({
@@ -13764,9 +13770,8 @@ function App() {
     });
     setMsg("");
   };
-  const studentLogin = async () => {
-    const code = loginForm.schoolCode.trim().toUpperCase();
-    const lid = loginForm.loginId.trim(), pw = loginForm.password.trim();
+  // 학생 로그인 본체. 로그인 창(studentLogin)과 체험 간판·"시연 학급으로 들어가기"(demoLogin)가 같이 쓴다. 들어갔으면 true, 아니면 setMsg 뒤 false.
+  const studentLoginWith = async (code, lid, pw) => {
     let school = await sGet(schPubKey(code));
     if (!school || !school.schoolName) {
       // 새 경로에 없으면 옛 목록. 4단계 뒤에는 읽히지 않으니 "존재하지 않습니다"로 끝난다.
@@ -13774,18 +13779,18 @@ function App() {
       const ls = legacy.find(x => x && x.schoolCode === code);
       if (!ls) {
         setMsg("학교 코드가 존재하지 않습니다.");
-        return;
+        return false;
       }
       school = { schoolName: ls.schoolName || "" };
     }
     let h;
-    try { h = await pwHash("s", code, lid, pw); } catch (e) { setMsg(PW_HTTPS_MSG); return; }
+    try { h = await pwHash("s", code, lid, pw); } catch (e) { setMsg(PW_HTTPS_MSG); return false; }
     const ok = keyOk(lid) && (await sGet(scredKey(code, lid, h))) === true;
     const stuList = (await sGet(stuKey(code))) || [];
     const found = stuList.find(s => s && s.loginId === lid);
     if (!found || (!ok && (found.password == null || found.password !== pw))) {
       setMsg("아이디 또는 비밀번호가 일치하지 않습니다.");
-      return;
+      return false;
     }
     if (!ok && keyOk(lid)) {
       // 옛 방식으로 통과. 그 자리에서 해시를 쓰고 명단의 평문을 지운다 — 이전 기간 한정.
@@ -13818,6 +13823,22 @@ function App() {
       role: "student"
     });
     setMsg("");
+    setAuthOpen(false);   // 열려 있던 로그인 창을 닫는다 — 안 닫으면 로그아웃해 첫 화면으로 돌아왔을 때 창이 열린 채다(2026-09-14 하네스에서 확인)
+    return true;
+  };
+  const studentLogin = () => studentLoginWith(loginForm.schoolCode.trim().toUpperCase(), loginForm.loginId.trim(), loginForm.password.trim());
+  // 시연 학생(DEMO_TRIAL, 하준)으로 들어간다(2026-09-14, C안). 체험 간판과 로그인 창의 "시연 학급으로 들어가기"가 부른다.
+  // 못 들어가면(시연 학급이 없거나 DB가 안 닿거나 http라 해시를 못 만들면) onFail — 체험 간판은 예전 체험 모드(일기만)로, 로그인 창은 그 자리의 안내문으로.
+  // 두 번 눌러도 한 번만 돈다(demoBusy). 교사 계정은 열지 않는다.
+  const demoBusy = useRef(false);
+  const demoLogin = async (onFail) => {
+    if (demoBusy.current) return;
+    demoBusy.current = true;
+    var ok = false;
+    try { ok = await studentLoginWith(DEMO_CODE, DEMO_TRIAL.lid, DEMO_TRIAL.pw); }
+    catch (e) { console.error("demoLogin:", e); ok = false; }
+    demoBusy.current = false;
+    if (!ok && onFail) onFail();
   };
   const handleLogin = () => {
     if (loginForm.role === "teacher") {
@@ -14146,7 +14167,8 @@ function App() {
   }), React.createElement(HomeSigns, {
     // 카드·패널 없이(2026-09-10) 모래 위 나무 표지판이 로그인이다. 동선은 그대로(setAuthOpen / setPage("trial"))
     onLogin: function () { setMsg(""); setAuthOpen(true); },
-    onTrial: function () { setTE([]); setPage("trial"); }
+    // 체험 간판 = 시연 학생 하준으로 자동 로그인(2026-09-14, C안). 일기만 있던 체험 모드는 못 들어갔을 때의 대비로만 남는다.
+    onTrial: function () { setMsg(""); setTE([]); demoLogin(function () { setMsg(""); setPage("trial"); }); }
   })), React.createElement("div", {
     // 제목: 왼쪽 위, 크게, 살짝 기울여. 부제는 2026-09-12에 뺐고, 같은 날 글자를 그림(title.webp, 1431×269, 투명 배경)으로 바꿨다.
     // 폭은 글자였을 때(1440에서 570px)보다 25% 크게 clamp(320px, 52vw, 750px) — 넓은 화면에서 왼쪽 구석에 작게 있던 것을 키움(2026-09-12). 높이는 그림 비율(5.3:1)
@@ -14221,7 +14243,12 @@ function App() {
     style: { marginTop: 14, textAlign: "right" }
   }, React.createElement("button", {
     className: "auth-link", onClick: () => { setMsg(""); setAuthView("register"); }
-  }, "탐험대를 처음 만드나요? 등록하기 →"))) : React.createElement(React.Fragment, null, React.createElement("div", {
+  }, "탐험대를 처음 만드나요? 등록하기 →")), loginForm.role !== "teacher" && React.createElement("div", {
+    // 시연 학급으로 들어가기(2026-09-14, C안). 체험 간판과 같은 길(시연 학생 하준). 계정을 모르는 심사위원이 여기서도 3D에 닿는다. 실패하면 위 안내문(msgBox)에 이유가 뜬다
+    style: { marginTop: 14, textAlign: "right" }
+  }, React.createElement("button", {
+    className: "auth-link", onClick: () => { setMsg(""); demoLogin(null); }
+  }, "계정이 없나요? 시연 학급으로 들어가기 →"))) : React.createElement(React.Fragment, null, React.createElement("div", {
     style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }
   }, React.createElement("span", {
     style: { fontSize: 19 * HOME_FONT.kb }
