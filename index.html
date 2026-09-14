@@ -1304,7 +1304,7 @@ function scredKey(code, lid, h) {
 }
 // 자격 노드를 통째로 놓는다. 옛 해시가 같이 지워져 비밀번호는 언제나 하나다.
 async function credSetStudent(code, lid, h) {
-  await firebase.database().ref("app/" + scredKey(code, lid)).set({ [h]: true });
+  await dbRef(scredKey(code, lid)).set({ [h]: true });
 }
 function omitPw(s) {
   if (!s || s.password == null) return s;
@@ -1315,9 +1315,52 @@ function omitPw(s) {
 function chatKey(id) {
   return "chat_" + id;
 }
+// ── DB 관문과 시연 메모리 오버레이 (3단계, 2026-09-14) ──
+// 앱의 Firebase 읽기·쓰기는 전부 dbRef(키)를 거친다(키는 "app/" 아래 경로). MEM_ONLY가 켜지면 — 시연 계정(DEMO01)으로 로그인했거나
+// 체험 모드일 때 — 쓰기는 세션 메모리(MEM_OPS)에만 쌓이고, 읽기는 Firebase 값 위에 그 메모리를 순서대로 덮어 돌려준다. 그래서 심사위원이
+// 쓰고·답하고·승인한 결과가 세션 안에서는 전부 보이고(다시 읽어 갱신하는 화면도), 새로고침하면 원본으로 돌아간다. DB에는 아무것도 남지 않는다.
+// 실제 학급은 MEM_ONLY가 꺼져 있어 진짜 ref를 그대로 쓴다. 시연 패널(demo/seed.js)은 생성기라 이 관문을 거치지 않는다(의도).
+var MEM_ONLY = false;
+var MEM_OPS = [];   // 순서대로 { p: [경로 조각], v: 값 | null(삭제) }. 다중 경로 update는 키마다 하나씩
+function memSegs(p) { return String(p).split("/").filter(Boolean); }
+function memClone(v) { return v == null ? null : JSON.parse(JSON.stringify(v)); }
+function memGetAt(o, segs) { for (var i = 0; i < segs.length; i++) { if (o == null || typeof o !== "object") return null; o = o[segs[i]]; } return o === undefined ? null : o; }
+function memSetAt(root, segs, v) {   // 루트를 돌려준다. v == null이면 지운다
+  if (!segs.length) return memClone(v);
+  var r = (root && typeof root === "object") ? root : {}, o = r;
+  for (var i = 0; i < segs.length - 1; i++) { if (o[segs[i]] == null || typeof o[segs[i]] !== "object") o[segs[i]] = {}; o = o[segs[i]]; }
+  if (v == null) delete o[segs[segs.length - 1]]; else o[segs[segs.length - 1]] = memClone(v);
+  return r;
+}
+function memIsPrefix(a, b) { if (a.length > b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+function memRead(P, base) {   // P: 읽는 경로 조각, base: Firebase 값. 메모리 쓰기를 순서대로 덮는다
+  var out = memClone(base);
+  MEM_OPS.forEach(function (op) {
+    if (memIsPrefix(P, op.p)) out = memSetAt(out, op.p.slice(P.length), op.v);          // 읽는 곳 안쪽에 쓴 것
+    else if (memIsPrefix(op.p, P)) out = memClone(memGetAt(op.v, P.slice(op.p.length)));   // 읽는 곳을 통째로 덮은 것
+  });
+  if (out && typeof out === "object" && !Object.keys(out).length) return null;   // Firebase는 빈 객체를 null로 본다
+  return out;
+}
+function dbRef(k) {
+  var path = "app/" + k, real = firebase.database().ref(path);
+  if (!MEM_ONLY) return real;
+  var P = memSegs(path);
+  return {
+    once: function () {
+      return real.once("value").then(function (snap) {
+        var v = memRead(P, snap.val());
+        return { val: function () { return v; }, exists: function () { return v != null; }, key: P[P.length - 1] };
+      });
+    },
+    set: function (v) { MEM_OPS.push({ p: P, v: memClone(v) }); return Promise.resolve(); },
+    update: function (o) { Object.keys(o || {}).forEach(function (kk) { MEM_OPS.push({ p: P.concat(memSegs(kk)), v: memClone(o[kk]) }); }); return Promise.resolve(); },
+    remove: function () { MEM_OPS.push({ p: P, v: null }); return Promise.resolve(); }
+  };
+}
 // 실패를 그대로 던진다. 읽기 실패와 "데이터 없음"을 구분해야 하는 곳에서 쓴다.
 async function sGetStrict(k) {
-  var ref = firebase.database().ref("app/" + k);
+  var ref = dbRef(k);
   var snap = await Promise.race([ref.once("value"), new Promise(function (_, rej) {
     setTimeout(function () {
       rej(new Error("timeout"));
@@ -1336,7 +1379,7 @@ async function sGet(k) {
 }
 async function sSet(k, v) {
   try {
-    await firebase.database().ref("app/" + k).set(v);
+    await dbRef(k).set(v);
   } catch (e) {
     console.error("sSet:", e);
   }
@@ -1367,7 +1410,7 @@ function entryKey(ts) {
 }
 // 새 경로에 자식 노드를 병합한다. set이 아니라 update라 기존 노드를 지우지 않는다.
 async function d2Update(id, payload) {
-  await firebase.database().ref("app/" + d2Key(id)).update(payload);
+  await dbRef(d2Key(id)).update(payload);
 }
 // Firebase는 undefined를 거부한다. JSON 왕복으로 undefined 속성을 털어낸다.
 function d2Clean(o) {
@@ -1385,14 +1428,14 @@ async function d2Put(id, entry) {
 }
 async function d2Del(id, entry) {
   var k = entry._k || entryKey(entry.ts);
-  await firebase.database().ref("app/" + d2Key(id) + "/" + k).remove();
+  await dbRef(d2Key(id) + "/" + k).remove();
 }
 // 기록 비우기. _migrated를 남겨야 옛 경로로 폴백해 지운 일기가 되살아나지 않는다.
 async function d2Clear(id) {
-  await firebase.database().ref("app/" + d2Key(id)).set({ _migrated: true });
+  await dbRef(d2Key(id)).set({ _migrated: true });
 }
 async function d2Drop(id) {
-  await firebase.database().ref("app/" + d2Key(id)).remove();
+  await dbRef(d2Key(id)).remove();
 }
 // 아직 이관 안 된 학생을 첫 로그인 때 옮긴다. 마이그레이션 누락에 대한 안전망.
 async function d2Ensure(id) {
@@ -1482,7 +1525,7 @@ function anonKey(id) {
 var DEMO_CLOCK = "2026-09-16";                       // 시연 기준일(수요일). 시연 패널의 기본 기준일도 이 값이다
 var DEMO_CLOCK_MS = new Date(DEMO_CLOCK + "T16:00:00").getTime();   // 그날 오후 4시. 아침에 쓴 오늘 일기가 전부 과거에 있다
 var DEMO_FROZEN = false, DEMO_T0 = Date.now();
-function setDemoClock(user) { DEMO_FROZEN = !!(user && user.schoolCode === DEMO_CODE); }
+function setDemoClock(user) { DEMO_FROZEN = !!(user && user.schoolCode === DEMO_CODE); MEM_ONLY = DEMO_FROZEN; }
 function nowTs() { return DEMO_FROZEN ? DEMO_CLOCK_MS + (Date.now() - DEMO_T0) : Date.now(); }
 function dayStamp(ts) {
   var d = ts == null ? new Date(nowTs()) : new Date(ts);
@@ -1513,7 +1556,7 @@ async function isleSync(stu, state) {
   }
   if (!n) return;
   payload.upd = nowTs();
-  await firebase.database().ref("app/" + isleKey(stu.id)).update(payload);
+  await dbRef(isleKey(stu.id)).update(payload);
 }
 // 섬 요약 읽기 -> buildVegetation이 받는 모양으로.
 async function isleLoad(id) {
@@ -1553,7 +1596,7 @@ async function dayMark(stu, entries) {
       o[ak + "/w/" + labelKey(h.label)] = { l: h.label, q: QC[h.q] ? h.q : "LA" };
     });
   });
-  await firebase.database().ref("app/" + dayKey(stu.schoolCode, today)).update(o);
+  await dbRef(dayKey(stu.schoolCode, today)).update(o);
 }
 // 학급 온도계 읽기 -> 바다 tone(0~1). 0.5가 보통이다.
 //  · 학생당 값(오늘 정서가 평균)의 **중앙값**을 쓴다. 평균이면 한 아이의 극단값이
@@ -1585,7 +1628,7 @@ async function empSend(fromStu, toId, q, l) {
   if (!fromStu || !fromStu.id || !toId || String(fromStu.id) === String(toId)) return false;
   var o = {};
   o[dayStamp() + "_" + fromStu.id] = { n: fromStu.name || "", q: q || "LA", l: l || "", ts: nowTs() };
-  await firebase.database().ref("app/" + empKey(toId)).update(o);
+  await dbRef(empKey(toId)).update(o);
   return true;
 }
 // 받은 공감 목록. 개수를 반환하지 않고 목록만 준다.
@@ -1603,7 +1646,7 @@ async function empLoad(id) {
 async function isleHide(stu, label, hidden) {
   if (!stu || !stu.id || !label) return;
   var o = {}; o["v/" + labelKey(label) + "/h"] = hidden ? true : null;
-  await firebase.database().ref("app/" + isleKey(stu.id)).update(o);
+  await dbRef(isleKey(stu.id)).update(o);
 }
 // 최근 days일 동안 받은·보낸 공감이 있는지. 교사 대시보드와 "오늘의 섬" 추첨이 쓴다.
 // 개수는 저장하지 않는다 — 읽는 쪽이 셀 뿐이고, 아이 화면은 세지 않는다.
@@ -1674,7 +1717,7 @@ async function plazaAsk(code, text, cat, nm, prevId) {
   o["q/" + qid] = { t: t, cat: cat || "", nm: !!nm, ts: nowTs(), open: true };
   o["cur"] = qid;
   if (prevId) { o["q/" + prevId + "/open"] = false; o["q/" + prevId + "/closed"] = nowTs(); }
-  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+  await dbRef(plazaKey(code)).update(o);
   return qid;
 }
 // 마감(교사). 광장에서 사라지고 교사 화면에만 남는다. 답과 사본은 지우지 않는다.
@@ -1684,7 +1727,7 @@ async function plazaClose(code, qid) {
   o["q/" + qid + "/open"] = false;
   o["q/" + qid + "/closed"] = nowTs();
   o["cur"] = null;
-  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+  await dbRef(plazaKey(code)).update(o);
 }
 // 질문 목록(교사). 최신순.
 async function plazaQuestions(code) {
@@ -1725,7 +1768,7 @@ async function plazaAnswerPut(code, qid, stu, ans) {
   o["pub/" + qid + "/" + anonKey(sid)] = null;
   // 오늘 답을 쓴 아이 수. 광장에 그 수만큼 캐릭터가 선다. 익명 키뿐이라 누가인지는 없다.
   o["n/" + qid + "/" + anonKey(sid)] = 1;
-  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+  await dbRef(plazaKey(code)).update(o);
   return true;
 }
 // 답을 쓴 아이들의 익명 키. 개수가 아니라 목록을 돌려주고, 광장은 그 수만큼 캐릭터를 세운다.
@@ -1748,7 +1791,7 @@ async function plazaSetState(code, qid, ans, s) {
   o["a/" + qid + "/" + ans.sid + "/s"] = s;
   if (s !== 2) o["a/" + qid + "/" + ans.sid + "/nmf"] = null;   // 교사가 확인하고 풀면 표시도 걷는다
   o["pub/" + qid + "/" + anonKey(ans.sid)] = s === 1 ? { o: ans.o || "", f: ans.f || "", w: ans.w || "", fl: ans.fl || [] } : null;
-  await firebase.database().ref("app/" + plazaKey(code)).update(o);
+  await dbRef(plazaKey(code)).update(o);
 }
 // 광장에 올라간 답(학생). pub만 읽는다. 문턱(PLAZA_MIN_PUB) 미만이면 빈 배열.
 // 순서는 보는 아이마다 다르게 섞는다 — 같은 순서면 "첫 번째 답"이 이름이 된다.
@@ -13093,6 +13136,8 @@ function App() {
   const [msg, setMsg] = useState("");
   const [currentUser, setCU] = useState(null);
   setDemoClock(currentUser);   // 시연 시계 플래그(2단계). 렌더마다 동기로 세운다 — 아래 효과들(살펴봐·반딧불·달라진 아이)이 첫 실행부터 고정 시계를 보게. 로그인 함수도 setCU 앞에서 세운다
+  if (page === "trial") MEM_ONLY = true;   // 체험 모드도 메모리에만 쓴다(3단계) — 마음대화가 app/chat_trial_… 에 남던 것을 막는다
+  if (!MEM_ONLY && MEM_OPS.length) MEM_OPS = [];   // 시연·체험을 벗어나면 세션 메모리를 비운다
   // ⑩ 시연 학급이면 화면 아래에 띠. 가명이 실명처럼 보이는 것을 띠가 가린다 (DESIGN.md §14).
   useEffect(function () {
     var r = document.getElementById("demo-ribbon");
@@ -13656,7 +13701,7 @@ function App() {
     };
     // tcred/<아이디>는 규칙상 한 번만 쓸 수 있다. 막히면 이미 있는 아이디다 — 따로 읽어 확인하지 않는다.
     try {
-      await firebase.database().ref("app/" + tcredKey(tid)).set({ [h]: { schoolCode: code, schoolName: ns.schoolName, teacherName: ns.teacherName } });
+      await dbRef(tcredKey(tid)).set({ [h]: { schoolCode: code, schoolName: ns.schoolName, teacherName: ns.teacherName } });
     } catch (e) {
       setMsg("이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요.");
       return;
@@ -13690,7 +13735,7 @@ function App() {
       s = { schoolCode: ls.schoolCode, schoolName: ls.schoolName || "", teacherName: ls.teacherName || "" };
       if (keyOk(tid) && s.schoolCode) {
         try {
-          await firebase.database().ref("app/" + tcredKey(tid)).set({ [h]: s });
+          await dbRef(tcredKey(tid)).set({ [h]: s });
           await sSet(schPubKey(s.schoolCode), { schoolName: s.schoolName });
           await sSet(SK.schools, legacy.map(x => { if (x !== ls) return x; var r = Object.assign({}, x); delete r.teacherPw; return r; }));
         } catch (e) { console.error("tcred migrate:", e); }
@@ -13863,7 +13908,7 @@ function App() {
           added++;
         }
       }
-      if (added) await firebase.database().ref("app/scred/" + code).update(creds);
+      if (added) await dbRef("scred/" + code).update(creds);
     } catch (e) {
       console.error("bulk:", e);
       setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "등록 중 오류가 발생했습니다.");
@@ -13918,7 +13963,7 @@ function App() {
         creds[s.loginId + "/" + (await pwHash("s", code, s.loginId, String(s.password)))] = true;
       }
       // 자격은 한 번의 update로 놓는다. 경로마다 규칙이 따로 검사된다.
-      if (Object.keys(creds).length) await firebase.database().ref("app/scred/" + code).update(creds);
+      if (Object.keys(creds).length) await dbRef("scred/" + code).update(creds);
     } catch (e) {
       console.error("protect:", e);
       setMsg(e && e.message === "no-subtle" ? PW_HTTPS_MSG : "보호 적용 중 오류가 발생했습니다. 다시 시도해주세요.");
