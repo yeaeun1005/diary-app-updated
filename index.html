@@ -1473,8 +1473,12 @@ function anonKey(id) {
   return "a" + h;
 }
 // 오늘 날짜 키 (YYYY-MM-DD). 기기 시간대를 따른다.
+// 현재 시각의 관문(1단계, 2026-09-14). 달력 계산(오늘·지난 7일·기준일·리포트 생성일)은 전부 여기를 거친다. 지금은 Date.now() 그대로다.
+// 2단계에서 시연 계정일 때만 고정 기준일을 돌려주게 한다. 저장 타임스탬프(일기 ts·반딧불·광장)와 애니메이션·게임·fps 타이머
+// (performance.now, 캔버스 위상용 Date.now)는 여기를 쓰지 않는다 — 그쪽은 흐르는 시간이다.
+function nowTs() { return Date.now(); }
 function dayStamp(ts) {
-  var d = ts == null ? new Date() : new Date(ts);
+  var d = ts == null ? new Date(nowTs()) : new Date(ts);
   var m = d.getMonth() + 1, y = d.getDate();
   return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (y < 10 ? "0" : "") + y;
 }
@@ -1597,7 +1601,7 @@ async function isleHide(stu, label, hidden) {
 // 최근 days일 동안 받은·보낸 공감이 있는지. 교사 대시보드와 "오늘의 섬" 추첨이 쓴다.
 // 개수는 저장하지 않는다 — 읽는 쪽이 셀 뿐이고, 아이 화면은 세지 않는다.
 async function empCounts(ids, days) {
-  var since = Date.now() - (days || 7) * 86400000, recv = {}, sent = {};
+  var since = nowTs() - (days || 7) * 86400000, recv = {}, sent = {};
   ids.forEach(function (id) { recv[String(id)] = 0; sent[String(id)] = 0; });
   var lists = await Promise.all(ids.map(function (id) { return empLoad(id).catch(function () { return []; }); }));
   lists.forEach(function (list, i) {
@@ -4295,7 +4299,7 @@ function buildBody(entries){
   var domQ=qOrder[0];
   var sorted=entries.slice().sort(function(a,b){return (b.ts||0)-(a.ts||0);});
   var period=sorted.length?esc(sorted[sorted.length-1].date)+" ~ "+esc(sorted[0].date):"-";
-  var today=(new Date().getMonth()+1)+"월 "+new Date().getDate()+"일";
+  var __g=new Date(typeof GEN_TS==="number"?GEN_TS:Date.now()); var today=(__g.getMonth()+1)+"월 "+__g.getDate()+"일";
   var summary;
   if(total===0){summary=esc(NAME)+" 학생은 이 기간에 분석된 감정이 없어요. 다른 기간을 선택하거나 일기를 더 써 보면 감정의 변화를 볼 수 있어요.";}
   else{var negN=byQ.HV+byQ.LV;summary=esc(NAME)+" 학생은 이 기간 동안 ‘"+qn(domQ)+"’ 감정을 가장 자주 표현했고, 긍정적인 감정이 전체의 약 "+posPct+"%였어요.";if(negN>0&&negN/total>=0.15)summary+=" 때때로 "+(byQ.HV>=byQ.LV?"분노·불안":"슬픔·피로")+" 같은 감정도 나타났어요.";}
@@ -4352,7 +4356,7 @@ function openEmotionReport(name, entries, mode) {
   var titleName = String(name || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   var css = "@import url('https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap');*{box-sizing:border-box}body{font-family:'Gowun Dodum',sans-serif;color:#2b3a42;margin:0;background:#eef3f5}.jua{font-family:'Jua',sans-serif}.topbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e0e7ea;padding:10px;display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;z-index:5}.topbar input{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #cdd9e0;border-radius:6px}.topbar button{font-family:'Gowun Dodum',sans-serif;font-size:14px;padding:8px 14px;border-radius:8px;border:none;background:#0e7490;color:#fff;cursor:pointer}.topbar button.sec{background:#fff;color:#456;border:1px solid #cdd9e0}.page{max-width:720px;margin:18px auto;background:#fff;padding:30px 34px;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.08)}.tag{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;margin:2px 3px}.bar{height:14px;border-radius:7px}.sec-t{font-family:'Jua',sans-serif;font-size:14px;color:#0e7490;margin:18px 0 8px}@media print{body{background:#fff}.no-print{display:none!important}.page{box-shadow:none;margin:0;max-width:none;border-radius:0;padding:0}.entry{page-break-inside:avoid}@page{margin:14mm}}";
   var topbar = '<div class="topbar no-print"><span style="font-size:13px;color:#456">기간</span><input type="date" id="d1"><span style="color:#789">~</span><input type="date" id="d2"><button onclick="applyRange()">적용</button><button class="sec" onclick="allRange()">전체</button><button onclick="window.print()">PDF로 저장 / 인쇄</button><button class="sec" onclick="window.close()">닫기</button></div>';
-  var html = '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + (teacher ? '감정 기록 요약' : '감정 일기 리포트') + ' - ' + titleName + '</title><style>' + css + '</style></head><body>' + topbar + '<div id="report" class="page"></div><script>var NAME=' + nameJson + ';var MODE=' + JSON.stringify(teacher ? "teacher" : "student") + ';var DATA=' + dataJson + ';' + EMO_REPORT_SCRIPT + '<\/script></body></html>';
+  var html = '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + (teacher ? '감정 기록 요약' : '감정 일기 리포트') + ' - ' + titleName + '</title><style>' + css + '</style></head><body>' + topbar + '<div id="report" class="page"></div><script>var NAME=' + nameJson + ';var MODE=' + JSON.stringify(teacher ? "teacher" : "student") + ';var GEN_TS=' + nowTs() + ';var DATA=' + dataJson + ';' + EMO_REPORT_SCRIPT + '<\/script></body></html>';
   var w = window.open("", "_blank");
   if (!w) { alert("팝업이 차단되어 리포트를 열 수 없어요. 브라우저에서 팝업을 허용한 뒤 다시 시도해주세요."); return; }
   w.document.open();
@@ -4437,6 +4441,82 @@ var PHRASES = {
     "": ["요즘 몸이랑 마음이 좀 지쳐 있어?", "뭘 해도 재미없다고 느낄 때 있어?", "요즘 잠은 잘 자?", "쉬는 시간이 충분해?"]
   }
 };
+// ── 특수 상황 — "이 아이의 패턴이 달라졌다" (2026-09-14, PHRASES.md「특수 상황」) ──
+// 「살펴봐 주세요」("힘들어 보인다")와 성격이 다르다. 우울 신호가 없어도 뜰 수 있고, 작성이 끊긴 아이는 애초에 신호가 잡힐
+// 데이터가 없어 살펴봐 주세요에는 뜰 수 없다. 기준은 전부 SHIFT 상수다 — 시연 학급(30명) 실측: 단조 0·끊김 0(데이터에 사례가 없다,
+// 최근 7일 어휘 최소 3·마지막 뒤 수업일 최대 1)·기복 6(사분면만 다르면 11 = 37%라 너무 많아 긍정·부정이 같은 날 갈릴 때만 센다).
+var SHIFT = {
+  prevDays: 14, prevMinVocab: 5,        // ① 이전 14일에 서로 다른 감정 어휘 5개 이상이었는데
+  recentDays: 7, recentMaxVocab: 2,     //    최근 7일에 2개 이하. 이전 어휘가 적던 아이(5 미만)는 제외
+  recentMinEntries: 2,                  //    최근 7일에 2편은 있어야 "단조"다. 0~1편이면 끊김 쪽 문제다
+  gapSchoolDays: 3, gapLookbackDays: 30,   // ② 마지막 작성 뒤 수업일 3일 경과. 30일 안에 쓴 적이 없으면 아예 안 쓰는 아이라 뺀다
+  holidayFrac: 0.1,                     //    주말 제외 + 학급 작성자가 정원의 10% 이하인 평일은 학교 안 간 날(공휴일)로 본다
+  swingDays: 3, swingWindowDays: 7,     // ③ 최근 7일 중, 같은 날 안에 다른 영역 감정이 함께 잡힌 날 3일 이상
+  swingSplit: "valence"                 //    "valence": 긍정(HA·LA)과 부정(HV·LV)이 같은 날 · "quadrant": 사분면만 다르면(즐거움+편안도 셈)
+};
+var SHIFT_LABEL = { mono: "감정 어휘가 단조로워짐", gap: "작성이 끊김", swing: "감정 기복이 큼" };
+// 문구는 PHRASES.md「특수 상황」 그대로. 새로 쓰지 않는다.
+var PHRASES_SHIFT = {
+  mono: ["요즘 마음을 말로 하기가 좀 어려워?", "쓸 말이 잘 안 떠올라?"],
+  gap: ["요즘 일기 쓰기가 부담스러워?", "안 써도 괜찮아. 그냥 요즘 어떻게 지내는지 궁금해서."],
+  swing: ["요즘 마음이 왔다 갔다 하는 것 같아?", "하루 중에 기분이 크게 달라질 때가 있어?"]
+};
+// 학급 전체 일기로 "수업일"을 판정하는 함수를 만든다. 주말이 아니고, 그날 쓴 아이가 정원의 holidayFrac보다 많으면 수업일이다.
+// 학급 달력이 앱에 없어서 쓰는 방법이다 — 재량휴업일·공휴일에는 아무도 안 쓴다. 오늘 아침처럼 아직 몇 명뿐이면 오늘도 안 센다(보수적).
+function shiftSchoolDayFn(entriesById, classSize) {
+  var writers = {};
+  Object.keys(entriesById).forEach(function (id) {
+    var seen = {};
+    (entriesById[id] || []).forEach(function (e) { if (!e || !e.ts) return; var d = dayStamp(e.ts); if (!seen[d]) { seen[d] = 1; writers[d] = (writers[d] || 0) + 1; } });
+  });
+  var holidayMax = Math.max(1, Math.floor(classSize * SHIFT.holidayFrac));
+  return function (ts) { var w = new Date(ts).getDay(); if (w === 0 || w === 6) return false; return (writers[dayStamp(ts)] || 0) > holidayMax; };
+}
+function shiftMD(ts) { var d = new Date(ts); return (d.getMonth() + 1) + "." + d.getDate(); }
+// students: [{id, name}], entriesById: {id: [entry]}, now: ms. 돌려주는 것: [{ id, name, kinds: [{kind, why}], phrases: {kind: [문구]} }]
+function patternShifts(students, entriesById, now) {
+  var DAY = 86400000, out = [], isSchoolDay = shiftSchoolDayFn(entriesById, students.length);
+  var isPos = function (q) { return q === "HA" || q === "LA"; };
+  students.forEach(function (s) {
+    var es = (entriesById[s.id] || []).filter(function (e) { return e && e.ts; }), kinds = [];
+    // ① 어휘 단조
+    var prev = {}, rec = {}, recN = 0;
+    es.forEach(function (e) {
+      var age = now - e.ts, labs = ((e.analysis && e.analysis.hits) || []).map(function (h) { return h && h.label; }).filter(Boolean);
+      if (age < 0) return;
+      if (age < SHIFT.recentDays * DAY) { recN++; labs.forEach(function (l) { rec[l] = 1; }); }
+      else if (age < (SHIFT.recentDays + SHIFT.prevDays) * DAY) labs.forEach(function (l) { prev[l] = 1; });
+    });
+    var pv = Object.keys(prev).length, rv = Object.keys(rec).length;
+    if (pv >= SHIFT.prevMinVocab && recN >= SHIFT.recentMinEntries && rv <= SHIFT.recentMaxVocab)
+      kinds.push({ kind: "mono", why: "이전 " + SHIFT.prevDays + "일 어휘 " + pv + "가지 → 최근 " + SHIFT.recentDays + "일 " + rv + "가지" + (rv ? "(" + Object.keys(rec).join("·") + ")" : "") + " · 최근 " + recN + "편" });
+    // ② 작성 끊김 — 마지막 작성일 다음 날부터 오늘까지 수업일을 센다
+    var last = 0; es.forEach(function (e) { if (e.ts > last && e.ts <= now) last = e.ts; });
+    if (last && now - last < SHIFT.gapLookbackDays * DAY) {
+      var cnt = 0, days = [], t0 = new Date(last); t0.setHours(12, 0, 0, 0);
+      for (var t = t0.getTime() + DAY; t <= now; t += DAY) if (isSchoolDay(t)) { cnt++; days.push(shiftMD(t)); }
+      if (cnt >= SHIFT.gapSchoolDays) kinds.push({ kind: "gap", why: "마지막 작성 " + shiftMD(last) + " · 그 뒤 수업일 " + cnt + "일(" + days.join("·") + ")" });
+    }
+    // ③ 감정 기복 — 하루 안에서 갈리는 것을 본다
+    var byDay = {};
+    es.forEach(function (e) {
+      if (now - e.ts < 0 || now - e.ts >= SHIFT.swingWindowDays * DAY) return;
+      var d = dayStamp(e.ts); byDay[d] = byDay[d] || { ts: e.ts, q: {} };
+      ((e.analysis && e.analysis.hits) || []).forEach(function (h) { if (h && h.q) byDay[d].q[h.q] = 1; });
+    });
+    var sw = Object.keys(byDay).sort().filter(function (d) {
+      var qs = Object.keys(byDay[d].q);
+      return SHIFT.swingSplit === "valence" ? (qs.some(isPos) && qs.some(function (q) { return !isPos(q); })) : qs.length >= 2;
+    });
+    if (sw.length >= SHIFT.swingDays)
+      kinds.push({ kind: "swing", why: "최근 " + SHIFT.swingWindowDays + "일 중 " + sw.length + "일 · " + sw.map(function (d) { return shiftMD(byDay[d].ts) + " " + Object.keys(byDay[d].q).map(function (q) { return Q_NAME[q] || q; }).join("+"); }).join(" · ") });
+    if (kinds.length) {
+      var ph = {}; kinds.forEach(function (k) { ph[k.kind] = pickN(PHRASES_SHIFT[k.kind], 2); });   // 목록 계산 시 한 번만 섞는다
+      out.push({ id: s.id, name: s.name || s.loginId || "학생", kinds: kinds, phrases: ph });
+    }
+  });
+  return out;
+}
 // 배열에서 n개를 무작위로 고른다. 렌더링마다 바뀌면 안 되므로 목록 계산 시 한 번만 부른다.
 function pickN(arr, n) {
   var a = (arr || []).slice();
@@ -5625,7 +5705,7 @@ function fmtDate(d) {
 function nextDay(dateStr) {
   const parts = dateStr.split(".");
   if (parts.length < 2) return dateStr;
-  const now = new Date();
+  const now = new Date(nowTs());
   const m = parseInt(parts[0]) - 1;
   const d = parseInt(parts[1]);
   const date = new Date(now.getFullYear(), m, d);
@@ -5633,7 +5713,7 @@ function nextDay(dateStr) {
   return fmtDate(date);
 }
 function todayStr() {
-  return fmtDate(new Date());
+  return fmtDate(new Date(nowTs()));
 }
 // ── ③ 3D 내 섬 ───────────────────────────────────────────────
 // 결정론적 난수. 같은 학생은 언제 열어도 같은 섬이어야 한다.
@@ -8315,7 +8395,7 @@ function buildFireflies(spots) {
 }
 // 받은 공감 목록 → 반딧불 자리. 최근 것부터, 어휘당 3개·섬당 8개.
 function fireflySpots(list, plants) {
-  var since = Date.now() - FF_DAYS * 86400000, byKey = {}, order = [];
+  var since = nowTs() - FF_DAYS * 86400000, byKey = {}, order = [];
   list.slice().sort(function (a, b) { return b.ts - a.ts; }).forEach(function (e) {
     if (!e.ts || e.ts < since || !e.l) return;
     if (!byKey[e.l]) { byKey[e.l] = 0; order.push(e.l); }
@@ -13291,6 +13371,8 @@ function App() {
   const [myStudents, setMS] = useState([]);
   const [watchList, setWatchList] = useState([]);
   const [openPhr, setOpenPhr] = useState({}); // 대화 문구 펼침 상태. 기본은 접힘.
+  const [shiftList, setShiftList] = useState([]);   // 특수 상황(패턴 변화) — 살펴봐 주세요와 별개(2026-09-14)
+  const [openShift, setOpenShift] = useState({});
   // ⑥-2 "나도 그래"를 최근 7일 받지 못한 / 보내지 않은 학생. 소외는 양쪽에서 시작된다.
   // 개수는 교사에게도 보여주지 않는다 — 이름만. §9의 선대로 정보까지만.
   const [empGap, setEmpGap] = useState(null);
@@ -13438,7 +13520,7 @@ function App() {
     var cancelled = false;
     (async function () {
       if (!myStudents.length) { setWatchList([]); return; }
-      var weekAgo = Date.now() - 7 * 86400000;
+      var weekAgo = nowTs() - 7 * 86400000;
       var out = [];
       for (var si = 0; si < myStudents.length; si++) {
         var stu = myStudents[si];
@@ -13486,6 +13568,21 @@ function App() {
         }
       }
       if (!cancelled) setWatchList(out);
+    })();
+    return function () { cancelled = true; };
+  }, [myStudents]);
+  // 특수 상황(패턴 변화). 살펴봐 주세요와 따로 돈다 — 그쪽 로직은 건드리지 않는다. 학급 전체 일기를 한 번에 모아 수업일 판정에도 쓴다.
+  useEffect(function () {
+    var cancelled = false;
+    (async function () {
+      if (!myStudents.length) { setShiftList([]); return; }
+      var byId = {};
+      for (var si = 0; si < myStudents.length; si++) {
+        try { byId[myStudents[si].id] = await dLoad(myStudents[si].id); } catch (e) { byId[myStudents[si].id] = []; }
+      }
+      var out = patternShifts(myStudents, byId, nowTs());
+      if (devMode()) window.__shift = out;   // 하네스: 판정 근거 확인
+      if (!cancelled) setShiftList(out);
     })();
     return function () { cancelled = true; };
   }, [myStudents]);
@@ -15181,6 +15278,32 @@ function App() {
 }) : React.createElement("div", {
   style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
 }, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")),
+  // 특수 상황 카드(2026-09-14) — "요즘 달라진 아이". 살펴봐 주세요 바로 아래. 세로 띠는 한 색으로 고정한다(순번 교대는 심각도로 오독된다).
+  myStudents.length > 0 && React.createElement("div", { style: { ...crd, marginBottom: 16, padding: "18px 20px" } },
+    React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 } },
+      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97" } }, "요즘 달라진 아이"),
+      React.createElement("div", { style: { fontSize: 14, color: "#9fb0bb" } }, shiftList.length, "명")),
+    React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 12, lineHeight: 1.6 } },
+      "감정일기의 패턴이 이전과 달라진 학생이에요. 힘들어 보이는 신호와는 별개로, 어휘가 단조로워지거나 작성이 끊기거나 하루 안에서 기분이 크게 갈리는 경우예요."),
+    shiftList.length ? shiftList.map(function (w, wi) {
+      return React.createElement("div", { key: w.id || wi, style: { borderRadius: 12, padding: "13px 15px", marginTop: wi ? 10 : 0, border: "1px solid #e3edf1", borderLeft: "3px solid #7fa8c9", background: "#f7fafc" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 6, flexWrap: "wrap" } },
+          React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, w.name),
+          w.kinds.map(function (k) { return React.createElement("span", { key: k.kind, style: { fontSize: 13, color: "#3f6f97", background: "#e7f0f7", borderRadius: 7, padding: "2px 9px" } }, SHIFT_LABEL[k.kind]); })),
+        React.createElement("div", { style: { fontSize: 13, color: "#54626c", lineHeight: 1.9 } },
+          w.kinds.map(function (k) { return React.createElement("div", { key: k.kind }, w.kinds.length > 1 ? React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, SHIFT_LABEL[k.kind]) : null, k.why); })),
+        React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
+          onClick: function () { setOpenShift(function (o) { return Object.assign({}, o, { [wi]: !o[wi] }); }); },
+          style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
+        }, openShift[wi] ? "대화 문구 접기" : "대화 문구 보기")),
+        openShift[wi] ? React.createElement("div", { style: { marginTop: 8, padding: "11px 13px", background: "#fff", border: "1px solid #e3edf1", borderRadius: 10 } },
+          w.kinds.map(function (k, ki) { return React.createElement("div", { key: k.kind, style: { marginTop: ki ? 8 : 0 } },
+            React.createElement("div", { style: { fontSize: 12, color: "#93a3ac", marginBottom: 6 } }, "이렇게 말을 걸어볼 수 있어요 · " + SHIFT_LABEL[k.kind]),
+            (w.phrases[k.kind] || []).map(function (ph, pi) { return React.createElement("div", { key: pi, style: { fontSize: 14, color: "#2b3a42", lineHeight: 1.9 } }, "· " + ph); })); }),
+          React.createElement("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f4f6", fontSize: 12, color: "#93a3ac", lineHeight: 1.7 } },
+            "이 문구는 참고용 예시입니다. 아이의 상황을 가장 잘 아는 것은 선생님입니다.")) : null);
+    }) : React.createElement("div", { style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 } },
+      "최근 패턴이 달라진 학생이 없어요.")),
   // ⑥-2 나도 그래 — 받지 못한 / 보내지 않은 학생. 지시가 아니라 정보다(§9).
   empGap ? React.createElement("div", { style: { ...crd, marginBottom: 16 } },
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "나도 그래"),

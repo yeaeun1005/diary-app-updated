@@ -107,10 +107,12 @@
     if (isB) writing[0] = true;
     // 어휘 수를 채우려면 날이 모자라면 안 된다
     var need = Math.ceil(st.n / 2) + 1, guard = 0;
+    var gapShift = st.shift === "gap";   // 요즘 달라진 아이 ②: 지난 7일(오늘 포함)은 한 편도 없다. 다른 학생의 흐름은 건드리지 않는다
     while (Object.keys(writing).filter(function (o) { return writing[o]; }).length < need && guard++ < 100) {
-      var d = pick(rng, days.filter(function (x) { return !x.weekend && x.off !== 0; }));
+      var d = pick(rng, days.filter(function (x) { return !x.weekend && x.off !== 0 && (!gapShift || x.off > 6); }));
       writing[d.off] = true;
     }
+    if (gapShift) days.forEach(function (d) { if (d.off <= 6) writing[d.off] = false; });
     var wdays = days.filter(function (d) { return writing[d.off]; });   // 오래된 날부터
 
     // 처음 쓰는 날 배정. core는 첫 이틀. 사건 어휘는 그 사건 날. 나머지는 앞쪽에 몰아서(학습 곡선).
@@ -121,7 +123,12 @@
     var early = wdays.map(function (d, idx) { return d.off > 6 ? idx : -1; }).filter(function (x) { return x >= 0; });
     var rest = shuffle(rng, pool.filter(function (l) { return st.core.indexOf(l) < 0; }));
     st.core.forEach(function (l, i) { first[l] = Math.min(Math.floor(i / 2), wdays.length - 1); });
+    // 요즘 달라진 아이 ①: 모든 말을 8일 전보다 앞에서 먼저 쓴다(고르게). 최근 8일은 "편안"만.
+    // 판정 창은 "지금부터 7×24시간"이라 D-7 저녁 일기가 걸쳐 들어온다 — 그래서 7일이 아니라 8일(off ≤ 7)을 덮는다
+    var monoShift = st.shift === "mono", monoEarly = wdays.map(function (d, idx) { return d.off > 7 ? idx : -1; }).filter(function (x) { return x >= 0; });
+    if (monoShift) rest.forEach(function (l, j) { first[l] = monoEarly.length ? monoEarly[j % monoEarly.length] : 0; });
     rest.forEach(function (l) {
+      if (monoShift) return;
       if (eventDayIdx[l] !== undefined && rng() < 0.7) { first[l] = eventDayIdx[l]; return; }
       if (isSad(app, l) && !flagged && early.length) { first[l] = pick(rng, early); return; }
       first[l] = Math.min(wdays.length - 1, Math.floor(wdays.length * Math.pow(rng(), 1.6)));
@@ -171,6 +178,7 @@
       }
       // 밝은 날도 "약간" 밝게: 연습 뒤라 절반은 피곤을 같이 쓴다 (중앙값이 0.4 안팎으로 내려온다)
       if (isToday && mood === "bright" && pool.indexOf("피곤") >= 0 && words.indexOf("피곤") < 0 && rng() < 0.5) words.push("피곤");
+      if (monoShift && d.off <= 7) words = ["편안"];   // 최근 8일은 한 가지 말뿐. 긍정(LA)이라 살펴봐주세요·기복에는 안 걸린다
       words = words.filter(function (l, i) { return l && words.indexOf(l) === i; }).slice(0, 3);
       words.forEach(function (l) { if (used.indexOf(l) < 0) used.push(l); });
 
@@ -258,6 +266,13 @@
       var day = days.filter(function (d) { return d.off === off; })[0], g = 0;
       while (g++ < 30) { var to = ((b - 1 + 2 + bi++ * 5) % 30) + 1; if (put(b, to, day)) break; }
     });
+    // 요즘 달라진 아이(31·32)도 반에 섞여 있게: 각각 하나씩 받고, 31은 하나 보낸다. 기존 30명의 난수 흐름 **뒤에** 붙인다
+    [[DATA.SHIFT_MONO, 3, 2], [DATA.SHIFT_GAP, 12, 5]].forEach(function (p) {
+      var day = days.filter(function (d) { return d.off === p[2]; })[0], g = 0;
+      while (g++ < 30) { var from = ((p[1] - 1 + g * 7) % 30) + 1; if (put(from, p[0], day)) break; }
+    });
+    (function () { var day = days.filter(function (d) { return d.off === 1; })[0], g = 0;
+      while (g++ < 30) { var to = ((g * 5) % 30) + 1; if (put(DATA.SHIFT_MONO, to, day)) break; } })();
     return out;
   }
 
@@ -303,6 +318,7 @@
       D: D, mood: mood, students: students, entries: entries, isle: isle,
       day: day, emp: empOf(app, gens, days, D), plaza: plazaOf(app, gens, D, mood),
       expect: { flagged: [sid(DATA.FLAG_CLEAR), sid(DATA.FLAG_BORDER)], A: sid(DATA.A), B: sid(DATA.B),
+                shift: { mono: sid(DATA.SHIFT_MONO), gap: sid(DATA.SHIFT_GAP) },   // 요즘 달라진 아이 ①②(③ 기복은 자연히 3~8명)
                 vocab: DATA.STUDENTS.reduce(function (o, st) { o[sid(st.i)] = st.n; return o; }, {}) }
     };
   }
