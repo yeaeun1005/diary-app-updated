@@ -77,7 +77,8 @@
   function verify(pw, log) {
     var d = data();
     pw = String(pw || "").trim();
-    if (!pw) { log("교사 비밀번호를 입력해야 해요."); return Promise.resolve(false); }
+    // 칸에 값이 있는데도 여기로 오면 패널 쪽이 옛 페이지다(index.html은 캐시되고 이 파일은 ?v=로 늘 새로 온다, 2026-09-14에 실제로 겪음)
+    if (!pw) { log("교사 비밀번호를 입력해야 해요. 칸에 넣었는데도 이 말이 나오면 페이지가 옛 버전이에요 — 강력 새로고침(Shift+새로고침) 뒤 다시 누르세요."); return Promise.resolve(false); }
     return pwHash("t", "", d.TEACHER.id, pw).then(function (h) {
       return ref(tcredKey(d.TEACHER.id, h)).once("value").then(function (s) {
         if (s.val()) return true;
