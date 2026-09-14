@@ -113,6 +113,9 @@
       writing[d.off] = true;
     }
     if (gapShift) days.forEach(function (d) { if (d.off <= 6) writing[d.off] = false; });
+    // 요즘 달라진 아이 ③: 지난 7일 안의 평일 셋(오늘 제외, 가까운 쪽부터)에 반드시 쓰고, 그날은 긍정+부정을 함께 쓴다(아래)
+    var swingShift = st.shift === "swing", swingOffs = [];
+    if (swingShift) days.filter(function (d) { return d.off >= 1 && d.off <= 6 && !d.weekend; }).sort(function (a, b) { return a.off - b.off; }).slice(0, 3).forEach(function (d) { writing[d.off] = true; swingOffs.push(d.off); });
     var wdays = days.filter(function (d) { return writing[d.off]; });   // 오래된 날부터
 
     // 처음 쓰는 날 배정. core는 첫 이틀. 사건 어휘는 그 사건 날. 나머지는 앞쪽에 몰아서(학습 곡선).
@@ -127,8 +130,10 @@
     // 판정 창은 "지금부터 7×24시간"이라 D-7 저녁 일기가 걸쳐 들어온다 — 그래서 7일이 아니라 8일(off ≤ 7)을 덮는다
     var monoShift = st.shift === "mono", monoEarly = wdays.map(function (d, idx) { return d.off > 7 ? idx : -1; }).filter(function (x) { return x >= 0; });
     if (monoShift) rest.forEach(function (l, j) { first[l] = monoEarly.length ? monoEarly[j % monoEarly.length] : 0; });
+    var swingFree = wdays.map(function (d, idx) { return swingOffs.indexOf(d.off) < 0 ? idx : -1; }).filter(function (x) { return x >= 0; });
+    if (swingShift) rest.forEach(function (l, j) { first[l] = swingFree.length ? swingFree[j % swingFree.length] : 0; });   // 처음 쓰는 말은 기복 날을 피한다
     rest.forEach(function (l) {
-      if (monoShift) return;
+      if (monoShift || swingShift) return;
       if (eventDayIdx[l] !== undefined && rng() < 0.7) { first[l] = eventDayIdx[l]; return; }
       if (isSad(app, l) && !flagged && early.length) { first[l] = pick(rng, early); return; }
       first[l] = Math.min(wdays.length - 1, Math.floor(wdays.length * Math.pow(rng(), 1.6)));
@@ -179,6 +184,7 @@
       // 밝은 날도 "약간" 밝게: 연습 뒤라 절반은 피곤을 같이 쓴다 (중앙값이 0.4 안팎으로 내려온다)
       if (isToday && mood === "bright" && pool.indexOf("피곤") >= 0 && words.indexOf("피곤") < 0 && rng() < 0.5) words.push("피곤");
       if (monoShift && d.off <= 7) words = ["편안"];   // 최근 8일은 한 가지 말뿐. 긍정(LA)이라 살펴봐주세요·기복에는 안 걸린다
+      if (swingShift && swingOffs.indexOf(d.off) >= 0) words = [["즐거움", "짜증"], ["편안", "긴장"], ["즐거움", "긴장"]][swingOffs.indexOf(d.off)];   // 긍정+부정(HV). 슬픔 계열이 아니라 살펴봐주세요는 안 건드린다
       words = words.filter(function (l, i) { return l && words.indexOf(l) === i; }).slice(0, 3);
       words.forEach(function (l) { if (used.indexOf(l) < 0) used.push(l); });
 
@@ -248,8 +254,9 @@
       var n = day.off === 0 ? 9 : day.weekend ? 3 : 9 + Math.floor(rng() * 4);
       var guard = 0;
       while (n > 0 && guard++ < 60) {
-        var from = 1 + Math.floor(rng() * 30);
-        var to = ((from - 1 + (rng() < 0.7 ? 1 + Math.floor(rng() * 3) : 4 + Math.floor(rng() * 20))) % 30) + 1;
+        var N = DATA.STUDENTS.length;
+        var from = 1 + Math.floor(rng() * N);
+        var to = ((from - 1 + (rng() < 0.7 ? 1 + Math.floor(rng() * 3) : 4 + Math.floor(rng() * 20))) % N) + 1;
         if (put(from, to, day)) n--;
       }
     });
@@ -258,21 +265,22 @@
     delete out[sid(a)];
     want.forEach(function (off) {
       var day = days.filter(function (d) { return d.off === off; })[0], g = 0;
-      while (g++ < 30) { var from = ((a - 1 + 1 + gi++ * 7) % 30) + 1; if (put(from, a, day)) break; }
+      while (g++ < 30) { var from = ((a - 1 + 1 + gi++ * 7) % DATA.STUDENTS.length) + 1; if (put(from, a, day)) break; }
     });
     // 심사 계정 B: 이번 주에 둘은 보낸다 (가장 자란 섬의 아이가 하나도 안 보냈으면 어색하다)
     var b = DATA.B, bi = 0;
     [1, 3].forEach(function (off) {
       var day = days.filter(function (d) { return d.off === off; })[0], g = 0;
-      while (g++ < 30) { var to = ((b - 1 + 2 + bi++ * 5) % 30) + 1; if (put(b, to, day)) break; }
+      while (g++ < 30) { var to = ((b - 1 + 2 + bi++ * 5) % DATA.STUDENTS.length) + 1; if (put(b, to, day)) break; }
     });
-    // 요즘 달라진 아이(31·32)도 반에 섞여 있게: 각각 하나씩 받고, 31은 하나 보낸다. 기존 30명의 난수 흐름 **뒤에** 붙인다
+    // 요즘 달라진 아이(단조·끊김)도 반딧불을 하나씩 받고, 단조 아이는 하나 보낸다. 다른 아이의 난수 흐름 **뒤에** 붙인다
+    var N2 = DATA.STUDENTS.length;
     [[DATA.SHIFT_MONO, 3, 2], [DATA.SHIFT_GAP, 12, 5]].forEach(function (p) {
       var day = days.filter(function (d) { return d.off === p[2]; })[0], g = 0;
-      while (g++ < 30) { var from = ((p[1] - 1 + g * 7) % 30) + 1; if (put(from, p[0], day)) break; }
+      while (g++ < 30) { var from = ((p[1] - 1 + g * 7) % N2) + 1; if (put(from, p[0], day)) break; }
     });
     (function () { var day = days.filter(function (d) { return d.off === 1; })[0], g = 0;
-      while (g++ < 30) { var to = ((g * 5) % 30) + 1; if (put(DATA.SHIFT_MONO, to, day)) break; } })();
+      while (g++ < 30) { var to = ((g * 5) % N2) + 1; if (put(DATA.SHIFT_MONO, to, day)) break; } })();
     return out;
   }
 
@@ -318,7 +326,7 @@
       D: D, mood: mood, students: students, entries: entries, isle: isle,
       day: day, emp: empOf(app, gens, days, D), plaza: plazaOf(app, gens, D, mood),
       expect: { flagged: [sid(DATA.FLAG_CLEAR), sid(DATA.FLAG_BORDER)], A: sid(DATA.A), B: sid(DATA.B),
-                shift: { mono: sid(DATA.SHIFT_MONO), gap: sid(DATA.SHIFT_GAP) },   // 요즘 달라진 아이 ①②(③ 기복은 자연히 3~8명)
+                shift: { mono: sid(DATA.SHIFT_MONO), gap: sid(DATA.SHIFT_GAP), swing: sid(DATA.SHIFT_SWING) },   // 요즘 달라진 아이 ①②③(③은 심은 아이 + 자연 발생)
                 vocab: DATA.STUDENTS.reduce(function (o, st) { o[sid(st.i)] = st.n; return o; }, {}) }
     };
   }

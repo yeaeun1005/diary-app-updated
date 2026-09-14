@@ -128,8 +128,10 @@ for (var dd = 0; dd < 7; dd++) {
     var of = function (k) { return sh.filter(function (w) { return w.kinds.some(function (x) { return x.kind === k; }); }).map(function (w) { return String(w.id); }); };
     if (of("mono").join() !== String(g.expect.shift.mono)) fail(tag + " 어휘 단조 " + of("mono").map(function (id) { return names[id]; }).join(",") + " ≠ " + names[g.expect.shift.mono]);
     if (of("gap").join() !== String(g.expect.shift.gap)) fail(tag + " 작성 끊김 " + of("gap").map(function (id) { return names[id]; }).join(",") + " ≠ " + names[g.expect.shift.gap]);
-    swingLog.push(tag + "=" + of("swing").length);   // ③ 기복은 자연 발생이라 기준일에 따라 0~6명. 실패로 치지 않고 아래에 적는다
+    swingLog.push(tag + "=" + of("swing").length);   // ③ 기복은 심은 아이 하나 + 자연 발생(기준일에 따라 0~6명)
+    if (of("swing").indexOf(String(g.expect.shift.swing)) < 0) fail(tag + " 기복에 심은 아이(" + names[g.expect.shift.swing] + ")가 없다");
     if (of("swing").length > 8) fail(tag + " 기복 " + of("swing").length + "명 (8 이하 기대)");
+    if (g.students.length !== 25) fail(tag + " 학생 수 " + g.students.length + " ≠ 25");
     if (of("mono").concat(of("gap")).some(function (id) { return exp.indexOf(id) >= 0; })) fail(tag + " 달라진 아이가 살펴봐주세요와 겹친다");
     // 오늘: 참여·바다 색
     var vs = Object.keys(g.day.node).map(function (ak) { return g.day.node[ak].v; });
