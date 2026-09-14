@@ -1321,7 +1321,11 @@ function chatKey(id) {
 // 쓰고·답하고·승인한 결과가 세션 안에서는 전부 보이고(다시 읽어 갱신하는 화면도), 새로고침하면 원본으로 돌아간다. DB에는 아무것도 남지 않는다.
 // 실제 학급은 MEM_ONLY가 꺼져 있어 진짜 ref를 그대로 쓴다. 시연 패널(demo/seed.js)은 생성기라 이 관문을 거치지 않는다(의도).
 var MEM_ONLY = false;
-var MEM_OPS = [];   // 순서대로 { p: [경로 조각], v: 값 | null(삭제) }. 다중 경로 update는 키마다 하나씩
+var MEM_OPS = [];
+// 4단계 안내 문구(2026-09-14 확정, 후보 C). band: 시연 계정 띠, trialBand: 체험 모드 띠, msg: 저장 성공 안내(✅)에 덧붙이는 꼬리
+var MEM_NOTES = { band: "시연 학급 · 실제 학생이 아닙니다 · 새로고침하면 처음으로 돌아가요",
+                  trialBand: "체험 모드 · 새로고침하면 처음으로 돌아가요",
+                  msg: " · 새로고침하면 되돌아와요" };   // 순서대로 { p: [경로 조각], v: 값 | null(삭제) }. 다중 경로 update는 키마다 하나씩
 function memSegs(p) { return String(p).split("/").filter(Boolean); }
 function memClone(v) { return v == null ? null : JSON.parse(JSON.stringify(v)); }
 function memGetAt(o, segs) { for (var i = 0; i < segs.length; i++) { if (o == null || typeof o !== "object") return null; o = o[segs[i]]; } return o === undefined ? null : o; }
@@ -13106,7 +13110,7 @@ function DemoSeedPanel() {
     React.createElement("h3", { style: { margin: "0 0 6px", fontFamily: "'Jua',sans-serif", fontWeight: 400 } }, "시연 학급 만들기 (#seed)"),
     React.createElement("p", { style: { margin: "0 0 12px", fontSize: 13, color: "#78350f", lineHeight: 1.5 } },
       "가상 학급 ", DEMO_CODE, "에만 씁니다. 실제 학급 데이터는 건드리지 않아요. 만드는 방법은 demo/ 폴더와 DESIGN §14에 있어요. ",
-      "심사가 며칠에 걸치면 아침마다 기준일을 오늘로 두고 \"전체 다시 만들기\"를 누르세요."),
+      "시연 계정의 시계는 기준일에 고정되어 있어 아침마다 다시 만들 필요가 없어요. 다시 만들거나 오늘치를 바꾸려면 교사 비밀번호가 필요해요."),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 } },
       React.createElement("label", { style: { fontSize: 13 } }, "기준일 ",
         React.createElement("input", { type: "date", value: date, onChange: function (e) { setDate(e.target.value); }, style: { ...inp, width: 160, display: "inline-block", padding: "8px 10px" } })),
@@ -13115,12 +13119,12 @@ function DemoSeedPanel() {
       React.createElement("label", { style: { fontSize: 13 } },
         React.createElement("input", { type: "radio", checked: mood === "heavy", onChange: function () { setMood("heavy"); } }), " 무거운 날")),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 } },
-      React.createElement("input", { type: "password", value: tpw, placeholder: "시연 교사 비밀번호 (처음 한 번만 · 나중에 못 바꿔요)", autoComplete: "new-password",
+      React.createElement("input", { type: "password", value: tpw, placeholder: "시연 교사 비밀번호 (처음엔 자격을 만들고, 그 뒤엔 확인용 · 없으면 못 만들어요)", autoComplete: "new-password",
         onChange: function (e) { setTpw(e.target.value); }, style: { ...inp, width: 330, display: "inline-block", padding: "8px 10px" } })),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 } },
       btn("시연 학교 만들기 (처음 한 번)", function () { return window.DEMO_SEED.bootstrap(tpw, log); }, false, !tpw.trim()),
-      btn("전체 다시 만들기", function (D) { return window.DEMO_SEED.rebuild(D, mood, log); }, true),
-      btn("오늘 일기만 다시 쓰기", function (D) { return window.DEMO_SEED.today(D, mood, log); }, true)),
+      btn("전체 다시 만들기", function (D) { return window.DEMO_SEED.rebuild(D, mood, log, tpw); }, true, !tpw.trim()),   // 5단계: 교사 비밀번호 확인 뒤에만
+      btn("오늘 일기만 다시 쓰기", function (D) { return window.DEMO_SEED.today(D, mood, log, tpw); }, true, !tpw.trim())),
     React.createElement("pre", { style: { margin: 0, padding: 10, background: "#fff", border: "1px solid #fde68a", borderRadius: 8, fontSize: 12, lineHeight: 1.5, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap" } },
       ready ? (lines.length ? lines.join("\n") : (busy ? "쓰는 중…" : "준비됐어요.")) : "demo/seed-*.js 불러오는 중…"));
 }
@@ -13133,16 +13137,22 @@ function App() {
     link.rel = "stylesheet";
     document.head.appendChild(link);
   }, []);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsgRaw] = useState("");
+  // 4단계: 시연·체험(메모리에만 쓰는 상태)에서는 "✅ …" 성공 안내 뒤에 저장되지 않았다는 꼬리를 붙인다 — 삭제·비우기를 누른 뒤 실제로 지워진 줄 알지 않게
+  const setMsg = useCallback(function (m) { setMsgRaw(MEM_ONLY && typeof m === "string" && m.charAt(0) === "✅" ? m + MEM_NOTES.msg : m); }, []);
   const [currentUser, setCU] = useState(null);
   setDemoClock(currentUser);   // 시연 시계 플래그(2단계). 렌더마다 동기로 세운다 — 아래 효과들(살펴봐·반딧불·달라진 아이)이 첫 실행부터 고정 시계를 보게. 로그인 함수도 setCU 앞에서 세운다
   if (page === "trial") MEM_ONLY = true;   // 체험 모드도 메모리에만 쓴다(3단계) — 마음대화가 app/chat_trial_… 에 남던 것을 막는다
   if (!MEM_ONLY && MEM_OPS.length) MEM_OPS = [];   // 시연·체험을 벗어나면 세션 메모리를 비운다
   // ⑩ 시연 학급이면 화면 아래에 띠. 가명이 실명처럼 보이는 것을 띠가 가린다 (DESIGN.md §14).
+  // 4단계(2026-09-14): 저장되지 않는다는 말을 띠에 덧붙이고, 체험 모드에도 같은 띠를 띄운다. 실제 학급에는 뜨지 않는다.
   useEffect(function () {
     var r = document.getElementById("demo-ribbon");
-    if (r) r.hidden = !(currentUser && currentUser.schoolCode === DEMO_CODE);
-  }, [currentUser]);
+    if (!r) return;
+    var demo = !!(currentUser && currentUser.schoolCode === DEMO_CODE), trial = page === "trial";
+    r.textContent = demo ? MEM_NOTES.band : MEM_NOTES.trialBand;
+    r.hidden = !(demo || trial);
+  }, [currentUser, page]);
   const [loginForm, setLF] = useState({
     schoolCode: "",
     loginId: "",
@@ -13939,7 +13949,7 @@ function App() {
         setVS(null);
         setVE([]);
       }
-      setMsg(stu.name + " 학생이 삭제되었습니다.");
+      setMsg("✅ " + stu.name + " 학생이 삭제되었습니다.");
     } catch (e) {
       console.error("Delete error:", e);
       setMsg("삭제 중 오류가 발생했습니다.");
@@ -14010,7 +14020,7 @@ function App() {
     await d2Clear(stu.id);
     await sSet(dKey(stu.id), []);
     if (viewStu && viewStu.id === stu.id) setVE([]);
-    setMsg("기록이 비워졌습니다.");
+    setMsg("✅ 기록이 비워졌습니다.");
   };
   // 일기 저장이 먼저다. 섬·온도계는 부수 작업이라 실패해도 일기를 막지 않는다.
   const syncIsland = useCallback(async (e, all) => {

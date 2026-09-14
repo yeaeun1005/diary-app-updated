@@ -72,8 +72,25 @@
     });
   }
 
-  // 전체 다시 만들기. 기준일 D(자정)와 오늘의 기분.
-  function rebuild(D, mood, log) {
+  // 교사 비밀번호 확인(5단계, 2026-09-14). 로그인과 같은 방식 — 해시를 계산해 tcred/<아이디>/<해시> 잎이 있으면 맞는 것.
+  // 자격은 bootstrap이 만든 그것이라 따로 둘 데가 없고, 규칙상 부모는 못 읽으니 목록이 새지 않는다. 주소만 아는 사람이 초기화하는 것을 막는다.
+  function verify(pw, log) {
+    var d = data();
+    pw = String(pw || "").trim();
+    if (!pw) { log("교사 비밀번호를 입력해야 해요."); return Promise.resolve(false); }
+    return pwHash("t", "", d.TEACHER.id, pw).then(function (h) {
+      return ref(tcredKey(d.TEACHER.id, h)).once("value").then(function (s) {
+        if (s.val()) return true;
+        log("교사 비밀번호가 맞지 않아요. (자격이 아직 없으면 먼저 \"시연 학교 만들기\")"); return false;
+      }, function (e) { log("비밀번호 확인 실패: " + (e && e.message || e)); return false; });
+    });
+  }
+
+  // 전체 다시 만들기. 기준일 D(자정)와 오늘의 기분. 교사 비밀번호가 맞아야 돈다.
+  function rebuild(D, mood, log, pw) {
+    return verify(pw, log).then(function (ok) { if (!ok) return false; return rebuildNow(D, mood, log); });
+  }
+  function rebuildNow(D, mood, log) {
     guard();
     var d = data(), g = gen().generate(D, mood, app()), ids = g.students.map(function (s) { return s.id; });
     var t0 = Date.now(), okAll = true;
@@ -118,8 +135,11 @@
       });
   }
 
-  // 오늘 일기만 다시 쓰기. 심사 계정 A·B는 건드리지 않는다.
-  function today(D, mood, log) {
+  // 오늘 일기만 다시 쓰기. 심사 계정 A·B는 건드리지 않는다. 교사 비밀번호가 맞아야 돈다.
+  function today(D, mood, log, pw) {
+    return verify(pw, log).then(function (ok) { if (!ok) return false; return todayNow(D, mood, log); });
+  }
+  function todayNow(D, mood, log) {
     guard();
     var d = data(), g = gen().generate(D, mood, app()), td = g.day.date, okAll = true;
     function note(ok) { if (!ok) okAll = false; }
@@ -147,5 +167,5 @@
     });
   }
 
-  root.DEMO_SEED = { bootstrap: bootstrap, rebuild: rebuild, today: today };
+  root.DEMO_SEED = { bootstrap: bootstrap, rebuild: rebuild, today: today, verify: verify };
 })(window);
