@@ -7251,12 +7251,13 @@ function walkY(isle, x, z, refY) {
 // 값은 items 배열이고 돌려줄 때 얕은 복사(뷰가 만져도 캐시는 그대로). 섬당 10KB쯤, 상한 120개(≈1.2MB)를 넘으면 가장 오래 안 쓴 것부터 버린다.
 var VEG_CACHE = new Map(), VEG_CACHE_MAX = 120;
 function vegSig(state) { return (state || []).map(function (s) { return [s.label, s.q, s.valStd, s.aroStd, s.hidden ? 1 : 0].join(":"); }).join("|"); }
+function vegKey(isle, state, opts) { return ((opts && opts.seed) || "island") + "|" + (isle.userData.detail == null ? 1 : isle.userData.detail) + "|" + vegSig(state); }
+function vegGet(key) { var hit = VEG_CACHE.get(key); if (hit) { VEG_CACHE.delete(key); VEG_CACHE.set(key, hit); } return hit || null; }   // 최근 쓴 것을 뒤로(LRU)
+function vegPut(key, items) { VEG_CACHE.set(key, items); while (VEG_CACHE.size > VEG_CACHE_MAX) VEG_CACHE.delete(VEG_CACHE.keys().next().value); return items; }
+function vegCopy(items) { return items.map(function (o) { return Object.assign({}, o); }); }
 function vegCached(isle, state, opts) {
-  var key = ((opts && opts.seed) || "island") + "|" + (isle.userData.detail == null ? 1 : isle.userData.detail) + "|" + vegSig(state);
-  var hit = VEG_CACHE.get(key);
-  if (hit) { VEG_CACHE.delete(key); VEG_CACHE.set(key, hit); }   // 최근 쓴 것을 뒤로(LRU)
-  else { hit = buildVegetation(isle, state, opts); VEG_CACHE.set(key, hit); while (VEG_CACHE.size > VEG_CACHE_MAX) VEG_CACHE.delete(VEG_CACHE.keys().next().value); }
-  return hit.map(function (o) { return Object.assign({}, o); });
+  var key = vegKey(isle, state, opts), hit = vegGet(key) || vegPut(key, buildVegetation(isle, state, opts));
+  return vegCopy(hit);
 }
 function tierBand(isle, th, lv) {
   var C = isle.userData.coast(th), lo = -1, hi = -1, E = isle.userData.edgesAt ? isle.userData.edgesAt(th) : undefined;
@@ -7286,7 +7287,11 @@ function russellAngle(valStd, aroStd, label) {
 // 중립 식생은 감정 식생을 다 놓은 뒤 남는 자리에만 깔린다. 그래야 감정 식생
 // 자리가 중립과 무관해지고, 자란 것이 늘면 풀이 그만큼 물러난다.
 var VEG_MIN_GAP = 0.6;   // 캐릭터 지름 0.4 + 여유. 어디든 비집고 지나갈 틈이 남는다
-function buildVegetation(isle, state, opts) {
+// 조각 실행(2026-09-15): 제너레이터가 어휘 하나마다·중립 식생 8개마다 yield한다. 바다 화면은 프레임 예산(SEA_BUILD_MS) 안에서 next()를 돌려
+// 섬 하나가 통째로 한 프레임을 막지 않게 하고(전에는 섬당 20~130ms), 나머지 화면은 buildVegetation()이 끝까지 돌린다. yield 자리는 난수 소비·판정 순서를
+// 바꾸지 않으므로 어느 쪽으로 만들어도 식생 위치는 같다(하네스 대조 1862개).
+function buildVegetation(isle, state, opts) { var g = buildVegetationGen(isle, state, opts), r; do { r = g.next(); } while (!r.done); return r.value; }
+function* buildVegetationGen(isle, state, opts) {
   opts = opts || {};
   var list = state || [], TAU = 6.283185307;
   var items = [];
@@ -7357,7 +7362,8 @@ function buildVegetation(isle, state, opts) {
   // 문턱(8→9, 16→17, 26→27)을 넘는 날 기존 어휘의 식생이 사라졌다 — §5 "한 번 생긴 식생은 사라지지 않는다"와 어긋난다.
   // 첫날의 풍성함은 중립 식생이 채우고, 어휘가 많아져 자리가 모자라면 배치 실패로 자연히 멈춘다(어휘 30개 = 시도 90번).
   var per = 3;
-  list.forEach(function (em) {
+  for (var ei = 0; ei < list.length; ei++) {   // forEach였다 — yield 때문에 for로(2026-09-15). 본문은 그대로
+    var em = list[ei];
     var rule = VEG[em.q] || VEG.LA;
     var rnd = mulberry32(hashSeed(em.label));
     var psi = russellAngle(em.valStd, em.aroStd, em.label);
@@ -7398,7 +7404,8 @@ function buildVegetation(isle, state, opts) {
         if (spS) { push(kindS, spS, scS, rnd, lvS, em.q, em.label); any = true; }
       }
     }
-  });
+    yield;   // 어휘 하나 끝(2~6ms)
+  }
 
   // 중립 식생. 섬 면적에 비례해 깐다. 층 면적이 다르므로 층별 비중도 면적에 맞춘다.
   var brnd = mulberry32(hashSeed("neutral-" + (opts.seed || "island")));
@@ -7413,6 +7420,7 @@ function buildVegetation(isle, state, opts) {
     var sp2 = spotOnTier(brnd, brnd() * TAU, lv2, (VEG_FOOT[kind2] || 0.2) * sc2, kind2);
     if (sp2) push(kind2, sp2, sc2, brnd, lv2, null, null);
     else { brnd(); brnd(); brnd(); }
+    if ((b & 7) === 7) yield;   // 중립 식생 8개마다
   }
   return items;
 }
@@ -8303,6 +8311,9 @@ function buildSea(radius, tone) {
 //
 //   전부 끈 것(최고 화질): #sea&lod=0&fog=0&shadow=1&sm=2048&dpr=2
 var SEA_CARDS = { lod: 2, fog: 1, near: 0, shadow: 0, sm: 1024, tags: 1, dpr: 1 };
+// 진입 중 섬 생성 예산(2026-09-15). 프레임마다 이만큼만 섬을 만든다(지형 한 덩이, 식생은 제너레이터 조각). 가까운 섬부터(refreshNear가 거리순).
+// 원판→온전한 섬으로 바뀔 때 식생은 SEA_GROW_MS 동안 땅에서 자라 올라온다(움직임 줄이기 설정이면 바로)
+var SEA_BUILD_MS = 8, SEA_GROW_MS = 450;
 function seaOpts() {
   var o = {};
   for (var k in SEA_CARDS) o[k] = SEA_CARDS[k];
@@ -10259,6 +10270,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
 
     // 친구 섬. 데이터가 오면 물속에서 떠오른다. 그동안 출항 연출이 진행된다.
     var isles = [], mapR = SEA_R1 + 10, alive = true;
+    var reduceMotion = false; try { reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
     var hiRing = new THREE.Mesh(new THREE.RingGeometry(9.0, 10.2, 48).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0, depthWrite: false }));
     hiRing.position.y = 0.05; hiRing.visible = false; hiRing.frustumCulled = false;
@@ -10270,18 +10282,46 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       if (!O.lod) return 1;
       return e.ring <= 1 ? 0.75 : e.ring === 2 ? 0.5 : 0.35;
     }
-    function ensureFull(e, det) {
-      if (e.full && e.det >= det) return;
+    // 온전한 섬을 세운다(지형 g + 식생 items). grow면 식생이 자라 올라온다(점진 생성이 원판을 바꿀 때)
+    function finishFull(e, g, items, det, grow) {
       if (e.full) { e.holder.remove(e.full); disposeObj(e.full); e.full = null; }
-      var g = buildIsland(e.seed, { detail: det, tone: seaGrp ? seaGrp.userData.tone : 0.5 });
       var h = new THREE.Group();
       h.add(g);
-      h.add(buildVegMeshes(vegCached(g, e.state, { seed: e.seed })));   // 캐시(2026-09-15): 두 번째 진입은 배치를 건너뛴다
+      var veg = buildVegMeshes(items);
+      h.add(veg);
       // 인스턴스 메시의 경계 구는 인스턴스 하나 크기라, 섬 중심이 화면을 벗어나는
       // 순간 식생이 통째로 사라진다. 컬링은 아래 cull()이 섬 단위로 한다.
       h.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
-      e.full = h; e.det = det; e.isle = g;
+      if (grow && !reduceMotion) { veg.scale.setScalar(0.001); h.userData.grow = { veg: veg, t0: performance.now() }; }
+      e.full = h; e.det = det; e.isle = g; e.job = null;
       e.holder.add(h);
+    }
+    // 한 번에 다 만든다 — 항해 목적지·친구 섬에서 돌아온 자리처럼 지금 당장 온전해야 할 때. 진행 중이던 조각 작업은 버린다
+    function ensureFull(e, det) {
+      if (e.full && e.det >= det) return;
+      var g = buildIsland(e.seed, { detail: det, tone: seaGrp ? seaGrp.userData.tone : 0.5 });
+      finishFull(e, g, vegCached(g, e.state, { seed: e.seed }), det, false);   // 캐시(2026-09-15): 두 번째 진입은 배치를 건너뛴다
+    }
+    // 조각 생성(2026-09-15). 큐 맨 앞(가장 가까운) 섬을 예산이 남는 동안만 진행한다: ① 지형 buildIsland(1~24ms, 한 덩이) ② 식생 — 캐시에 있으면 바로,
+    // 없으면 제너레이터를 예산까지 돌리고 다음 프레임에 이어서 ③ 세우기(원판을 치우고 식생이 자란다). 캐시 결과와 동기 생성 결과는 같은 배열이다
+    function buildStep(deadline) {
+      while (buildQ.length && performance.now() < deadline) {
+        var e = buildQ[0], det = detailFor(e);
+        if (e.full && e.det >= det) { buildQ.shift(); showFull(e); continue; }   // 그새 동기로 만들어졌다(항해 목적지)
+        var job = e.job;
+        if (!job || job.det !== det) job = e.job = { det: det, g: null, gen: null, key: null };
+        if (!job.g) { job.g = buildIsland(e.seed, { detail: det, tone: seaGrp ? seaGrp.userData.tone : 0.5 }); job.key = vegKey(job.g, e.state, { seed: e.seed }); continue; }
+        var items = vegGet(job.key);
+        if (!items) {
+          if (!job.gen) job.gen = buildVegetationGen(job.g, e.state, { seed: e.seed });
+          var r = job.gen.next();
+          while (!r.done && performance.now() < deadline) r = job.gen.next();
+          if (!r.done) return;   // 다음 프레임에 이어서
+          items = vegPut(job.key, r.value);
+        }
+        finishFull(e, job.g, vegCopy(items), det, e.proxy && e.proxy.visible);
+        buildQ.shift(); showFull(e);
+      }
     }
     function showFull(e) {
       ensureFull(e, detailFor(e));
@@ -10308,7 +10348,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
         var full = O.near <= 0 || i < O.near || e.keep;
         if (!full) { showProxy(e); return; }
         if (e.full && e.det >= detailFor(e)) showFull(e);
-        else { showProxy(e); buildQ.push(e); }
+        else { if (!e.full) showProxy(e); buildQ.push(e); }   // 낮은 디테일로 이미 서 있으면 그대로 둔 채 올린다 — 조각 생성 중 원판으로 되돌아가지 않게(2026-09-15)
       });
     }
     (async function () {
@@ -10619,7 +10659,14 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
         if (hu >= 1) { hi = null; hiRing.visible = false; }
         else { hiRing.scale.setScalar(1 + 0.06 * Math.sin(t0 / 160)); hiRing.material.opacity = 0.9 * (1 - hu); }
       }
-      if (buildQ.length) showFull(buildQ.shift());
+      buildStep(t0 + SEA_BUILD_MS);   // 진입 중 섬 생성 — 프레임 예산 안에서만(2026-09-15)
+      for (var gi = 0; gi < isles.length; gi++) {   // 식생 자라나기
+        var gr = isles[gi].full && isles[gi].full.userData.grow;
+        if (!gr) continue;
+        var gu = Math.min(1, (t0 - gr.t0) / SEA_GROW_MS), ge = 1 - Math.pow(1 - gu, 3);
+        gr.veg.scale.setScalar(Math.max(0.001, ge));
+        if (gu >= 1) { gr.veg.scale.setScalar(1); delete isles[gi].full.userData.grow; }
+      }
       if (!intro && !sail) refreshNear(false);
       cull();
       renderer.render(scene, cam);
