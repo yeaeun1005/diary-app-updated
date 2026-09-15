@@ -764,6 +764,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 /* 튜토리얼 투어(2026-09-15, 1단계 엔진). 막은 사각형 넷(구멍은 진짜 빈 자리), 구멍 모서리는 네 귀퉁이 조각이 둥글게 가리고, 반짝임 링은 pointer-events 없음. z: 로그인 창(100)·시연 띠(9999) 아래 */
 .tut-mask{position:fixed;z-index:90;touch-action:none;cursor:default}   /* 배경색은 TUT.mask(인라인) */
 .tut-ring{position:fixed;z-index:91;pointer-events:none;box-sizing:border-box}
+.tut-cover{position:fixed;z-index:90;background:transparent;cursor:default}   /* inert 단계: 구멍 안도 누를 수 없다 */
 .tut-corner{position:absolute;pointer-events:none}
 .tut-shine{position:absolute;inset:0;box-sizing:border-box;border:var(--tut-shine-w) solid var(--tut-shine);border-radius:inherit;animation:tutShine 1.6s ease-in-out infinite}   /* 색·두께·빛은 TUT 상수(링의 인라인 변수) */
 @keyframes tutShine{0%,100%{box-shadow:var(--tut-glow-lo)}50%{box-shadow:var(--tut-glow-hi)}}
@@ -13236,6 +13237,8 @@ function DemoSeedPanel() {
 // 단계: { target: "이름" | function→요소 | null, title?, text, next, keys?, pad?, radius?, place? }
 //   next "button"(기본): 말풍선의 [다음]·Enter. "click": 구멍 안 대상을 누르면. "key": keys 중 하나를 누르면. 함수: 매 프레임 물어 true면(예: 캐릭터가 팻말에 닿았을 때).
 //   target 함수는 요소 대신 getBoundingClientRect만 가진 객체를 돌려줘도 된다(여러 요소를 한 구멍에). text도 함수면 그릴 때 부른다.
+//   inert: 구멍 위에 투명 덮개를 얹어 대상도 못 누르게(설명만 하는 단계 — 교사 대시보드처럼 구멍 안 버튼이 모달을 열면 곤란할 때).
+//   대상이 화면 밖이면 단계가 바뀔 때 scrollIntoView(가운데)로 데려온 뒤 구멍이 따라간다. 투어 옵션 skipMissing: 시작 때 대상이 없는 단계를 빼고 번호를 다시 매긴다.
 //   keys: 막 아래로 흘려 보내는 키(걷기 방향키 등). 그 밖의 키는 window capture에서 끊는다(소리 버튼의 첫 입력 감지와 같은 방식). Esc는 언제나 나가기.
 //   target이 없으면(null·아직 안 그려짐) 막이 전체를 덮고 말풍선은 가운데. 대상이 나타나면 그 프레임에 구멍이 열린다.
 // 조절 상수(2026-09-15). 막 농도·구멍 여백·반짝임은 여기서만 바꾼다 — CSS는 이 값을 인라인 변수로 받는다
@@ -13280,6 +13283,18 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
     window.addEventListener("resize", onResize);
     return function () { stopped = true; cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); marked.forEach(function (e) { e.classList.remove("tut-target"); }); };
   }, [step, pad]);
+  // 대상이 화면 밖이면 데려온다(단계가 바뀔 때 한 번). 보통은 가운데로(고정 헤더에 안 가린다). 화면보다 긴 카드(학생 명단)는 가운데 정렬이면 위가 잘리므로 헤더 아래 상단에 맞춘다
+  useEffect(function () {
+    var el = tutFind(step);
+    if (!el || !el.scrollIntoView) return;
+    var r = el.getBoundingClientRect(), vh = window.innerHeight, TOP = 84;
+    if (r.top >= 0 && r.bottom <= vh) return;
+    var smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    try {
+      if (r.height > vh - TOP) window.scrollTo({ top: window.scrollY + r.top - TOP, behavior: smooth ? "smooth" : "auto" });
+      else el.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+    } catch (e) { el.scrollIntoView(); }
+  }, [step]);
   // 키보드: window capture에서 허용된 키만 넘기고 나머지는 끊는다. 말풍선 안(버튼)에 초점이 있을 때는 그대로 둔다(Tab·Enter로 버튼을 쓸 수 있게)
   useEffect(function () {
     var allow = step.keys || [];
@@ -13337,6 +13352,7 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var corner = function (k, at, st) { return h("div", { key: k, className: "tut-corner", style: { ...st, width: R, height: R, background: "radial-gradient(circle at " + at + ", transparent " + (R - 0.6) + "px, " + TUT.mask + " " + (R + 0.4) + "px)" } }); };
   var isLast = i + 1 >= steps.length, nextBtn = step.next == null || step.next === "button";
   return h(React.Fragment, null, masks,
+    rect && step.inert ? h("div", { className: "tut-cover", style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3] } }) : null,
     rect && h("div", { className: "tut-ring", style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3], borderRadius: R, "--tut-shine": TUT.shine, "--tut-shine-w": TUT.shineWidth + "px", "--tut-glow-lo": TUT.glowLo, "--tut-glow-hi": TUT.glowHi, "--tut-glow-still": TUT.glowStill } },
       corner("tl", "100% 100%", { left: 0, top: 0 }), corner("tr", "0% 100%", { right: 0, top: 0 }),
       corner("bl", "100% 0%", { left: 0, bottom: 0 }), corner("br", "0% 0%", { right: 0, bottom: 0 }),
@@ -13350,6 +13366,21 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
           h("span", { className: "tut-count" }, (i + 1) + " / " + steps.length),
           h("button", { className: "tut-skip", onClick: onSkip }, "건너뛰기"),
           nextBtn && h("button", { className: "tut-next", onClick: onNext }, isLast ? "끝내기" : "다음")))));
+}
+// ── 교사 대시보드 투어(3단계, 2026-09-15, 문구 A안 확정) ──
+// 대상은 전부 정지한 DOM(data-tut="t-…" 카드). 화면 순서대로 짚고, 없는 카드는 skipMissing으로 건너뛴다. 전부 inert(설명만) — 구멍 안 [보기]가 모달을 열지 않게.
+// 기준 숫자는 코드에서 그대로: 살펴봐 = 최근 7일 중 4일 이상(SAD_EMOS 감정 또는 CESD_KEYWORDS 문구, 우울 선별·분노 제외), 달라진 아이 = SHIFT 셋(DESIGN.md).
+function teacherTourSteps() {
+  var S = function (t, title, text, extra) { return Object.assign({ target: t, title: title, text: text, next: "button", inert: true, radius: 18, pad: 6 }, extra || {}); };
+  return [
+    S("t-consent", "보호자 동의", "만 14세 미만 학생의 정보를 모으려면 보호자 동의가 먼저예요. 양식을 열어 받은 뒤 확인에 표시하면 아래 학생 추가가 열려요."),
+    S("t-add", "학생 추가", "학생을 한 명씩 추가하거나, 아래 일괄 등록에서 번호로 한꺼번에 만들 수 있어요. 아이디와 비밀번호를 아이에게 알려 주세요."),
+    S("t-watch", "살펴봐 주세요", "최근 7일 중 4일 이상, 일기에 슬픔·외로움·피곤 같은 감정이나 '혼자'·'울적' 같은 말이 잡힌 학생이에요. 우울 선별 척도(CES-D)에서 가져온 기준이라 화난 아이는 여기 뜨지 않아요. 진단이 아니라 살펴볼 신호이고, 판단은 선생님이 해요. 카드에 며칠인지, 자주 나온 감정, 그때의 상황이 함께 있어요."),
+    S("t-shift", "요즘 달라진 아이", "힘들어 보이는 신호와는 별개로, 일기 패턴이 이전과 달라진 학생이에요. 셋 중 하나예요 — 어휘가 단조로워짐(2주 전 5가지 이상이던 감정 말이 최근 7일 2가지 이하), 작성이 끊김(마지막 일기 뒤 수업일 3일), 감정 기복(같은 날 긍정과 부정이 함께 잡힌 날이 7일 중 3일). 우울 신호가 없어도 뜨고, 살펴봐 주세요와 같은 아이가 둘 다 뜰 수 있어요."),
+    S("t-emp", "나도 그래", "친구 섬에서 주고받는 공감이에요. 최근 7일에 받지 못한 학생과 보내지 않은 학생을 보여 줘요. 지시가 아니라 정보예요."),
+    S("t-plaza", "광장", "반 전체가 보는 광장이에요. 오늘의 질문을 올리고 마감하며, 아이들의 답변을 여기서 관리해요."),
+    S("t-roster", "학생 명단", "[항해 일지]를 누르면 그 아이의 일기를 읽을 수 있어요. [오늘 참여 현황]은 오늘 누가 썼는지와 많이 쓴 감정 말이에요.")
+  ];
 }
 // ── 내 섬 투어(2단계, 2026-09-15) ──
 // 신호(sig)는 IslandView의 onTut 콜백이 채운다: walkAt(걷기 시작 시각) · near(팻말 앞 랜드마크 id | null) · go(스페이스로 들어간 id).
@@ -13554,7 +13585,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: warn ? "#dc2626" : "#0e7490" } }, value));
 
   const migUI = () => React.createElement("div", null, React.createElement("div", {
-    style: { textAlign: "right", marginBottom: 10 }
+    className: "tut-dim", style: { textAlign: "right", marginBottom: 10 }
   }, React.createElement("button", {
     onClick: runMigScan,
     style: { ...bSoft, padding: "5px 12px", fontSize: 12, color: "#64748b", opacity: 0.75 }
@@ -13764,7 +13795,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     var cat = PLAZA_CATS.filter(function (c) { return c.id === plzForm.cat; })[0] || PLAZA_CATS[0];
     var nPub = plz.ans.filter(function (a) { return a.s === 1; }).length;
     var closed = plz.qs.filter(function (x) { return !x.open; });
-    return React.createElement("div", { key: "plaza", style: { ...crd, marginBottom: 16 } },
+    return React.createElement("div", { key: "plaza", "data-tut": "t-plaza", style: { ...crd, marginBottom: 16 } },
       React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "광장"),
       React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 10, lineHeight: 1.6 } },
         "오늘의 질문은 필요할 때만 올려요. 아이들은 관찰·느낌·바람 세 칸으로 답하고, 선생님이 고른 답만 이름 없이 광장에 보여요(3개 이상일 때)."),
@@ -14338,6 +14369,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     else if (kind === "near") s.near = id || null;
     else if (kind === "go") s.go = id;
   }, []);
+  const teacherTour = useCallback(function () { tutStart(teacherTourSteps(), { tone: "plain", skipMissing: true }); }, [tutStart]);   // 교사 대시보드 "이 화면 안내"(2026-09-15)
   const isleTour = useCallback(function (onDone) { var s = isleSig.current; s.walkAt = 0; s.near = null; s.go = null; tutStart(isleTourSteps(s), { onDone: onDone }); }, [tutStart]);
 
   const [showPwChange, setShowPwChange] = useState(false);
@@ -14387,6 +14419,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     }
   };
   const msgBox = msg ? React.createElement("div", {
+    className: "tut-dim",
     style: {
       margin: "12px 0",
       padding: "12px 16px",
@@ -15156,23 +15189,27 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     style: {
       color: "#6366f1"
     }
-  }, currentUser.schoolCode)), React.createElement("button", {
+  }, currentUser.schoolCode)), React.createElement("div", {
+    // 오른쪽 위: [이 화면 안내] [로그아웃]. 안내는 언제든 다시 여는 설명서다(2026-09-15) — 학생 화면처럼 처음 한 번만 크게 뜨지 않는다
+    className: "tut-dim", style: { position: "absolute", right: 24, top: 16, display: "flex", gap: 8 }
+  }, React.createElement("button", {
+    onClick: teacherTour, title: "이 화면의 카드가 무엇인지 차례로 안내해요",
+    style: { ...bSoft, padding: "6px 14px", fontSize: 14, color: "#0369a1", background: "#e0f2fe", border: "1px solid #bae6fd" }
+  }, "이 화면 안내"), React.createElement("button", {
     onClick: logout,
     style: {
       ...bSoft,
-      position: "absolute",
-      right: 24,
-      top: 16,
       padding: "6px 14px",
       fontSize: 14
     }
-  }, "\uB85C\uADF8\uC544\uC6C3")), React.createElement("div", {
+  }, "\uB85C\uADF8\uC544\uC6C3"))), React.createElement("div", {
     style: {
       padding: "20px 24px",
       maxWidth: 760,
       margin: "0 auto"
     }
   }, currentUser.teacherId === MIG_OWNER && migUI(), msgBox, myStudents.length === 0 && React.createElement("div", {
+    "data-tut": "t-consent",
     style: {
       ...crd,
       marginBottom: 16,
@@ -15345,6 +15382,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       cursor: "pointer"
     }
   }), React.createElement("span", null, "\uD574\uB2F9 \uC5C6\uC74C (\uB9CC 15\uC138 \uC774\uC0C1\uC73C\uB85C \uBCF4\uD638\uC790 \uB3D9\uC758 \uBD88\uD544\uC694)"))), React.createElement("div", {
+    "data-tut": "t-add",
     style: {
       ...crd,
       marginBottom: 16,
@@ -15443,6 +15481,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       marginRight: 4
     }
   }), "\uD559\uC0DD \uCD94\uAC00")), React.createElement("div", {
+    "data-tut": "t-bulk",
     style: {
       ...crd,
       marginBottom: 16,
@@ -15521,6 +15560,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       opacity: bulkCount ? 1 : 0.4
     }
   }, "1\uBC88~", bulkCount || "N", "\uBC88 \uC77C\uAD04 \uC0DD\uC131")), myStudents.length > 0 && React.createElement("div", {
+  "data-tut": "t-watch",
   style: {
     ...crd,
     marginBottom: 16,
@@ -15631,7 +15671,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
 }, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")),
   // 특수 상황 카드(2026-09-14) — "요즘 달라진 아이". 살펴봐 주세요 바로 아래. 세로 띠는 한 색으로 고정한다(순번 교대는 심각도로 오독된다).
-  myStudents.length > 0 && React.createElement("div", { style: { ...crd, marginBottom: 16, padding: "18px 20px" } },
+  myStudents.length > 0 && React.createElement("div", { "data-tut": "t-shift", style: { ...crd, marginBottom: 16, padding: "18px 20px" } },
     React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 } },
       React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97" } }, "요즘 달라진 아이"),
       React.createElement("div", { style: { fontSize: 14, color: "#9fb0bb" } }, shiftList.length, "명")),
@@ -15657,7 +15697,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     }) : React.createElement("div", { style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 } },
       "최근 패턴이 달라진 학생이 없어요.")),
   // ⑥-2 나도 그래 — 받지 못한 / 보내지 않은 학생. 지시가 아니라 정보다(§9).
-  empGap ? React.createElement("div", { style: { ...crd, marginBottom: 16 } },
+  empGap ? React.createElement("div", { "data-tut": "t-emp", style: { ...crd, marginBottom: 16 } },
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "나도 그래"),
     React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 10, lineHeight: 1.6 } },
       "친구 섬에서 주고받는 공감이에요. 최근 7일 기준이고, 개수는 세지 않아요."),
@@ -15667,6 +15707,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // ⑤ 광장 — 질문 올리기·마감, 답변 관리(§8·§9 ④).
   plazaCard(),
   React.createElement("div", {
+    "data-tut": "t-roster",
     style: {
       ...crd,
       marginBottom: 16
@@ -15988,7 +16029,11 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
 function App() {
   const [tut, setTut] = useState(null);   // { steps, i, tone, onDone } | null
   const tutRef = useRef(null); tutRef.current = tut;
-  const tutStart = useCallback(function (steps, opts) { if (!steps || !steps.length) return; setTut({ steps: steps, i: 0, tone: opts && opts.tone, onDone: opts && opts.onDone }); }, []);
+  const tutStart = useCallback(function (steps, opts) {
+    if (opts && opts.skipMissing) steps = (steps || []).filter(function (s) { return !s.target || !!tutFind(s); });   // 데이터에 따라 없는 카드(학생 0명·우려 없음)는 빼고 번호를 다시 매긴다
+    if (!steps || !steps.length) return;
+    setTut({ steps: steps, i: 0, tone: opts && opts.tone, onDone: opts && opts.onDone });
+  }, []);
   const tutEnd = useCallback(function (how) { var t = tutRef.current; setTut(null); if (t && t.onDone) t.onDone(how); }, []);
   const tutNext = useCallback(function () { var t = tutRef.current; if (!t) return; if (t.i + 1 < t.steps.length) setTut({ ...t, i: t.i + 1 }); else tutEnd("done"); }, [tutEnd]);
   const tutSkip = useCallback(function () { if (tutRef.current) tutEnd("skip"); }, [tutEnd]);
