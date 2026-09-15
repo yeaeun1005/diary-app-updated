@@ -1340,6 +1340,38 @@ function scredKey(code, lid, h) {
 function tprivKey(tid, h) { return "tpriv/" + tid + "/" + h; }
 function talkKey(user) { return user && user.teacherId && user.th ? tprivKey(user.teacherId, user.th) + "/talk" : null; }
 var TALK_RETURN_DAYS = 3;   // 말 건 뒤 수업일 사흘이 지나면 「다시 볼 때예요」
+// ③ 비교 데이터(2026-09-15, DESIGN §9-⑤). 말 건 시각을 경계로 그 앞 7일과 그 뒤(오늘까지)를 견준다 — 조치 제안 없이 "이런 정보가 있습니다"까지.
+//  · 그 뒤로 쓴 일기 수(뒤 창의 길이도 함께 — 창이 달라 오해가 없게)
+//  · 주요 감정: 앞 7일에 가장 여러 날 나온 SAD_EMOS 감정(살펴봐 사유). 없으면 앞 7일에 가장 여러 날 나온 감정. 날 수로 센다(하루에 여러 번 써도 1일)
+//  · 새로 나온 긍정 감정(HA·LA 사분면): 말 건 뒤 일기에 나왔고 TALK_NEWPOS_DAYS 안(0 = 전체 기간)의 이전 일기 어디에도 없던 것. 처음 나온 날짜·요일 — 예외질문("그날 뭐 했어?")의 근거
+var TALK_BEFORE_DAYS = 7;     // 앞 창(달력일)
+var TALK_NEWPOS_DAYS = 0;     // "처음"의 기준 기간(달력일). 0이면 그 아이의 일기 전체
+var TALK_NEWPOS_MAX = 3;      // 새로 나온 긍정 감정은 이만큼까지(처음 나온 날짜순)
+var TALK_CMP_MARK = "word";   // 늘고 줄었음 표시: "word"(줄었어요·늘었어요·그대로예요) | "arrow"(↓ ↑ =) | "none"(숫자만). 색으로 판단을 주지 않는다(§9)
+var TALK_NEWPOS_EMPTY = "text";   // 새 긍정 감정이 없을 때: "text"("아직 없어요") | "hide"(줄을 뺀다)
+var TALK_WD = ["일", "월", "화", "수", "목", "금", "토"];
+function talkMDW(ts) { var d = new Date(ts); return (d.getMonth() + 1) + "." + d.getDate() + "(" + TALK_WD[d.getDay()] + ")"; }
+function talkIsPositive(label) { var e = EMOTIONS_28.filter(function (x) { return x.label === label; })[0]; return !!e && (e.q === "HA" || e.q === "LA"); }
+function talkCompare(entries, talkTs, now) {
+  var DAY = 86400000, list = (entries || []).filter(function (e) { return e && e.ts; });
+  var before = list.filter(function (e) { return e.ts < talkTs && e.ts >= talkTs - TALK_BEFORE_DAYS * DAY; });
+  var after = list.filter(function (e) { return e.ts >= talkTs; }).sort(function (a, b) { return a.ts - b.ts; });
+  var afterDays = Math.max(1, Math.floor((now - talkTs) / DAY));   // 뒤 창 길이(달력일)
+  var dayCount = function (arr) { var m = {}; arr.forEach(function (e) { var d = dayStamp(e.ts), seen = {}; ((e.analysis && e.analysis.hits) || []).forEach(function (hh) { if (!hh || !hh.label || seen[hh.label]) return; seen[hh.label] = 1; m[hh.label] = (m[hh.label] || 0) + 1; }); void d; }); return m; };
+  var byDay = function (arr) { var m = {}; arr.forEach(function (e) { var d = dayStamp(e.ts); ((e.analysis && e.analysis.hits) || []).forEach(function (hh) { if (!hh || !hh.label) return; (m[hh.label] = m[hh.label] || {})[d] = 1; }); }); var out = {}; Object.keys(m).forEach(function (k) { out[k] = Object.keys(m[k]).length; }); return out; };
+  void dayCount;
+  var bd = byDay(before), ad = byDay(after), key = null, best = -1;
+  SAD_EMOS.forEach(function (lab) { if ((bd[lab] || 0) > best) { best = bd[lab] || 0; key = lab; } });
+  if (best <= 0) { key = null; best = -1; Object.keys(bd).forEach(function (lab) { if (bd[lab] > best) { best = bd[lab]; key = lab; } }); }
+  var emo = key ? { label: key, before: bd[key] || 0, after: ad[key] || 0 } : null;
+  // 새로 나온 긍정 감정: 뒤 일기의 긍정 라벨 중, 기준 기간의 이전 일기에 없던 것. 처음 나온 시각
+  var prevFrom = TALK_NEWPOS_DAYS > 0 ? talkTs - TALK_NEWPOS_DAYS * DAY : -Infinity, prev = {};
+  list.forEach(function (e) { if (e.ts >= talkTs || e.ts < prevFrom) return; ((e.analysis && e.analysis.hits) || []).forEach(function (hh) { if (hh && hh.label) prev[hh.label] = 1; }); });
+  var firstAt = {};
+  after.forEach(function (e) { ((e.analysis && e.analysis.hits) || []).forEach(function (hh) { if (!hh || !hh.label || prev[hh.label] || !talkIsPositive(hh.label)) return; if (firstAt[hh.label] == null) firstAt[hh.label] = e.ts; }); });
+  var newPos = Object.keys(firstAt).map(function (lab) { return { label: lab, ts: firstAt[lab] }; }).sort(function (a, b) { return a.ts - b.ts; }).slice(0, TALK_NEWPOS_MAX);
+  return { afterN: after.length, afterDays: afterDays, beforeN: before.length, emo: emo, newPos: newPos };
+}
 // 말 건 날 다음 날부터 지금까지의 수업일 수. patternShifts ②(작성 끊김)와 같은 루프, 시작점만 말 건 날
 function talkSchoolDays(talkTs, now, isSchoolDay) {
   var DAY = 86400000, cnt = 0, t0 = new Date(talkTs); t0.setHours(12, 0, 0, 0);
@@ -14146,7 +14178,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     myStudents.forEach(function (s) {
       var ts = talkMap[String(s.id)]; if (!ts) return;
       var n = talkSchoolDays(ts, now, isSD);
-      if (n >= TALK_RETURN_DAYS) out.push({ id: s.id, name: s.name || s.loginId || "학생", ts: ts, days: n, watch: watchList.filter(function (w) { return String(w.id) === String(s.id); })[0] || null });
+      if (n >= TALK_RETURN_DAYS) out.push({ id: s.id, name: s.name || s.loginId || "학생", ts: ts, days: n, watch: watchList.filter(function (w) { return String(w.id) === String(s.id); })[0] || null,
+        cmp: talkCompare(diaryById[s.id] || [], ts, now) });   // ③ 비교 데이터 — 이미 읽은 diaryById로 계산, 추가 읽기 없음
     });
     if (devMode()) window.__talk = { map: talkMap, returns: out };   // 하네스
     return out;
@@ -15388,6 +15421,25 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     return React.createElement("button", { onClick: function () { markTalk(id); }, title: "이 아이에게 말을 걸어봤다고 표시해요. 수업일 사흘 뒤 「다시 볼 때예요」로 올라와요",
       style: { ...bSoft, marginLeft: "auto", padding: "4px 11px", fontSize: 12, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "말 걸어봤어요");
   };
+  // 「다시 볼 때예요」의 비교 데이터 세 줄(2026-09-15, talkCompare). 라벨은 회색, 값은 본문색. 늘고 줄었음은 글자(TALK_CMP_MARK)로만 — 색으로 판단을 주지 않는다(§9)
+  var talkCmpEl = function (c) {
+    if (!c) return null;
+    var lab = function (t) { return React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, t); };
+    var row = function (key, a, b) { return React.createElement("div", { key: key, "data-cmp": key }, a, b); };
+    var rows = [];
+    if (!c.afterN) {
+      rows.push(row("after", lab("그 뒤로 쓴 일기"), "아직 없어요 (" + c.afterDays + "일 동안)"));
+    } else {
+      rows.push(row("after", lab("그 뒤로 쓴 일기"), c.afterN + "편 (" + c.afterDays + "일 동안)"));
+      if (c.emo) {
+        var d = c.emo.after - c.emo.before, mark = TALK_CMP_MARK === "none" ? "" : TALK_CMP_MARK === "arrow" ? (d < 0 ? " ↓" : d > 0 ? " ↑" : " =") : (d < 0 ? " · 줄었어요" : d > 0 ? " · 늘었어요" : " · 그대로예요");
+        rows.push(row("emo", lab("주요 감정"), c.emo.label + " · 말 걸기 전 7일 중 " + c.emo.before + "일 → 그 뒤 " + c.afterDays + "일 중 " + c.emo.after + "일" + mark));
+      } else if (!c.beforeN) rows.push(row("emo", lab("주요 감정"), "말 걸기 전 7일에 일기가 없어 견줄 수 없어요"));
+      if (c.newPos.length) rows.push(row("newpos", lab("새로 나온 긍정 감정"), c.newPos.map(function (p) { return p.label + " " + talkMDW(p.ts); }).join(" · ")));
+      else if (TALK_NEWPOS_EMPTY === "text") rows.push(row("newpos", lab("새로 나온 긍정 감정"), "아직 없어요"));
+    }
+    return React.createElement("div", { "data-talk-cmp": "1", style: { marginTop: 8, fontSize: 13, color: "#54626c", lineHeight: 1.9 } }, rows);
+  };
   // 살펴봐 행의 세부(날짜 칩·자주 나온 감정·상황·대화 문구·연계). 보통 행과 「다시 볼 때예요」의 "지난 신호"가 같이 쓴다. k: 펼침 상태 키
   var watchDetail = function (w, k) {
     return React.createElement(React.Fragment, null, React.createElement("div", null, w.days.map(function (dy, di) {
@@ -15851,6 +15903,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } },
           React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, r.name),
           React.createElement("span", { style: { fontSize: 13, color: "#6b5a2a" } }, "수업일 " + r.days + "일 전(" + shiftMD(r.ts) + ")에 말 걸어보셨어요")),
+        talkCmpEl(r.cmp),   // ③ 비교 데이터(2026-09-15)
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 9, flexWrap: "wrap" } },
           React.createElement("button", { onClick: function () { markTalk(r.id); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "다시 걸어봤어요"),
           React.createElement("button", { onClick: function () { clearTalk(r.id); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "지켜볼게요"),
