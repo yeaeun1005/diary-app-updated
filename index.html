@@ -8767,6 +8767,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   const [wipe, setWipe] = useState(null);       // 전환 연출: "down" | "side"
   const [soon, setSoon] = useState(null);       // 아직 없는 화면
   const [vocabTip, setVocabTip] = useState(false);
+  const [vocabList, setVocabList] = useState([]);     // 내 마음 말 목록(2026-09-15 저녁). 칩을 누르면 영역별로 보인다. 친구 섬은 목록을 안 만든다(비교가 되므로)
+  const [vocabPick, setVocabPick] = useState(null);   // 목록에서 고른 말 → 뜻
   const [nearPlant, setNearPlant] = useState(null);   // 다가간 어휘 식생
   const [sentTo, setSentTo] = useState(null);         // 오늘 이 친구에게 보낸 공감 {label}
   const [toast, setToast] = useState("");
@@ -8890,6 +8892,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var shownItems = friend ? vegItems.filter(function (it) { return !it.label || !hiddenSet[it.label]; }) : vegItems;
       scene.add(buildVegMeshes(shownItems));
       setVocab(friend ? st.filter(function (em) { return !em.hidden; }).length : st.length);
+      setVocabList(friend ? [] : st.slice());   // 친구 섬은 목록 없음(2026-09-15 저녁)
       // 어휘 식생 목록. 다가가면 배너에 어휘가 뜬다(⑥-2).
       var plants = shownItems.filter(function (it) { return it.label; }).map(function (it) {
         return { x: it.x, y: it.y, z: it.z, label: it.label, q: it.q || "LA", key: labelKey(it.label),
@@ -9160,7 +9163,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // 덮개만 방향을 달리하는 것으로는 모자라서 카메라 자체를 움직인다.
     //  · 잠수 — 카메라가 아래로 내려간다. 세상이 화면 위로 흐른다
     //  · 항해 — 카메라가 옆으로 미끄러진다. 세상이 옆으로 흐른다
-    var DIVE_MS = 1400, SAIL_MS = 950, DOCK_MS = 2100;
+    var DIVE_MS = 1400, SAIL_MS = 950, DOCK_MS = 1400;   // 부두 2100→1400(2026-09-15 저녁): 0~42% 판자 걷기(590ms) · 42~55% 승선(180ms) · 55%~ 출항, 덮개는 55%(770ms)부터 34%(480ms) — 승선이 1초 안에 보이고 바다 화면이 출항을 이어받는다
     var camHome = cam.position.clone();
     goRef.current = function () {
       if (going || docking || !nearLmRef) return;
@@ -9196,7 +9199,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       // 부두는 배가 떠나는 것을 보여준 뒤에 덮는다. 처음부터 덮으면 승선이 안 보인다.
       setWipe({ dir: dive ? "down" : "side", ms: going.dur,
                 run: sail ? Math.round(going.dur * 0.34) : going.dur,
-                delay: sail ? Math.round(going.dur * 0.62) : 0 });
+                delay: sail ? Math.round(going.dur * 0.55) : 0 });   // 승선(55%)이 끝난 뒤에 덮개
       window.setTimeout(function () {
         if (dive) { if (onGo) onGo("diary"); return; }   // 이 경우 화면이 바뀐다
         if (sail && onGo && theIsle) {
@@ -9517,7 +9520,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
           : "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
         animation: (wipe.dir === "down" ? "isleDive" : "isleSail") + " "
                    + (wipe.run || wipe.ms) + "ms cubic-bezier(0.55,0,0.85,0.6) "
-                   + (wipe.delay || 0) + "ms forwards"
+                   + (wipe.delay || 0) + "ms both"   // both(2026-09-15 저녁): forwards만 있으면 지연(delay) 동안 from 모양이 안 걸려 덮개가 처음부터 화면을 다 덮었다 — 부두에서 스페이스를 누르면 승선이 안 보이고 물이 바로 찼다
       } }) : null,
     // 아직 만들지 않은 화면
     soon ? React.createElement("div", {
@@ -9558,18 +9561,41 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
                borderRadius: 10, background: "rgba(255,255,255,0.92)",
                fontSize: small ? 12 : 13, fontWeight: 700, color: "#1f3a46" }
-      , onClick: function () { if (fleetN === 0) setVocabTip(function (v) { return !v; }); }
-    }, fleetN > 0 ? "합성 어휘 " : isFriend ? friend.name + "의 마음 말 " : "내가 쓴 마음 말 ",
-       React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"),
+      , onClick: function () { if (fleetN === 0) { setVocabTip(function (v) { return !v; }); setVocabPick(null); } }
+    }, fleetN > 0 ? ["합성 어휘 ", React.createElement("b", { key: "n", style: { color: "#0e7490" } }, vocab), "가지"]
+       : isFriend ? friend.name + "의 마음 말"   // 친구 섬은 숫자 없음(2026-09-15 저녁): 목록을 막은 이유대로 숫자가 가장 비교하기 쉽다. 내 섬은 자기 어휘가 느는 것을 스스로 아는 것이 목적이라 그대로
+       : ["내가 쓴 마음 말 ", React.createElement("b", { key: "n", style: { color: "#0e7490" } }, vocab), "가지"]),
     // 무엇을 세는 숫자인지 눌렀을 때만 알려준다. 늘 띄우면 섬을 가린다.
     // 친구 섬은 친구 섬 문구로(2026-09-15 저녁, 전에는 내 섬 문구가 그대로 떴다). 반딧불이 무엇인지도 여기서 말한다(광장의 "보는 법"과 같은 자리 — 눌러야 보인다)
+    // 내 섬(2026-09-15 저녁): 칩을 누르면 내가 쓴 마음 말 목록이 영역별로 보이고, 말을 누르면 뜻. 개수는 제목에 두지 않는다 — 목록이 주인공.
+    // 친구 섬: 목록 없이 설명만. 종류·수를 한눈에 늘어놓으면 "누가 더 많이"가 된다(DESIGN §7의 비교 금지). 친구 섬의 말은 걸어가 꽃 앞에서 하나씩 본다
     vocabTip && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
-      style: { position: "absolute", right: touch ? 12 + 3 * (small ? 38 : 42) + 8 + 8 : 12, bottom: 52, maxWidth: 220,   // 터치 기기는 방향 패드 왼쪽에
-               padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.94)",
-               boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, fontWeight: 700, color: "#2b4650",
-               lineHeight: 1.6 }
-    }, isFriend ? josa(friend.name, "이가") + " 일기에 쓴 마음 말의 가짓수예요. 반딧불은 친구들이 '나도 그래' 한 마음이에요."
-                : "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요. 반딧불은 친구가 '나도 그래' 한 마음이에요.") : null,
+      style: { position: "absolute", right: touch ? 12 + 3 * (small ? 38 : 42) + 8 + 8 : 12, bottom: 52, width: isFriend ? 220 : "min(92vw, 340px)", maxHeight: "min(60vh, 520px)", overflowY: "auto", boxSizing: "border-box",
+               padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.96)",
+               boxShadow: "0 2px 12px rgba(0,0,0,0.16)", fontSize: 12, fontWeight: 700, color: "#2b4650", lineHeight: 1.6 }
+    },
+      isFriend ? josa(friend.name, "이가") + " 일기에 쓴 마음 말이에요. 꽃과 나무에 다가가면 하나씩 보여요. 반딧불은 친구들이 '나도 그래' 한 마음이에요."
+      : [
+        React.createElement("div", { key: "h", style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#0e7490", marginBottom: 6 } }, "내가 쓴 마음 말"),
+        vocabList.length ? ["HA", "LA", "LV", "HV"].map(function (qk) {
+          var ws = vocabList.filter(function (em) { return (QC[em.q] ? em.q : "LA") === qk; });
+          if (!ws.length) return null;
+          return React.createElement("div", { key: qk, style: { marginBottom: 6 } },
+            React.createElement("div", { style: { fontSize: 11, color: QC[qk], marginBottom: 3 } }, Q_NAME[qk]),
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } },
+              ws.map(function (em) {
+                var on = vocabPick && vocabPick.label === em.label;
+                return React.createElement("button", { key: em.label, type: "button",
+                  onClick: function () { setVocabPick(on ? null : { label: em.label, q: qk, m: emoMeaning(em.label) || "" }); },
+                  style: { padding: "3px 9px", borderRadius: 999, fontSize: 12, fontFamily: "inherit", cursor: "pointer", lineHeight: 1.4,
+                           border: on ? "2px solid " + QC[qk] : "1px solid " + QC[qk] + "88", background: QB[qk] || "#f4f8fa", color: "#28444f", fontWeight: on ? 700 : 500 } }, em.label);
+              })));
+        }) : React.createElement("div", { key: "e", style: { fontWeight: 600, color: "#5b7684" } }, "아직 쓴 마음 말이 없어요. 일기를 쓰면 여기에 모여요."),
+        vocabPick ? React.createElement("div", { key: "p", style: { marginTop: 4, padding: "7px 10px", borderRadius: 10, background: QB[vocabPick.q] || "#f4f8fa", fontWeight: 600, color: "#3a5561" } },
+          React.createElement("b", { style: { color: QC[vocabPick.q] || "#0e7490" } }, vocabPick.label), " ", vocabPick.m || "내가 직접 쓴 마음 말이에요") : null,
+        React.createElement("div", { key: "l", style: { marginTop: 8, paddingTop: 6, borderTop: "1px solid #e6eef1", fontSize: 11, fontWeight: 600, color: "#5b7684" } },
+          "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요. 반딧불은 친구가 '나도 그래' 한 마음이에요.")
+      ]) : null,
     // 새 반딧불 안내(2026-09-15 저녁). 지난 방문 뒤에 온 반딧불이 있을 때만, 배너 자리에. 개수·이름 없음. 그 꽃에 가 보면 사라진다
     ffNew && !nearPlant && !nearLm && !wipe && !soon && !isFriend ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: touch && !small ? "calc(50% - 75px)" : "50%", bottom: bannerBottom, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8,
@@ -10612,12 +10638,14 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       return a + dlt * t;
     }
     // 화면 쪽 조작 창구
-    api.current.focus = function (id) {
-      var e = findIsle(id); if (!e || sail) return;
+    // 섬 하나를 고른다(2026-09-15 저녁): 카메라가 그 섬으로 가고 링이 켜지고 카드("배 타고 가기")가 뜬다. 항해는 카드에서 한 번 더 눌러야 한다 — 탭·오늘의 섬·이름 찾기 전부 이 길
+    function focusIsle(e) {
+      if (!e || sail) return;
       goal.set(e.x, 0, e.z); follow = false;
       highlight(e);
-      setSel({ id: e.id, name: e.name });
-    };
+      setSel({ id: e.id, name: e.name, home: !!e.home });
+    }
+    api.current.focus = function (id) { focusIsle(findIsle(id)); };
     api.current.sail = function (id) { sailTo(findIsle(id)); };
     api.current.home = function () { if (sail) return; goal.set(0, 0, 0); follow = false; };
     api.current.zoom = function (v) { dGoal = clampD(v); };
@@ -10682,8 +10710,8 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
         if (dd < 9.5 && dd < bd) { best = e; bd = dd; }
       });
       if (best) {
-        // DESIGN.md §7 — 친구 섬을 탭하면 배가 항해한다.
-        sailTo(best);
+        // DESIGN.md §7 — 친구 섬을 탭하면 배가 항해한다 → 2026-09-15 저녁부터는 탭하면 카메라가 가고 카드가 뜬다. 잘못 눌러도 안 떠난다. 항해는 카드의 [배 타고 가기]
+        focusIsle(best);
       } else if (Math.hypot(p.x, p.z) < 9.5) {
         goal.set(0, 0, 0); follow = false; setSel(null);
       }
@@ -10926,7 +10954,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
     !small ? React.createElement("div", { "data-tut": "sea-hint", className: "tut-dim",
       style: { position: "absolute", left: 10, bottom: 12, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, color: "#2b4650" }   // 굵게·어둡게(2026-09-15 저녁)
-    }, touch ? "섬을 누르면 배가 가요 · 끌어서 둘러보기" : "섬을 누르면 배가 가요 · 끌어서 둘러보기 · 휠로 확대") : null,
+    }, touch ? "섬을 누르면 가까이 보여요 · [배 타고 가기]로 출발 · 끌어서 둘러보기" : "섬을 누르면 가까이 보여요 · [배 타고 가기]로 출발 · 끌어서 둘러보기 · 휠로 확대") : null,   // 2026-09-15 저녁: 탭은 고르기, 출발은 카드
     loading ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", padding: "6px 14px", borderRadius: 10,
                background: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 700, color: "#2b4650" }
@@ -10938,9 +10966,9 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
                padding: "8px 10px 8px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
                boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 15, color: "#28444f" }
     },
-      React.createElement("b", { style: { color: "#0e7490" } }, sel.name + "의 섬"),
+      React.createElement("b", { style: { color: "#0e7490" } }, sel.home ? "내 섬" : sel.name + "의 섬"),
       React.createElement("button", {
-        onClick: function () { if (api.current.sail) api.current.sail(sel.id); },
+        onClick: function () { if (sel.home) { if (api.current.homeSail) api.current.homeSail(); } else if (api.current.sail) api.current.sail(sel.id); },
         style: { ...bPri, padding: "7px 14px", fontSize: 14 }
       }, "배 타고 가기"),
       React.createElement("button", {
@@ -13664,7 +13692,7 @@ function seaTourSteps() {
   var touch = coarsePointer();
   return [
     { target: "sea-hint", free: true, title: "둘러보기", place: "top",
-      text: touch ? "섬을 누르면 배가 가요. 끌어서 둘러보고, 두 손가락으로 확대해요. **지금 한번 끌어 보세요.**" : "섬을 누르면 배가 가요. 끌어서 둘러보고, 휠로 확대해요. **지금 한번 끌어 보세요.**" },
+      text: touch ? "섬을 누르면 가까이 보이고, [배 타고 가기]를 누르면 배가 떠나요. 끌어서 둘러보고, 두 손가락으로 확대해요. **지금 한번 끌어 보세요.**" : "섬을 누르면 가까이 보이고, [배 타고 가기]를 누르면 배가 떠나요. 끌어서 둘러보고, 휠로 확대해요. **지금 한번 끌어 보세요.**" },   // 2026-09-15 저녁: 탭은 고르기
     { target: null, free: true, title: "바다 색", text: "바다 색은 오늘 우리 반의 기분이에요. 밝은 일기가 많은 날은 맑고, 무거운 날은 어두워져요." },
     { target: "sea-today", free: true, title: "오늘의 섬", text: "오늘의 섬이에요. 눌러도 되고 안 눌러도 돼요. 날마다 다른 친구 섬을 권해요." },
     { target: "sea-isle", free: true, title: "친구 섬", pad: 0, radius: 40, text: "친구 섬에 내리면 꽃과 나무를 구경할 수 있어요. 같은 마음을 써 본 적 있으면 '나도 그래'를 보낼 수 있어요." }
