@@ -778,6 +778,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .tut-arrow[data-side=right]{border-left-width:var(--tb);border-bottom-width:var(--tb)}
 .tut-arrow[data-side=left]{border-top-width:var(--tb);border-right-width:var(--tb)}
 .tut-title{font-family:'Jua','Gowun Dodum',sans-serif;font-size:17px;margin-bottom:4px}
+.isle-tour-btn .sign-shine{-webkit-mask:none;mask:none;border-radius:inherit;--shine:4s}   /* 내 섬 시작 팻말: 첫 화면 간판의 빛 스침을 팻말 모양 그대로(2026-09-15) */
 .tut-row{display:flex;align-items:center;gap:8px;margin-top:10px}
 .tut-count{font-size:12px;opacity:.7;margin-right:auto}
 .tut-skip,.tut-next{font-family:inherit;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;padding:6px 12px;line-height:1.2}
@@ -7631,7 +7632,7 @@ function addNameSign(lg, text, th, scale, raise) {
   face.position.z = 0.045 * k + 0.002;
   board.add(face);
   lg.add(board);
-  return { grp: board, text: textMat, y0: yB, hb: Hb };
+  return { grp: board, text: textMat, y0: yB, hb: Hb, w: W };   // w·hb: 튜토리얼 앵커가 판 네 귀를 투영할 때 쓴다(2026-09-15)
 }
 // 섬이 화면에 꽉 차도록 정사영 반폭을 구한다.
 // 가로가 넓은 화면에서는 세로가, 세로로 긴 화면에서는 가로가 기준이 된다.
@@ -8604,7 +8605,7 @@ function SndBtn({ top, small, wood }) {
     return function () { SND.unsub(f); };
   }, []);
   if (wood) return React.createElement("button", {
-    onClick: function () { SND.set(!on); }, "data-tut": "snd",   // data-tut: 튜토리얼 대상(시험용, 2026-09-15)
+    onClick: function () { SND.set(!on); },
     title: on ? "소리 끄기" : "소리 켜기",
     style: { ...WOOD_TAG, position: "absolute", right: 14, top: top == null ? 14 : top, zIndex: 5, padding: "5px 12px", fontSize: 13, cursor: "pointer",
              fontFamily: HOME_FONT.body, opacity: on ? 1 : 0.72, transition: "opacity 0.2s" }
@@ -8641,7 +8642,13 @@ function coarsePointer() {
 // me는 지금 학생, myState는 내 어휘(공감 조건 판정), arrive = { boatDir } 면 배로 도착한다.
 // onHome은 친구 섬의 "내 섬으로".
 // hub면 내 섬이 첫 화면이다. 오른쪽 위는 로그아웃, 3D가 안 뜨면 onNo3D, 느리면 배너가 뜨고 onSlowGo로 일기로 간다.
-function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive, hub, onLogout, onNo3D, onSlowGo }) {
+function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive, hub, onLogout, onNo3D, onSlowGo, onTut, onTour, tutOn }) {
+  // 튜토리얼(2026-09-15): onTut(kind, id)로 "walk"(걷기 시작)·"near"(팻말 앞 도착/이탈)·"go"(스페이스로 들어감)를 알린다. tutOn이면 렌더 루프가
+  // 팻말 판·캐릭터의 월드 상자를 투영해 보이지 않는 앵커 div를 맞춘다 — 엔진은 getBoundingClientRect만 읽는다. 렌더 효과가 다시 돌지 않게 ref로 받는다
+  const tutCbRef = useRef(null); tutCbRef.current = onTut || null;
+  const tutOnRef = useRef(false); tutOnRef.current = !!tutOn;
+  const tutAnchorRefs = useRef({});
+  const [tutSeen, setTutSeen] = useState(function () { try { return localStorage.getItem("tutIsle") === "1"; } catch (e) { return false; } });
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [slow, setSlow] = useState(0);      // 0 없음 · 1 배너 · 2 아이가 "괜찮아요"
@@ -8856,7 +8863,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         walkT += dt;
       }
       // 발걸음은 걷는 동안 루프, 멈추면 끈다(2026-09-14). 파일에 발자국이 여러 개라 발과 맞추지 않는다
-      if (moving !== wasMoving) { wasMoving = moving; if (moving) SND.hold("steps"); else SND.release(); }
+      if (moving !== wasMoving) { wasMoving = moving; if (moving) { SND.hold("steps"); if (tutCbRef.current) tutCbRef.current("walk"); } else SND.release(); }   // 튜토리얼: 걷기 시작 신호
       if (charGrp.userData.step) charGrp.userData.step(walkT, moving, faceDir);
       // 높이는 매 프레임 지면에서 다시 잡는다. 지금 높이를 함께 넘겨야
       // 다리 밑을 걸을 때 상판으로 끌려 올라가지 않는다.
@@ -8867,6 +8874,42 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // 팻말 아래 표시(HTML)를 팻말 판 바로 밑에 붙인다. 화면 아래 배너 대신이다(2026-09-14) — 안내가 대상 옆에 있어야
     // "이 팻말에서 누른다"가 읽힌다. 터치 기기에서는 이 표시가 곧 버튼이다. 판이 들리면(lmFxTick) 같이 따라 오르고 같이 페이드한다.
     var tagV = new THREE.Vector3();
+    // 튜토리얼 앵커(2026-09-15). 투어 중에만, 렌더 뒤에 한 번: 팻말 판(sign.w × sign.hb, 판 좌표 z=0) 네 귀와 캐릭터 상자(반지름 0.24·키 1.15) 여덟 귀를
+    // 투영해 화면 bbox를 앵커 div에 쓴다. 카메라가 고정이라 값은 리사이즈·들림(lmFxTick)·걷기 때만 바뀐다 — 같으면 style을 건드리지 않는다
+    var anchV = new THREE.Vector3();
+    function fitAnchor(el, pts, n) {
+      var w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (var i = 0; i < n; i++) {
+        anchV.copy(pts[i]).project(cam);
+        var sx = (anchV.x + 1) / 2 * w, sy = (1 - anchV.y) / 2 * h;
+        if (sx < x0) x0 = sx; if (sx > x1) x1 = sx; if (sy < y0) y0 = sy; if (sy > y1) y1 = sy;
+      }
+      var k = Math.round(x0) + "," + Math.round(y0) + "," + Math.round(x1 - x0) + "," + Math.round(y1 - y0);
+      if (el.__k === k) return;
+      el.__k = k;
+      el.style.left = Math.round(x0) + "px"; el.style.top = Math.round(y0) + "px"; el.style.width = Math.round(x1 - x0) + "px"; el.style.height = Math.round(y1 - y0) + "px";
+    }
+    var anchPts = [];
+    for (var ai = 0; ai < 8; ai++) anchPts.push(new THREE.Vector3());
+    function placeTutAnchors() {
+      var A = tutAnchorRefs.current;
+      if (!theIsle) return;
+      var L = theIsle.userData.landmarks || [];
+      for (var li = 0; li < L.length; li++) {
+        var el = A["lm-" + L[li].id], sg = L[li].sign;
+        if (!el || !sg) continue;
+        var hw = sg.w / 2, hh = sg.hb / 2, m = sg.grp.matrixWorld;
+        anchPts[0].set(-hw, -hh, 0).applyMatrix4(m); anchPts[1].set(hw, -hh, 0).applyMatrix4(m);
+        anchPts[2].set(-hw, hh, 0).applyMatrix4(m); anchPts[3].set(hw, hh, 0).applyMatrix4(m);
+        fitAnchor(el, anchPts, 4);
+      }
+      var ce = A.char;
+      if (ce && charGrp) {
+        var p = charGrp.position, n = 0;
+        for (var dx = -1; dx <= 1; dx += 2) for (var dz = -1; dz <= 1; dz += 2) for (var dy = 0; dy <= 1; dy++) anchPts[n++].set(p.x + dx * 0.24, p.y + dy * 1.15, p.z + dz * 0.24);
+        fitAnchor(ce, anchPts, 8);
+      }
+    }
     function placeLmTag() {
       var el = lmTagRef.current;
       if (!el) return;
@@ -8894,6 +8937,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       }
       if ((best && best.id) !== (nearLmRef && nearLmRef.id)) {
         nearLmRef = best;
+        if (tutCbRef.current) tutCbRef.current("near", best ? best.id : null);   // 튜토리얼: 팻말 앞 도착·이탈 신호
         var inert = friend && best && best.id === "dive";
         setNearLm(best ? { id: best.id, name: best.name, inert: inert,
                            hint: inert ? "친구의 안으로는 들어갈 수 없어요" : best.hint } : null);
@@ -8990,6 +9034,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var lm = nearLmRef, dive = lm.id === "dive", sail = lm.id === "dock";
       (theIsle.userData.landmarks || []).forEach(function (l) { l.on = false; });
       if (friend && dive) return;   // 친구의 안으로는 들어갈 수 없다
+      if (tutCbRef.current) tutCbRef.current("go", lm.id);   // 튜토리얼: 스페이스로 들어감 신호
       going = { dive: dive, sail: sail, t0: performance.now(),
                 dur: dive ? DIVE_MS : sail ? DOCK_MS : SAIL_MS,
                 y0: charGrp ? charGrp.position.y : 0 };
@@ -9160,6 +9205,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       placeLmTag();
       lastT = t0;
       renderer.render(scene, cam);
+      if (tutOnRef.current) placeTutAnchors();   // 투어 중에만. 렌더 뒤라 matrixWorld가 이 프레임 값이다
       frames++;
       var now = performance.now();
       if (now - last >= 500) {
@@ -9215,6 +9261,11 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   var bannerBottom = small ? 100 : 18;
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    // 튜토리얼 앵커(투어 중에만). 보이지 않고 클릭도 받지 않는다 — 자리는 렌더 루프(placeTutAnchors)가 잡는다
+    tutOn ? ["lm-dock", "lm-dive", "lm-plaza", "char"].map(function (id) {
+      return React.createElement("div", { key: id, "data-tut": id, ref: function (el) { tutAnchorRefs.current[id] = el; },
+        style: { position: "absolute", left: 0, top: 0, width: 0, height: 0, pointerEvents: "none", visibility: "hidden" } });
+    }) : null,
     React.createElement("style", null, "@keyframes isleReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
     reveal ? React.createElement("div", {
       style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5,
@@ -9235,11 +9286,22 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,214,102,0.9)", fontSize: 12, color: "#6b4a00" }
     }, "성능 확인 모드 · 섬 " + fleetN + "개") : null,
-    // ③-6: 조작 안내. 아직 시험 단계라 작게만 둔다.
-    fleetN > 0 ? null : React.createElement("div", {
-      style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
-               background: "rgba(255,255,255,0.78)", fontSize: 12, color: "#5b7684" }
-    }, "방향키 또는 WASD로 걸어보세요", devMode() ? " · G: 2층 최소 폭" : ""),
+    // 튜토리얼 시작 팻말(2026-09-15). 예전 "방향키 또는 WASD로 걸어보세요" 자리. 처음엔 빛 스침(첫 화면 간판의 sign-shine)으로 눈에 띄게,
+    // 한 번 보고 나면(localStorage tutIsle) 물음표만 든 작은 팻말. 친구 섬·성능 확인 모드에는 없다
+    fleetN > 0 || isFriend || !onTour ? null : React.createElement("button", {
+      className: tutSeen ? "isle-tour-btn seen" : "isle-tour-btn",
+      "aria-label": "걷는 법 보기", title: tutSeen ? "걷는 법 보기" : undefined,
+      onClick: function () {
+        onTour(function () { try { localStorage.setItem("tutIsle", "1"); } catch (e) {} setTutSeen(true); });
+        if (onTut) onTut("near", nearLm ? nearLm.id : null);   // 이미 팻말 앞이면 그 상태부터 알린다
+      },
+      style: { ...WOOD_TAG, position: "absolute", left: 10, top: 36, zIndex: 5, cursor: "pointer", fontFamily: HOME_FONT.body,
+               padding: tutSeen ? "2px 9px" : "5px 12px", fontSize: tutSeen ? 14 : 13, overflow: "hidden" }
+    }, tutSeen ? "?" : "처음 오셨나요? 걷는 법 보기",
+       tutSeen ? null : React.createElement("span", { className: "sign-shine", "aria-hidden": true })),
+    devMode() && fleetN === 0 ? React.createElement("div", {
+      style: { position: "absolute", left: 10, top: 66, padding: "2px 7px", borderRadius: 6, background: "rgba(255,255,255,0.6)", fontSize: 11, color: "#5b7684" }
+    }, "G: 2층 최소 폭") : null,
     dbg ? React.createElement("div", {
       style: { position: "absolute", left: 10, top: 62, padding: "3px 9px", borderRadius: 8,
                background: "rgba(30,30,40,0.82)", fontSize: 12, color: "#ffe9c4",
@@ -9300,7 +9362,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // 팻말과 같은 나무 톤(붉은 틀·밝은 판·어두운 갈색 글자). 흰 알약·회색 네모는 쓰지 않는다.
     // 키보드에서는 "스페이스", 터치 기기에서는 이게 곧 버튼이라 "눌러서 가기". 친구 섬의 잠수 지점은 못 들어가므로 그 말만 적고 누를 수 없다.
     nearLm && !wipe && !soon ? React.createElement("button", {
-      ref: lmTagRef,
+      ref: lmTagRef, "data-tut": "lm-tag",
       onClick: nearLm.inert ? undefined : function () { if (goRef.current) goRef.current(); },
       style: { ...WOOD_TAG, position: "absolute", left: 0, top: 0, visibility: "hidden", zIndex: 5, willChange: "transform",
                padding: nearLm.inert ? "5px 12px" : touch ? "9px 16px" : "3px 10px",
@@ -9342,6 +9404,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     }, "어느 마음이", React.createElement("br"), "많이 자랐나요?"),
     // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
     React.createElement("div", {
+      "data-tut": "compass",
       style: { position: "absolute", left: 12, bottom: 12, width: compass, height: compass, borderRadius: "50%",
                background: "rgba(255,255,255,0.72)", boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
                fontSize: 11, color: "#3f5560", userSelect: "none" }
@@ -9352,6 +9415,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#7d5ba6", fontWeight: 700 } }, "떨림"),
       React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 7, height: 7, marginLeft: -3.5, marginTop: -3.5, borderRadius: "50%", background: "#9fb0bb" } })),
     React.createElement("div", {
+      "data-tut": "vocab",
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
                borderRadius: 10, background: "rgba(255,255,255,0.82)",
                fontSize: small ? 12 : 13, color: "#3f5560" }
@@ -12825,7 +12889,7 @@ function HomeSigns(props) {
       React.createElement("span", { className: "sign-shadow", style: I === I2 ? { left: "22%", right: "22%" } : null }));
   };
   return React.createElement(React.Fragment, null,
-    sign(I1, W1, { onClick: props.onLogin, "aria-label": "로그인", "data-tut": "sign-login" },   // data-tut: 튜토리얼 대상(시험용, 2026-09-15)
+    sign(I1, W1, { onClick: props.onLogin, "aria-label": "로그인" },
       { "--rot": "-2deg", "--sway": "5.6s", "--amp": "1deg", "--shine": "5s", left: L.x, top: L.y, zIndex: 3 }),
     sign(I2, W2, { onClick: props.onTrial, "aria-label": "로그인 없이 체험하기", title: "체험 모드에서는 일기가 저장되지 않습니다" },
       { "--rot": "5deg", "--sway": "4.3s", "--amp": "1.6deg", "--sway-delay": "-1.7s", "--shine": "6s", "--shine-delay": "-2.6s", left: T.x, top: T.y, zIndex: 4, animationDelay: "0.15s" }));
@@ -13169,6 +13233,7 @@ function DemoSeedPanel() {
 // 겹침: 로그인 창(100) 아래, 시연 띠(9999) 아래 → 90~92.
 // 단계: { target: "이름" | function→요소 | null, title?, text, next, keys?, pad?, radius?, place? }
 //   next "button"(기본): 말풍선의 [다음]·Enter. "click": 구멍 안 대상을 누르면. "key": keys 중 하나를 누르면. 함수: 매 프레임 물어 true면(예: 캐릭터가 팻말에 닿았을 때).
+//   target 함수는 요소 대신 getBoundingClientRect만 가진 객체를 돌려줘도 된다(여러 요소를 한 구멍에). text도 함수면 그릴 때 부른다.
 //   keys: 막 아래로 흘려 보내는 키(걷기 방향키 등). 그 밖의 키는 window capture에서 끊는다(소리 버튼의 첫 입력 감지와 같은 방식). Esc는 언제나 나가기.
 //   target이 없으면(null·아직 안 그려짐) 막이 전체를 덮고 말풍선은 가운데. 대상이 나타나면 그 프레임에 구멍이 열린다.
 // 조절 상수(2026-09-15). 막 농도·구멍 여백·반짝임은 여기서만 바꾼다 — CSS는 이 값을 인라인 변수로 받는다
@@ -13274,19 +13339,45 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
       h("div", { ref: arrowRef, className: "tut-arrow" }),
       h("div", { style: { position: "relative", zIndex: 1 } },
         step.title && h("div", { className: "tut-title" }, step.title),
-        h("div", null, step.text),
+        h("div", null, typeof step.text === "function" ? step.text() : step.text),   // 함수면 그릴 때 묻는다(신호에 따라 바뀌는 문구)
         h("div", { className: "tut-row" },
           h("span", { className: "tut-count" }, (i + 1) + " / " + steps.length),
           h("button", { className: "tut-skip", onClick: onSkip }, "건너뛰기"),
           nextBtn && h("button", { className: "tut-next", onClick: onNext }, isLast ? "끝내기" : "다음")))));
 }
-// 시험용 단계 목록(임시, 2026-09-15). 첫 화면 요소 셋을 짚어 엔진이 도는지 본다. 실제 문구·대상은 다음 단계(내 섬·교사 대시보드)에서 정한다. #dev&tut=test 로 켠다
-var TUT_TEST_STEPS = [
-  { target: "snd", title: "소리 버튼", text: "(시험) 이 버튼을 눌러 보세요. 구멍 안 클릭이 대상에 닿으면 다음으로 넘어가요.", next: "click" },
-  { target: "sign-login", text: "(시험) 로그인 간판이에요. [다음]을 누르거나 Enter를 눌러요. 구멍 밖은 눌러도 반응하지 않아요.", next: "button" },
-  { target: "scroll-cue", text: "(시험) 아래로 내려가는 화살표예요. Esc나 건너뛰기로 언제든 나갈 수 있어요.", next: "button", radius: 24 }
-];
-function AppMain({ tutStart }) {   // 화면들. tutStart(steps, opts)로 투어를 켠다(2026-09-15)
+// ── 내 섬 투어(2단계, 2026-09-15) ──
+// 신호(sig)는 IslandView의 onTut 콜백이 채운다: walkAt(걷기 시작 시각) · near(팻말 앞 랜드마크 id | null) · go(스페이스로 들어간 id).
+// 3D 대상(부두·잠수 지점·광장 표지·캐릭터)은 IslandView가 투어 중에만 그리는 보이지 않는 앵커 div(data-tut="lm-<id>"·"char")로 짚는다.
+// 문구는 화면에 이미 있는 말을 재사용한다 — 걷기 힌트, 랜드마크 hint("바다로 나가요"…), 식생 배너("내가 직접 쓴 마음 말이에요"), 나침반 제목.
+var ISLE_WALK_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"];
+var ISLE_LM_HINT = { dock: "바다로 나가요", dive: "내 안으로 내려가요", plaza: "우리 반 광장으로 가요" };
+function isleTourSteps(sig) {
+  var touch = coarsePointer();
+  var q = function (n) { return document.querySelector('[data-tut="' + n + '"]'); };
+  // 여러 요소를 한 구멍에(자리 잡힌 것만). 5단계: 잠수 팻말 판 + 판 밑 [스페이스]/[눌러서 가기] 표시 — 터치 기기는 그 표시가 곧 버튼이다.
+  // 캐릭터는 구멍에 넣지 않는다(2026-09-15): 캐릭터까지 감싸면 구멍이 섬의 절반이라 아무것도 짚지 못하고 가운데 "우리 반으로"가 목표처럼 보였다.
+  // 아이는 방금 움직였으니 자기 위치를 안다. 카메라가 섬을 화면에 맞추므로 팻말이 화면 밖인 경우는 없다
+  var union = function (names) { return { getBoundingClientRect: function () {
+    var out = null;
+    names.forEach(function (n) { var e = q(n); if (!e) return; var r = e.getBoundingClientRect(); if (!r.width || !r.height) return;
+      out = out ? { left: Math.min(out.left, r.left), top: Math.min(out.top, r.top), right: Math.max(out.right, r.right), bottom: Math.max(out.bottom, r.bottom) } : { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; });
+    if (!out) return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+    out.width = out.right - out.left; out.height = out.bottom - out.top; return out; } }; };
+  var diveTag = union(["lm-dive", "lm-tag"]);
+  return [
+    { target: "char", title: "걷는 법", text: "이게 나예요. 방향키 또는 WASD로 걸어보세요.",
+      keys: ISLE_WALK_KEYS, next: function () { return !!sig.walkAt && performance.now() - sig.walkAt > 700; } },
+    { target: "vocab", title: "마음 말", text: "섬의 꽃과 나무는 내가 직접 쓴 마음 말이에요. 가까이 가면 뜻이 떠요. 일기를 쓸수록 늘어나요.", next: "button" },
+    { target: "compass", title: "나침반", text: "활기·평온·슬픔·떨림, 네 방향이에요. 섬에서도 같은 방향에 자라요. 어느 마음이 많이 자랐나요?", next: "button", radius: 60 },
+    // 4·5단계는 잠수 지점(일기)으로 고정한다(2026-09-15). 가까운 팻말을 짚으면 아이마다 다른 곳으로 간다 — 첫 투어는 일기로 데려가고, 바다·광장은 일기를 쓴 뒤다
+    { target: "lm-dive", title: "팻말", text: "팻말은 갈 수 있는 곳이에요. 바다로 나가요 · 내 안으로 내려가요 · 우리 반 광장으로 가요. 먼저 '내 안으로' 팻말 앞까지 걸어가 보세요.",
+      keys: ISLE_WALK_KEYS, next: function () { return sig.near === "dive"; } },
+    { target: function () { return diveTag; }, title: "들어가기",
+      text: ISLE_LM_HINT.dive + ". " + (touch ? "팻말 밑 [눌러서 가기]를 누르세요." : "스페이스를 눌러요."),
+      keys: ISLE_WALK_KEYS.concat(["Space", "Enter", "NumpadEnter"]), next: function () { return !!sig.go; }, pad: 6 }   // 다른 팻말로 들어가도 화면이 바뀌므로 투어는 끝낸다
+  ];
+}
+function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로 투어를 켠다, tutOn이면 투어 중(2026-09-15)
   const [page, setPage] = useState("home");
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -14233,6 +14324,15 @@ function AppMain({ tutStart }) {   // 화면들. tutStart(steps, opts)로 투어
     return function () { SND.leave(); };
   }, [page]);
   useEffect(function () { if (devMode()) window.__app = { setPage: setPage }; });   // #dev: 하네스가 로그인 없이 화면을 바꾼다
+  // 내 섬 투어(2026-09-15). IslandView가 onTut으로 신호(걷기·팻말 앞·스페이스)를 주고, 단계의 next 함수가 그걸 본다. 시작 팻말이 onTour를 부른다
+  const isleSig = useRef({ walkAt: 0, near: null, go: null });
+  const isleOnTut = useCallback(function (kind, id) {
+    var s = isleSig.current;
+    if (kind === "walk") { if (!s.walkAt) s.walkAt = performance.now(); }
+    else if (kind === "near") s.near = id || null;
+    else if (kind === "go") s.go = id;
+  }, []);
+  const isleTour = useCallback(function (onDone) { var s = isleSig.current; s.walkAt = 0; s.near = null; s.go = null; tutStart(isleTourSteps(s), { onDone: onDone }); }, [tutStart]);
 
   const [showPwChange, setShowPwChange] = useState(false);
   const [pwForm, setPwF] = useState({
@@ -14338,7 +14438,7 @@ function AppMain({ tutStart }) {   // 화면들. tutStart(steps, opts)로 투어
     style: { pointerEvents: "auto", background: "none", border: "none", color: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, textShadow: "inherit" }
   }, "개인정보 처리방침"), " · © 2026 마음 바다 탐험대"), React.createElement("div", { className: "scroll-cue-wrap" }, React.createElement("button", {
     // 아래로 내려갈 수 있다는 표시. 4초에 한 번 8px 오르내린다. prefers-reduced-motion이면 멈춘다
-    className: "scroll-cue", "aria-label": "아래로 내려가기", "data-tut": "scroll-cue",   // data-tut: 튜토리얼 대상(시험용, 2026-09-15)
+    className: "scroll-cue", "aria-label": "아래로 내려가기",
     onClick: function () {
       var el = document.getElementById("intro-grow");
       if (el) el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
@@ -14806,6 +14906,7 @@ function AppMain({ tutStart }) {   // 화면들. tutStart(steps, opts)로 투어
     me: currentUser,
     arrive: isleFrom,
     hub: ISLE_HUB,
+    tutOn: tutOn, onTut: isleOnTut, onTour: isleTour,   // 내 섬 투어(2026-09-15)
     onLogout: logout,
     onNo3D: function (why) { setNo3d(why || "3D를 표시할 수 없어요"); setIsleFrom(null); setPage("studentDiary"); },
     onSlowGo: function () { setIsleFrom(null); setPage("studentDiary"); },
@@ -15885,10 +15986,9 @@ function App() {
   const tutEnd = useCallback(function (how) { var t = tutRef.current; setTut(null); if (t && t.onDone) t.onDone(how); }, []);
   const tutNext = useCallback(function () { var t = tutRef.current; if (!t) return; if (t.i + 1 < t.steps.length) setTut({ ...t, i: t.i + 1 }); else tutEnd("done"); }, [tutEnd]);
   const tutSkip = useCallback(function () { if (tutRef.current) tutEnd("skip"); }, [tutEnd]);
-  useEffect(function () { if (devMode()) window.__tut = { start: tutStart, next: tutNext, skip: tutSkip, test: function () { tutStart(TUT_TEST_STEPS); }, state: function () { var t = tutRef.current; return t ? { i: t.i, n: t.steps.length } : null; } }; });   // #dev: 콘솔·하네스에서 조작
-  useEffect(function () { if (devMode() && /(?:^|[#&])tut=test\b/.test(window.location.hash || "")) tutStart(TUT_TEST_STEPS); }, [tutStart]);   // #dev&tut=test: 시험용 투어를 바로 켠다
+  useEffect(function () { if (devMode()) window.__tut = { start: tutStart, next: tutNext, skip: tutSkip, state: function () { var t = tutRef.current; return t ? { i: t.i, n: t.steps.length } : null; } }; });   // #dev: 콘솔·하네스에서 조작
   return React.createElement(React.Fragment, null,
-    React.createElement(AppMain, { tutStart: tutStart }),
+    React.createElement(AppMain, { tutStart: tutStart, tutOn: !!tut }),
     tut && React.createElement(TutorialOverlay, { steps: tut.steps, i: tut.i, tone: tut.tone, onNext: tutNext, onSkip: tutSkip }));
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
