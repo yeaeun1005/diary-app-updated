@@ -1333,6 +1333,17 @@ function tcredKey(tid, h) {
 function scredKey(code, lid, h) {
   return "scred/" + code + "/" + lid + (h ? "/" + h : "");
 }
+// 교사 전용 노드(2026-09-15, 「말 걸어봤어요」). 자격과 같은 "경로가 곧 비밀"(§13): 로그인 때 계산한 해시가 세션에만 있고, 부모는 읽을 수 없다.
+// talk/<학생id> = 말 건 시각. 저장되는 것은 이것뿐 — 상담 내용은 적지 않는다(DESIGN §9 "만들지 않기로 한 것"). 학생 명단(stu_)에 두지 않는 이유: 바다·광장이 읽는 경로라 "살펴봐 주세요에 올랐던 아이"가 샌다
+function tprivKey(tid, h) { return "tpriv/" + tid + "/" + h; }
+function talkKey(user) { return user && user.teacherId && user.th ? tprivKey(user.teacherId, user.th) + "/talk" : null; }
+var TALK_RETURN_DAYS = 3;   // 말 건 뒤 수업일 사흘이 지나면 「다시 볼 때예요」
+// 말 건 날 다음 날부터 지금까지의 수업일 수. patternShifts ②(작성 끊김)와 같은 루프, 시작점만 말 건 날
+function talkSchoolDays(talkTs, now, isSchoolDay) {
+  var DAY = 86400000, cnt = 0, t0 = new Date(talkTs); t0.setHours(12, 0, 0, 0);
+  for (var t = t0.getTime() + DAY; t <= now; t += DAY) if (isSchoolDay(t)) cnt++;
+  return cnt;
+}
 // 자격 노드를 통째로 놓는다. 옛 해시가 같이 지워져 비밀번호는 언제나 하나다.
 async function credSetStudent(code, lid, h) {
   await dbRef(scredKey(code, lid)).set({ [h]: true });
@@ -13944,16 +13955,32 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     })();
     return function () { cancelled = true; };
   }, [myStudents]);
+  // 학급 전체 일기를 한 번만 읽는다(2026-09-15). 살펴봐 주세요·요즘 달라진 아이·말 걸어봤어요가 같이 쓴다 — 전에는 두 효과가 각각 25명을 읽었다
+  const [diaryById, setDiaryById] = useState(null);   // {학생id: [entry]} | null(아직)
   useEffect(function () {
     var cancelled = false;
     (async function () {
+      if (!myStudents.length) { setDiaryById({}); return; }
+      var byId = {};
+      for (var si = 0; si < myStudents.length; si++) {
+        try { byId[myStudents[si].id] = await dLoad(myStudents[si].id); } catch (e) { byId[myStudents[si].id] = []; }
+      }
+      if (cancelled) return;
+      if (devMode()) window.__diaryById = byId;   // 하네스: 수업일 판정 대조
+      setDiaryById(byId);
+    })();
+    return function () { cancelled = true; };
+  }, [myStudents]);
+  useEffect(function () {
+    var cancelled = false;
+    (async function () {
+      if (!diaryById) return;
       if (!myStudents.length) { setWatchList([]); return; }
       var weekAgo = nowTs() - 7 * 86400000;
       var out = [];
       for (var si = 0; si < myStudents.length; si++) {
         var stu = myStudents[si];
-        var es = [];
-        try { es = await dLoad(stu.id); } catch (e) { es = []; }
+        var es = diaryById[stu.id] || [];
         var byDay = {}, labCnt = {}, famCnt = {}, flagged = [];
         es.forEach(function (en) {
           if (!en || !en.ts || en.ts < weekAgo) return;
@@ -13987,6 +14014,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
           var sitKey = "";
           for (var qi = 0; qi < sits.length; qi++) { if (SIT2PHRASE[sits[qi].text]) { sitKey = SIT2PHRASE[sits[qi].text]; break; } }
           out.push({
+            id: stu.id,   // 말 걸어봤어요가 학생별로 숨기려면 id가 필요하다(2026-09-15)
             name: stu.name || stu.loginId || "학생",
             count: days.length, days: days,
             topLab: topLab, fam: fam, sits: sits.slice(0, 3), sitKey: sitKey,
@@ -13998,22 +14026,42 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       if (!cancelled) setWatchList(out);
     })();
     return function () { cancelled = true; };
-  }, [myStudents]);
+  }, [diaryById]);
   // 특수 상황(패턴 변화). 살펴봐 주세요와 따로 돈다 — 그쪽 로직은 건드리지 않는다. 학급 전체 일기를 한 번에 모아 수업일 판정에도 쓴다.
   useEffect(function () {
-    var cancelled = false;
-    (async function () {
-      if (!myStudents.length) { setShiftList([]); return; }
-      var byId = {};
-      for (var si = 0; si < myStudents.length; si++) {
-        try { byId[myStudents[si].id] = await dLoad(myStudents[si].id); } catch (e) { byId[myStudents[si].id] = []; }
-      }
-      var out = patternShifts(myStudents, byId, nowTs());
-      if (devMode()) window.__shift = out;   // 하네스: 판정 근거 확인
-      if (!cancelled) setShiftList(out);
-    })();
-    return function () { cancelled = true; };
-  }, [myStudents]);
+    if (!diaryById) return;
+    if (!myStudents.length) { setShiftList([]); return; }
+    var out = patternShifts(myStudents, diaryById, nowTs());
+    if (devMode()) window.__shift = out;   // 하네스: 판정 근거 확인
+    setShiftList(out);
+  }, [diaryById]);
+  // 「말 걸어봤어요」(2026-09-15, DESIGN §9-⑤). talkMap: {학생id: 말 건 시각}. 교사 전용 노드에서 읽고, 누르면 낙관적으로 갱신한 뒤 쓴다.
+  // 시연 계정은 dbRef 관문이 MEM_OPS에만 쓰므로 그 세션에서만 사라지고 새로고침하면 돌아온다. 저장되는 것은 id와 시각뿐이다
+  const [talkMap, setTalkMap] = useState({});
+  useEffect(function () {
+    var k = talkKey(currentUser), dead = false;
+    if (!k) { setTalkMap({}); return; }
+    sGet(k).then(function (v) { if (!dead) setTalkMap(v && typeof v === "object" ? v : {}); }).catch(function () {});
+    return function () { dead = true; };
+  }, [currentUser]);
+  const talkWrite = useCallback(function (patch) {
+    var k = talkKey(currentUser); if (!k) return;
+    dbRef(k).update(patch).catch(function (e) { console.error("talk:", e); setMsg("말 걸어봤어요 표시를 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."); });
+  }, [currentUser, setMsg]);
+  const markTalk = useCallback(function (id) { var ts = nowTs(), p = {}; p[String(id)] = ts; setTalkMap(function (m) { return Object.assign({}, m, p); }); talkWrite(p); }, [talkWrite]);
+  const clearTalk = useCallback(function (id) { var p = {}; p[String(id)] = null; setTalkMap(function (m) { var n = Object.assign({}, m); delete n[String(id)]; return n; }); talkWrite(p); }, [talkWrite]);
+  // 「다시 볼 때예요」: 말 건 뒤 수업일 사흘. 원래 조건(살펴봐·달라진 아이)과 무관하게 올린다 — 나아진 아이는 4일 기준을 못 채워 목록에서 빠지는데 그 아이야말로 다시 봐야 한다
+  const talkReturns = useMemo(function () {
+    if (!diaryById || !myStudents.length) return [];
+    var isSD = shiftSchoolDayFn(diaryById, myStudents.length), now = nowTs(), out = [];
+    myStudents.forEach(function (s) {
+      var ts = talkMap[String(s.id)]; if (!ts) return;
+      var n = talkSchoolDays(ts, now, isSD);
+      if (n >= TALK_RETURN_DAYS) out.push({ id: s.id, name: s.name || s.loginId || "학생", ts: ts, days: n, watch: watchList.filter(function (w) { return String(w.id) === String(s.id); })[0] || null });
+    });
+    if (devMode()) window.__talk = { map: talkMap, returns: out };   // 하네스
+    return out;
+  }, [diaryById, myStudents, talkMap, watchList]);
   const [myEntries, setME] = useState([]);
   const [seaFrom, setSeaFrom] = useState(null);   // ⑥-1 부두 출항 → 바다 화면에 넘길 것
   const [isleFrom, setIsleFrom] = useState(null); // ⑥-2 배로 내 섬에 도착 { boatDir }
@@ -14116,7 +14164,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
         } catch (e) { console.error("tcred migrate:", e); }
       }
     }
-    var tcu = { teacherId: tid, schoolCode: s.schoolCode, schoolName: s.schoolName || "", teacherName: s.teacherName || "" };
+    var tcu = { teacherId: tid, schoolCode: s.schoolCode, schoolName: s.schoolName || "", teacherName: s.teacherName || "", th: h };   // th: 세션에만(교사 전용 노드 tpriv의 경로 조각). 저장소에 남기지 않는다
     setDemoClock(tcu); setCU(tcu);
     const st = (await sGet(stuKey(s.schoolCode))) || [];
     setMS(st);
@@ -15241,6 +15289,33 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     readOnly: false,
     userId: currentUser ? currentUser.id : null
   })));
+  // 말 걸어봤어요(2026-09-15): 누른 아이는 두 카드에서 빠진다(표시는 학생당 하나). 「다시 볼 때예요」는 살펴봐 카드 맨 위
+  var watchShown = watchList.filter(function (w) { return !talkMap[String(w.id)]; });
+  var shiftShown = shiftList.filter(function (w) { return !talkMap[String(w.id)]; });
+  var talkBtn = function (id) {
+    return React.createElement("button", { onClick: function () { markTalk(id); }, title: "이 아이에게 말을 걸어봤다고 표시해요. 수업일 사흘 뒤 「다시 볼 때예요」로 올라와요",
+      style: { ...bSoft, marginLeft: "auto", padding: "4px 11px", fontSize: 12, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "말 걸어봤어요");
+  };
+  // 살펴봐 행의 세부(날짜 칩·자주 나온 감정·상황·대화 문구·연계). 보통 행과 「다시 볼 때예요」의 "지난 신호"가 같이 쓴다. k: 펼침 상태 키
+  var watchDetail = function (w, k) {
+    return React.createElement(React.Fragment, null, React.createElement("div", null, w.days.map(function (dy, di) {
+      var isKw = dy.sad.length === 0;
+      return React.createElement("span", { key: di, style: { display: "inline-block", padding: "3px 10px", borderRadius: 11, fontSize: 13, margin: "2px 4px 2px 0", background: isKw ? "#eef0f4" : "#e7eef6", color: isKw ? "#6b7480" : "#4a72a0" } },
+        dy.d, " ", isKw ? "'" + dy.kw + "'" : dy.sad.join("·"));
+    })),
+    (w.topLab && w.topLab.length) || (w.sits && w.sits.length) ? React.createElement("div", { style: { marginTop: 9, fontSize: 13, color: "#54626c", lineHeight: 1.9 } },
+      w.topLab && w.topLab.length ? React.createElement("div", null, React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "자주 나온 감정"), w.topLab.map(function (t) { return t.label + " " + t.n; }).join(" · ")) : null,
+      w.sits && w.sits.length ? React.createElement("div", null, React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "그때의 상황"), w.sits.map(function (t) { return t.text + " " + t.count; }).join(" · ")) : null) : null,
+    React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
+      onClick: function () { setOpenPhr(Object.assign({}, openPhr, { [k]: !openPhr[k] })); },
+      style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
+    }, openPhr[k] ? "대화 문구 접기" : "대화 문구 보기")),
+    openPhr[k] && w.phrases && w.phrases.length ? React.createElement("div", { style: { marginTop: 8, padding: "11px 13px", background: "#fff", border: "1px solid #e3edf1", borderRadius: 10 } },
+      React.createElement("div", { style: { fontSize: 12, color: "#93a3ac", marginBottom: 6 } }, "이렇게 말을 걸어볼 수 있어요 · " + (FAM_LABEL[w.fam] || "") + (w.sitKey ? " × " + w.sitKey : " (상황 불명)")),
+      w.phrases.map(function (ph, pi) { return React.createElement("div", { key: pi, style: { fontSize: 14, color: "#2b3a42", lineHeight: 1.9 } }, "· " + ph); }),
+      React.createElement("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f4f6", fontSize: 12, color: "#93a3ac", lineHeight: 1.7 } }, "이 문구는 참고용 예시입니다. 아이의 상황을 가장 잘 아는 것은 선생님입니다.")) : null,
+    React.createElement("div", { style: { fontSize: 13, color: "#93a3ac", marginTop: 10 } }, "Wee·상담 연계 › 보호자 상담 › 필요시 1388·109"));
+  };
   if (page === "teacherDash" && currentUser) return React.createElement("div", {
     style: shell
   }, React.createElement("div", {
@@ -15667,104 +15742,55 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     fontSize: 14,
     color: "#9fb0bb"
   }
-}, watchList.length, "명")), React.createElement("div", {
+}, watchShown.length, "명")), React.createElement("div", {
   style: {
     fontSize: 14,
     color: "#9aa7b0",
     marginBottom: 12,
     lineHeight: 1.6
   }
-}, "최근 7일 감정일기에서 마음이 힘들어 보이는 신호가 있는 학생이에요."), watchList.length ? watchList.map(function (w, wi) {
+}, "최근 7일 감정일기에서 마음이 힘들어 보이는 신호가 있는 학생이에요."),
+  // 「다시 볼 때예요」(2026-09-15): 말 건 뒤 수업일 사흘이 지난 아이. 호박색 띠. 지난 신호(살펴봐 사유)와 대화 문구는 접어 둔다. 비교 데이터는 다음 차례
+  talkReturns.length ? React.createElement("div", { "data-talk": "returns", style: { marginBottom: 12 } },
+    React.createElement("div", { style: { fontSize: 13, color: "#9a6b1c", fontWeight: 700, marginBottom: 6 } }, "다시 볼 때예요"),
+    talkReturns.map(function (r, ri) {
+      var k = "r" + r.id;
+      return React.createElement("div", { key: k, "data-talk-id": String(r.id), style: { borderRadius: 12, padding: "13px 15px", marginTop: ri ? 10 : 0, border: "1px solid #f1e3c4", borderLeft: "3px solid #e0a23a", background: "#fffaf0" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } },
+          React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, r.name),
+          React.createElement("span", { style: { fontSize: 13, color: "#6b5a2a" } }, "수업일 " + r.days + "일 전(" + shiftMD(r.ts) + ")에 말 걸어보셨어요")),
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 9, flexWrap: "wrap" } },
+          React.createElement("button", { onClick: function () { markTalk(r.id); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "다시 걸어봤어요"),
+          React.createElement("button", { onClick: function () { clearTalk(r.id); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "지켜볼게요"),
+          r.watch ? React.createElement("button", { onClick: function () { setOpenPhr(Object.assign({}, openPhr, { [k + "s"]: !openPhr[k + "s"] })); },
+            style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" } }, openPhr[k + "s"] ? "지난 신호 접기" : "지난 신호 보기") : null),
+        r.watch && openPhr[k + "s"] ? React.createElement("div", { style: { marginTop: 8 } }, watchDetail(r.watch, k)) : null);
+    })) : null,
+  watchShown.length ? watchShown.map(function (w, wi) {
   return React.createElement("div", {
-    key: wi,
-    style: {
-      borderRadius: 12,
-      padding: "13px 15px",
-      marginTop: wi ? 10 : 0,
-      border: "1px solid #e3edf1",
-      borderLeft: "3px solid " + (wi % 2 ? "#c98aa0" : "#7fa8c9"),
-      background: "#f7fafc"
-    }
-  }, React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 9,
-      marginBottom: 8,
-      flexWrap: "wrap"
-    }
-  }, React.createElement("span", {
-    style: {
-      fontSize: 15,
-      fontWeight: 500,
-      color: "#26333d"
-    }
-  }, w.name), React.createElement("span", {
-    style: {
-      fontSize: 13,
-      color: "#3f6f97",
-      background: "#e7f0f7",
-      borderRadius: 7,
-      padding: "2px 9px"
-    }
-  }, "지난 7일 · ", w.count, "일")), React.createElement("div", null, w.days.map(function (dy, di) {
-    var isKw = dy.sad.length === 0;
-    return React.createElement("span", {
-      key: di,
-      style: {
-        display: "inline-block",
-        padding: "3px 10px",
-        borderRadius: 11,
-        fontSize: 13,
-        margin: "2px 4px 2px 0",
-        background: isKw ? "#eef0f4" : "#e7eef6",
-        color: isKw ? "#6b7480" : "#4a72a0"
-      }
-    }, dy.d, " ", isKw ? "'" + dy.kw + "'" : dy.sad.join("·"));
-  })),
-  (w.topLab && w.topLab.length) || (w.sits && w.sits.length) ? React.createElement("div", {
-    style: { marginTop: 9, fontSize: 13, color: "#54626c", lineHeight: 1.9 }
-  }, w.topLab && w.topLab.length ? React.createElement("div", null,
-      React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "자주 나온 감정"),
-      w.topLab.map(function (t) { return t.label + " " + t.n; }).join(" · ")) : null,
-    w.sits && w.sits.length ? React.createElement("div", null,
-      React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "그때의 상황"),
-      w.sits.map(function (t) { return t.text + " " + t.count; }).join(" · ")) : null) : null,
-  React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
-    onClick: function () { setOpenPhr(Object.assign({}, openPhr, { [wi]: !openPhr[wi] })); },
-    style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
-  }, openPhr[wi] ? "대화 문구 접기" : "대화 문구 보기")),
-  openPhr[wi] && w.phrases && w.phrases.length ? React.createElement("div", {
-    style: { marginTop: 8, padding: "11px 13px", background: "#fff", border: "1px solid #e3edf1", borderRadius: 10 }
-  }, React.createElement("div", { style: { fontSize: 12, color: "#93a3ac", marginBottom: 6 } },
-      "이렇게 말을 걸어볼 수 있어요 · " + (FAM_LABEL[w.fam] || "") + (w.sitKey ? " × " + w.sitKey : " (상황 불명)")),
-    w.phrases.map(function (ph, pi) {
-      return React.createElement("div", { key: pi, style: { fontSize: 14, color: "#2b3a42", lineHeight: 1.9 } }, "· " + ph);
-    }),
-    React.createElement("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f4f6", fontSize: 12, color: "#93a3ac", lineHeight: 1.7 } },
-      "이 문구는 참고용 예시입니다. 아이의 상황을 가장 잘 아는 것은 선생님입니다.")) : null,
-  React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#93a3ac",
-      marginTop: 10
-    }
-  }, "Wee·상담 연계 › 보호자 상담 › 필요시 1388·109"));
-}) : React.createElement("div", {
+    key: w.id || wi, "data-talk-id": String(w.id),
+    style: { borderRadius: 12, padding: "13px 15px", marginTop: wi ? 10 : 0, border: "1px solid #e3edf1", borderLeft: "3px solid " + (wi % 2 ? "#c98aa0" : "#7fa8c9"), background: "#f7fafc" }
+  }, React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 8, flexWrap: "wrap" } },
+    React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, w.name),
+    React.createElement("span", { style: { fontSize: 13, color: "#3f6f97", background: "#e7f0f7", borderRadius: 7, padding: "2px 9px" } }, "지난 7일 · ", w.count, "일"),
+    talkBtn(w.id)),
+  watchDetail(w, w.id));
+}) : talkReturns.length ? null : React.createElement("div", {
   style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
 }, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")),
   // 특수 상황 카드(2026-09-14) — "요즘 달라진 아이". 살펴봐 주세요 바로 아래. 세로 띠는 한 색으로 고정한다(순번 교대는 심각도로 오독된다).
   myStudents.length > 0 && React.createElement("div", { "data-tut": "t-shift", style: { ...crd, marginBottom: 16, padding: "18px 20px" } },
     React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 } },
       React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97" } }, "요즘 달라진 아이"),
-      React.createElement("div", { style: { fontSize: 14, color: "#9fb0bb" } }, shiftList.length, "명")),
+      React.createElement("div", { style: { fontSize: 14, color: "#9fb0bb" } }, shiftShown.length, "명")),
     React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 12, lineHeight: 1.6 } },
       "감정일기의 패턴이 이전과 달라진 학생이에요. 힘들어 보이는 신호와는 별개로, 어휘가 단조로워지거나 작성이 끊기거나 하루 안에서 기분이 크게 갈리는 경우예요."),
-    shiftList.length ? shiftList.map(function (w, wi) {
-      return React.createElement("div", { key: w.id || wi, style: { borderRadius: 12, padding: "13px 15px", marginTop: wi ? 10 : 0, border: "1px solid #e3edf1", borderLeft: "3px solid #7fa8c9", background: "#f7fafc" } },
+    shiftShown.length ? shiftShown.map(function (w, wi) {
+      return React.createElement("div", { key: w.id || wi, "data-talk-id": String(w.id), style: { borderRadius: 12, padding: "13px 15px", marginTop: wi ? 10 : 0, border: "1px solid #e3edf1", borderLeft: "3px solid #7fa8c9", background: "#f7fafc" } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 6, flexWrap: "wrap" } },
           React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, w.name),
-          w.kinds.map(function (k) { return React.createElement("span", { key: k.kind, style: { fontSize: 13, color: "#3f6f97", background: "#e7f0f7", borderRadius: 7, padding: "2px 9px" } }, SHIFT_LABEL[k.kind]); })),
+          w.kinds.map(function (k) { return React.createElement("span", { key: k.kind, style: { fontSize: 13, color: "#3f6f97", background: "#e7f0f7", borderRadius: 7, padding: "2px 9px" } }, SHIFT_LABEL[k.kind]); }),
+          talkBtn(w.id)),
         React.createElement("div", { style: { fontSize: 13, color: "#54626c", lineHeight: 1.9 } },
           w.kinds.map(function (k) { return React.createElement("div", { key: k.kind }, w.kinds.length > 1 ? React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, SHIFT_LABEL[k.kind]) : null, k.why); })),
         React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
