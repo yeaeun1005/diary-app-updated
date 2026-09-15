@@ -6040,8 +6040,8 @@ function buildIsland(seedStr, opts) {
 
   // 반지름 r에서의 지면. 안쪽 층부터 바깥으로 훑는다.
   // zone은 색과 식생 가드가 쓰고, lv는 그 지점이 속한 층이다(0 = 1층).
-  function profileAt(r, th) {
-    var E = edgesAt(th);
+  function profileAt(r, th, Ep) {   // Ep: 같은 각도에서 미리 구한 edgesAt(th)(2026-09-15, tierBand·spotOnShore가 반지름을 훑을 때). 없으면 여기서 구한다 — 값은 같다
+    var E = Ep || edgesAt(th);
     for (var k = 0; k < 2; k++) {
       var Ek = E[2 - k];                          // 3층 벽, 그다음 2층 벽
       var hi = TY[2 - k], lo = TY[1 - k];
@@ -7098,6 +7098,7 @@ function buildIsland(seedStr, opts) {
   grp.userData.profileAt = profileAt;
   grp.userData.visAt = visAt;   // 보이는 면(검사용). 판정에는 쓰지 않는다
   grp.userData.edgesAt = edgesAt;
+  grp.userData.detail = detail;   // 식생 캐시 키(vegCached, 2026-09-15)
   grp.userData.tierY = TY;
   grp.userData.stairs = stairInfo;
   return grp;
@@ -7243,10 +7244,24 @@ function walkY(isle, x, z, refY) {
   return hi <= refY + WALK_STEP_UP ? hi : lo;
 }
 // 그 각도에서 lv층 평지가 차지하는 반지름 구간. profileAt만 본다.
+// edgesAt(th)는 각도만의 함수라 한 번만 구해 profileAt에 넘긴다(2026-09-15). 전에는 반지름 0.01마다 다시 계산해 바다 진입(친구 섬 25개 식생)의 CPU 72%가 여기였다.
+// 훑는 방식·눈금은 그대로라 식생 자리는 한 자리도 안 바뀐다(스캔 없이 직접 계산하는 안은 제출 전이라 보류)
+// 식생 배치 캐시(2026-09-15). buildVegetation은 시드·detail·어휘 목록만으로 정해지는 순수 계산인데 섬당 0.06~0.6초라, 바다↔친구 섬을 오갈 때마다
+// 친구 섬 25개를 다시 만들면 매번 몇 초씩 멎었다. 키 = 시드|detail|어휘 서명(순서·hidden 포함) — 일기를 새로 써 어휘가 바뀌면 그 섬만 다시 만든다.
+// 값은 items 배열이고 돌려줄 때 얕은 복사(뷰가 만져도 캐시는 그대로). 섬당 10KB쯤, 상한 120개(≈1.2MB)를 넘으면 가장 오래 안 쓴 것부터 버린다.
+var VEG_CACHE = new Map(), VEG_CACHE_MAX = 120;
+function vegSig(state) { return (state || []).map(function (s) { return [s.label, s.q, s.valStd, s.aroStd, s.hidden ? 1 : 0].join(":"); }).join("|"); }
+function vegCached(isle, state, opts) {
+  var key = ((opts && opts.seed) || "island") + "|" + (isle.userData.detail == null ? 1 : isle.userData.detail) + "|" + vegSig(state);
+  var hit = VEG_CACHE.get(key);
+  if (hit) { VEG_CACHE.delete(key); VEG_CACHE.set(key, hit); }   // 최근 쓴 것을 뒤로(LRU)
+  else { hit = buildVegetation(isle, state, opts); VEG_CACHE.set(key, hit); while (VEG_CACHE.size > VEG_CACHE_MAX) VEG_CACHE.delete(VEG_CACHE.keys().next().value); }
+  return hit.map(function (o) { return Object.assign({}, o); });
+}
 function tierBand(isle, th, lv) {
-  var C = isle.userData.coast(th), lo = -1, hi = -1;
+  var C = isle.userData.coast(th), lo = -1, hi = -1, E = isle.userData.edgesAt ? isle.userData.edgesAt(th) : undefined;
   for (var r = 0.02; r <= C; r += 0.01) {
-    var p = isle.userData.profileAt(r, th);
+    var p = isle.userData.profileAt(r, th, E);
     if (p.zone === "top" && p.lv === lv) { if (lo < 0) lo = r; hi = r; }
   }
   return lo < 0 ? null : { lo: lo, hi: hi, w: hi - lo };
@@ -7316,10 +7331,10 @@ function buildVegetation(isle, state, opts) {
   // 수면 바로 위 띠를 실제 지면 높이로 찾는다.
   function spotOnShore(rnd, ang, foot, kind, gm) {
     for (var t = 0; t < 12; t++) {
-      var a = ang + (rnd() - 0.5) * 1.1, C = isle.userData.coast(a);
+      var a = ang + (rnd() - 0.5) * 1.1, C = isle.userData.coast(a), E = isle.userData.edgesAt ? isle.userData.edgesAt(a) : undefined;   // 각도당 한 번(2026-09-15, tierBand와 같은 이유)
       var lo = -1, hi = -1;
       for (var r = 0.80 * C; r <= C; r += 0.02) {
-        var y = isle.userData.profileAt(r, a).y;
+        var y = isle.userData.profileAt(r, a, E).y;
         if (y > 0.07 && y < 0.22) { if (lo < 0) lo = r; hi = r; }
       }
       if (lo < 0) continue;
@@ -8795,7 +8810,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var st = state || islandState(entries);
       // 식생은 어휘 전체로 놓고, 가린 어휘는 친구에게만 뺀다. 놓기 전에 빼면
       // 나머지 어휘가 자리를 옮긴다(어휘를 얻어도 기존 어휘가 안 움직여야 한다 §5).
-      var vegItems = buildVegetation(isleGrp, st, { seed: seed });
+      var vegItems = vegCached(isleGrp, st, { seed: seed });   // 캐시(2026-09-15): 바다에서 돌아올 때 다시 안 만든다
       var hiddenSet = {};
       st.forEach(function (em) { if (em.hidden) hiddenSet[em.label] = 1; });
       var shownItems = friend ? vegItems.filter(function (it) { return !it.label || !hiddenSet[it.label]; }) : vegItems;
@@ -10144,7 +10159,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
     var mine = buildIsland(seed);
     var myHolder = new THREE.Group();
     myHolder.add(mine);
-    myHolder.add(buildVegMeshes(buildVegetation(mine, islandState(entries), { seed: seed })));
+    myHolder.add(buildVegMeshes(vegCached(mine, islandState(entries), { seed: seed })));
     myHolder.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
     scene.add(myHolder);
     var myTag = O.tags ? buildNameTag("내 섬", true) : null;
@@ -10261,7 +10276,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       var g = buildIsland(e.seed, { detail: det, tone: seaGrp ? seaGrp.userData.tone : 0.5 });
       var h = new THREE.Group();
       h.add(g);
-      h.add(buildVegMeshes(buildVegetation(g, e.state, { seed: e.seed })));
+      h.add(buildVegMeshes(vegCached(g, e.state, { seed: e.seed })));   // 캐시(2026-09-15): 두 번째 진입은 배치를 건너뛴다
       // 인스턴스 메시의 경계 구는 인스턴스 하나 크기라, 섬 중심이 화면을 벗어나는
       // 순간 식생이 통째로 사라진다. 컬링은 아래 cull()이 섬 단위로 한다.
       h.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
