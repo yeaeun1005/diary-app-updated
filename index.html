@@ -759,6 +759,9 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .diary-head > :first-child { justify-self: start; }
 .diary-head .diary-btns { justify-self: end; }
 @media (max-width: 1099px) { .diary-head .diary-btns { grid-column: 1 / -1; justify-self: start; justify-content: flex-start; } }
+/* 광장(2026-09-15 저녁): 560px 이상은 질문 카드가 오른쪽 세로 패널(--plz-w). 제목 띠는 3D 영역(왼쪽)에만, 시연 띠는 3D 영역 왼쪽 아래(오른쪽 위에 두면 패널의 질문을 가린다) */
+:root { --plz-w: clamp(380px, 32vw, 420px); }
+@media (min-width: 560px) { .plz-title { display: none; } #demo-ribbon[data-page="plaza"] { top: auto; bottom: 12px; right: auto; left: 10px; } }   /* 제목은 패널 머리에(3D 영역 가운데 두면 800 폭에서 투어 팻말과 겹친다) */
 @media (max-width: 767px) {
   .diary-tab { padding: 10px 16px; font-size: 14px; }
   .diary-tab-ico { width: 16px; height: 16px; margin-right: 4px; }
@@ -8693,7 +8696,7 @@ var WOOD_TAG = { borderRadius: 7, border: "2px solid #b05a3a", background: "#e7c
 // 켜짐/꺼짐: 아이콘(🔊/🔇)이 바뀌고, 꺼지면 판이 흐려진다(opacity 0.72) — 글자만으로는 멀리서 안 갈리고, 색을 바꾸면 나무 톤을 벗어난다.
 // 표시는 실제 재생 상태(SND.playing)다. 켠 채 새로고침해 재생이 거부됐으면 "꺼짐"으로 보이고, 누르면 그 클릭 안에서 재생이 시작되며
 // playing 이벤트로 "켜짐"이 된다. 다음 입력 때 저절로 재생되는 경우(armRetry)에도 같은 이벤트로 표시가 따라간다.
-function SndBtn({ top, small, wood, className }) {   // className: 투어 중 막 아래로 내릴 표시(tut-dim, 2026-09-15)
+function SndBtn({ top, small, wood, className, right }) {   // className: 투어 중 막 아래로 내릴 표시(tut-dim, 2026-09-15). right: 광장 패널 옆으로 밀 때(2026-09-15 저녁)
   const [on, setOn] = useState(SND.playing());
   useEffect(function () {
     var f = function () { setOn(SND.playing()); };
@@ -8709,7 +8712,7 @@ function SndBtn({ top, small, wood, className }) {   // className: 투어 중 �
   return React.createElement("button", {
     onClick: function () { SND.set(!on); }, className: className,
     title: on ? "소리 끄기" : "소리 켜기",
-    style: { position: "absolute", right: 10, top: top == null ? 46 : top, ...bSoft, padding: "5px 11px", fontSize: small ? 12 : 13,
+    style: { position: "absolute", right: right == null ? 10 : right, top: top == null ? 46 : top, ...bSoft, padding: "5px 11px", fontSize: small ? 12 : 13,
              color: on ? "#0e7490" : "#5b7684", border: on ? "1px solid #99d8c9" : "1px solid #c9d8de" }   // 꺼짐 색을 어둡게(2026-09-15 저녁)
   }, on ? "🔊 소리" : "🔇 소리");
 }
@@ -9824,7 +9827,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   const [warn, setWarn] = useState("");
   const [saving, setSaving] = useState(false);
   const [bridge, setBridge] = useState(false); // 저장 뒤 한 줄
-  const [fold, setFold] = useState(false);     // 내 답이 있으면 카드를 접어 광장을 보여준다
+  const [mineOpen, setMineOpen] = useState(false); // 내 답 펼침. 2026-09-15 저녁: 카드 전체를 접던 fold를 없앴다 — 친구들의 답이 버튼 뒤에 숨어 있었다. 이제 내 답만 접고 친구들의 답은 바로 보인다
   const [reveal, setReveal] = useState(!!arrive);
   const [figKeys, setFigKeys] = useState([]);    // 오늘 답을 쓴 아이들의 익명 키. 그 수만큼 캐릭터
   const [nameBlock, setNameBlock] = useState(0); // 이름으로 막힌 횟수. 두 번째는 저장하되 숨김
@@ -9860,7 +9863,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
           var r2 = await Promise.all([plazaMyAnswer(code, qq.id, me.id), plazaCount(code, qq.id)]);
           if (dead) return;
           var a = r2[0];
-          setAns(a); setFigKeys(r2[1]); if (a) setFold(true);
+          setAns(a); setFigKeys(r2[1]);
           if (a) { var pl = await plazaPublic(code, qq.id, me.id); if (!dead) setPub(pl); }
         }
       } catch (e) { console.error("plaza:", e); }
@@ -10004,7 +10007,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
       await plazaAnswerPut(code, q.id, me, { o: o, f: f, w: w, fl: form.fl, flagged: flagged });
       setAns({ sid: String(me.id), o: o, f: f, w: w, fl: form.fl.slice(), ts: nowTs(), s: flagged ? 2 : 0, nmf: flagged });
       setFigKeys(function (ks) { return ks.indexOf(myKey) >= 0 ? ks : ks.concat([myKey]); });
-      setMode("view"); setBridge(true); setTip(null); setFold(false);
+      setMode("view"); setBridge(true); setTip(null); setMineOpen(true);   // 방금 쓴 답은 펼쳐 보여준다
       plazaPublic(code, q.id, me.id).then(setPub).catch(function () {});
     } catch (e) { console.error("plazaAnswerPut:", e); setWarn("저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."); }
     setSaving(false);
@@ -10037,14 +10040,23 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   var tipEl = tip ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#3f5560", background: QB[tip.q] || "#f4f8fa", borderRadius: 10, padding: "7px 11px", lineHeight: 1.6 } },
     React.createElement("b", { style: { color: QC[tip.q] || "#0e7490" } }, tip.l), pill(tip.q), " ",
     tip.m || (tip.isNew ? "" : me.name + "이가 직접 쓴 마음 말이에요")) : null;
+  // 광장 보는 법(2026-09-15 저녁, ③). 3D의 깃발·화분·인형이 무엇인지 화면 어디에도 없어서 학생도 교사도 몰랐다. 카드 맨 아래 세 줄
+  var nOthers = figKeys.filter(function (k) { return k !== myKey; }).length;   // 나 말고 오늘 답을 쓴 아이 수(인형 수와 같은 값)
+  var legendEl = React.createElement("div", { style: { marginTop: 16, paddingTop: 10, borderTop: "1px solid #e6eef1", fontSize: 12, color: "#5b7684", lineHeight: 1.7 } },
+    React.createElement("div", { style: { fontWeight: 700, color: "#3a5561", marginBottom: 2 } }, "광장 보는 법"),
+    React.createElement("div", null, React.createElement("b", { style: { color: "#3a5561" } }, "깃발"), " — 마음의 네 방향이에요. 활기·평온·슬픔·떨림, 내 섬 나침반과 같아요."),
+    React.createElement("div", null, React.createElement("b", { style: { color: "#3a5561" } }, "화분"), " — 오늘 우리 반이 많이 쓴 마음 말이에요. 같은 방향 옆에 자라요."),
+    React.createElement("div", null, React.createElement("b", { style: { color: "#3a5561" } }, "친구들"), " — 오늘 답을 쓴 친구들이에요. 맨 앞자리가 나예요."));
+  var qFont = small ? 18 : 22;   // 질문 글자(2026-09-15 저녁, ②): 넓은 화면은 오른쪽 패널이라 22px
   var body;
   if (loading) body = React.createElement("div", { style: { fontSize: 14, color: "#5b7684" } }, "광장으로 가는 중…");
   else if (!q) body = React.createElement("div", null,
-    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", marginBottom: 8 } }, "오늘 우리 반이 많이 쓴 마음 말"),
-    wordsEl(false), tipEl);
+    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, "오늘은 질문이 없는 날"),
+    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: qFont - 3, color: "#0e7490", lineHeight: 1.4, marginBottom: 8 } }, "오늘 우리 반이 많이 쓴 마음 말"),
+    wordsEl(false), tipEl, legendEl);
   else if (mode === "write") body = React.createElement("div", null,
     React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, "오늘의 질문"),
-    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45, marginBottom: 6 } }, q.t),
+    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: qFont, color: "#0e7490", lineHeight: 1.4, marginBottom: 6 } }, q.t),
     q.nm ? React.createElement("div", { style: { fontSize: 12, color: "#9a5b2b", background: "#fff4e6", borderRadius: 8, padding: "5px 10px", marginBottom: 6 } }, "친구 이름은 쓰지 않아요. '어떤 친구가'라고 써요.") : null,
     React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 6 } }, "관찰 · 무슨 일이 있었나요?"),
     React.createElement("textarea", { value: form.o, maxLength: PLAZA_MAX, rows: 2, placeholder: "본 것, 들은 것을 그대로 써요",
@@ -10070,35 +10082,45 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 } },
       React.createElement("button", { onClick: function () { setMode("view"); setWarn(""); setTip(null); }, style: { ...bSoft, padding: "7px 14px", fontSize: 14 } }, "취소"),
       React.createElement("button", { onClick: save, disabled: saving, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490", opacity: saving ? 0.6 : 1 } }, saving ? "저장 중…" : "저장")));
-  else if (ans && fold) body = React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
-    React.createElement("div", { style: { flex: "1 1 auto", minWidth: 0 } },
-      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, "오늘의 질문 · 답을 썼어요"),
-      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#0e7490", lineHeight: 1.4 } }, q.t)),
-    React.createElement("button", { onClick: function () { setFold(false); }, style: { ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "내 답과 친구들의 답"));
   else body = React.createElement("div", null,
-    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684", flex: 1 } }, "오늘의 질문"),
-      ans ? React.createElement("button", { onClick: function () { setFold(true); }, style: { ...bSoft, padding: "3px 10px", fontSize: 12 } }, "접기") : null),
-    React.createElement("div", { "data-tut": "plz-q", style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45 } }, q.t),
-    !ans ? React.createElement("div", { "data-tut": "plz-how", style: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" } },
-      React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#3a5561" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
-      React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "답하기"))
+    // 2026-09-15 저녁(①): 답한 뒤 카드를 접지 않는다. 내 답만 한 줄로 접고(펼치기), 친구들의 답은 바로 아래 펼쳐진다.
+    // 질문이 있는 날은 "오늘 우리 반이 많이 쓴 마음 말" 칩 줄을 빼서 질문과 겨루지 않게 했다(③) — 같은 말이 3D 화분에 있고, 칩은 질문 없는 날에만 크게 보인다.
+    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, "오늘의 질문"),
+    React.createElement("div", { "data-tut": "plz-q", style: { fontFamily: "'Jua',sans-serif", fontSize: qFont, color: "#0e7490", lineHeight: 1.4 } }, q.t),
+    !ans ? React.createElement("div", null,
+      React.createElement("div", { "data-tut": "plz-how", style: { display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" } },
+        React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#3a5561" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
+        React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "8px 20px", fontSize: 15, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "답하기")),
+      // 쓰기 전에는 친구 답을 읽지 않는다(§8 "쓰기 전에 보면 베낀다"). 대신 몇 명이 답했는지(인형 수)만 알린다
+      React.createElement("div", { style: { marginTop: 10, fontSize: 13, fontWeight: 600, color: "#5b7684", background: "#f4f8fa", borderRadius: 8, padding: "7px 10px", lineHeight: 1.5 } },
+        "친구들의 답은 내 답을 쓴 뒤에 보여요 · ", nOthers ? "지금 " + nOthers + "명이 답했어요" : "아직 답한 친구가 없어요"))
     : React.createElement("div", null,
-      React.createElement("div", { "data-tut": "plz-mine" }, ansCard(ans, true)),
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" } },
-        ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#9a5b2b" } }, ans.nmf ? "이름이 들어 있어 선생님이 확인한 뒤에 보여요" : "선생님이 확인하고 있어요")
-        : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#0e7490" } }, "광장에 올라갔어요") : null,
-        ans.s !== 2 || ans.nmf ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "고치기") : null),
+      // 내 답: 접힌 한 줄(관찰 앞부분) + 상태 + 펼치기·고치기. 방금 저장했으면 펼쳐진 채
+      React.createElement("div", { "data-tut": "plz-mine", style: { background: "#f7fbfc", border: "1px solid #dfeaee", borderRadius: 12, padding: "8px 12px 10px", marginTop: 10 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+          React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#0e7490" } }, "내 답"),
+          ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#9a5b2b" } }, ans.nmf ? "이름이 들어 있어 선생님이 확인한 뒤에 보여요" : "선생님이 확인하고 있어요")
+          : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#0e7490" } }, "광장에 올라갔어요") : null,
+          React.createElement("span", { style: { flex: 1 } }),
+          React.createElement("button", { onClick: function () { setMineOpen(!mineOpen); }, style: { ...bSoft, padding: "3px 10px", fontSize: 12 } }, mineOpen ? "접기" : "펼치기"),
+          ans.s !== 2 || ans.nmf ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "3px 10px", fontSize: 12 } }, "고치기") : null),
+        mineOpen ? React.createElement("div", null, row("관찰", ans.o || "—"), row("느낌", flRow(ans.fl, ans.f)), row("바람", ans.w || "—"))
+          : React.createElement("div", { style: { marginTop: 4, fontSize: 13, color: "#5b7684", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, ans.o || "—")),
       // 광장은 섬을 키우지 않는다. 자동이 아니라 초대다 — 안 써도 아무것도 기록하지 않는다.
       bridge ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#0e7490", background: "#e6f4f7", borderRadius: 8, padding: "6px 10px" } }, "이 마음을 일기에도 써 보면 섬에 자라요") : null,
-      React.createElement("div", { "data-tut": "plz-pub", style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#2f6a97", marginTop: 14 } }, "친구들의 답"),
+      React.createElement("div", { "data-tut": "plz-pub", style: { display: "flex", alignItems: "baseline", gap: 8, marginTop: 16 } },
+        React.createElement("span", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#2f6a97" } }, "친구들의 답"),
+        React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, nOthers ? nOthers + "명이 답했어요" : "")),
       // 내 답은 위에 있으니 여기서는 뺀다. 문턱(3개)은 pub 전체로 세고 보이는 것만 거른다.
       pub.length ? pub.filter(function (p2) { return !p2.mine; }).map(function (p2, i) { return React.createElement(React.Fragment, { key: i }, ansCard(p2, false)); })
-        : React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#5b7684", marginTop: 4 } }, "선생님이 고른 답이 여기에 이름 없이 올라와요.")),
-    words.length ? React.createElement("div", { style: { marginTop: 14, paddingTop: 10, borderTop: "1px solid #e6eef1" } },
-      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684", marginBottom: 5 } }, "오늘 우리 반이 많이 쓴 마음 말"), wordsEl(true), tipEl) : null);
+        : React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#5b7684", marginTop: 6, lineHeight: 1.6 } }, "선생님이 고른 답이 3개 이상 모이면 이름 없이 여기에 보여요.")),
+    legendEl);
+  // 배치(2026-09-15 저녁, ②): 560px 이상은 질문 카드가 오른쪽 세로 패널(폭 --plz-w = clamp(380px, 32vw, 420px), 위에서 아래까지)이고 3D는 그 왼쪽만 쓴다 —
+  // 3D 호스트의 right를 패널 폭만큼 비워 두면 ResizeObserver가 렌더러·카메라를 그 폭에 맞춘다(3D 코드는 그대로). 오른쪽 위 버튼들도 3D 영역의 오른쪽 위로.
+  // 560px 아래는 전처럼 아래 카드. 제목 띠(.plz-title)와 시연 띠(#demo-ribbon[data-page=plaza])의 자리는 CSS에서 같은 변수로 맞춘다.
+  var edge = small ? 10 : "calc(var(--plz-w) + 10px)";
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
-    React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    React.createElement("div", { ref: hostRef, style: small ? { position: "absolute", inset: 0 } : { position: "absolute", left: 0, top: 0, bottom: 0, right: "var(--plz-w)" } }),
     React.createElement("style", null, "@keyframes isleReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
     reveal ? React.createElement("div", {
       style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5,
@@ -10107,9 +10129,9 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     err ? React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 } }, err) : null,
     React.createElement("button", { className: "tut-dim",
       onClick: onBack,
-      style: { position: "absolute", right: 10, top: 10, ...bBack }   // 돌아가는 길(2026-09-15 저녁, bBack)
+      style: { position: "absolute", right: edge, top: 10, ...bBack }   // 돌아가는 길(2026-09-15 저녁, bBack)
     }, "🏝 " + (backLabel || "내 섬으로")),
-    React.createElement(SndBtn, { small: small, className: "tut-dim", top: 52 }),
+    React.createElement(SndBtn, { small: small, className: "tut-dim", top: 52, right: edge }),
     // 튜토리얼 시작 팻말(2026-09-15). 내 섬·바다와 같은 모양. 한 번 본 뒤(localStorage tutPlaza)엔 물음표만
     onTour ? React.createElement("button", {
       className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
@@ -10120,11 +10142,16 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     }, tutSeen ? "?" : "처음 오셨나요? 광장 안내 보기",
        tutSeen ? null : React.createElement("span", { className: "sign-shine", "aria-hidden": true })) : null,
     React.createElement("div", { "data-tut": "plz-card",
-      style: { position: "absolute", left: "50%", bottom: small ? 8 : 16, transform: "translateX(-50%)",
-               width: "min(94vw, 600px)", maxHeight: small ? "66vh" : "min(70vh, 600px)", overflowY: "auto", boxSizing: "border-box",
+      style: small ? { position: "absolute", left: "50%", bottom: 8, transform: "translateX(-50%)",
+               width: "94vw", maxHeight: "66vh", overflowY: "auto", boxSizing: "border-box",
                padding: "12px 16px 14px", borderRadius: 14, background: "rgba(255,255,255,0.95)",
                boxShadow: "0 3px 14px rgba(0,0,0,0.18)", color: "#28444f" }
-    }, body));
+            : { position: "absolute", right: 0, top: 0, bottom: 0, width: "var(--plz-w)", overflowY: "auto", boxSizing: "border-box",
+               padding: "18px 20px 20px", background: "rgba(255,255,255,0.96)", borderLeft: "1px solid #d5e3e8",
+               boxShadow: "-4px 0 18px rgba(0,0,0,0.12)", color: "#28444f" }
+    }, small ? body : React.createElement(React.Fragment, null,
+      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#6b8792", marginBottom: 10 } }, "우리 반 광장"),   // 패널 머리 제목(2026-09-15 저녁)
+      body)));
 }
 function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
   const hostRef = useRef(null);
@@ -15185,6 +15212,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   if (page === "plaza" && currentUser) return React.createElement("div", {
     style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
   }, React.createElement("div", {
+    className: "plz-title",   // 560px 이상은 숨기고 패널 머리에 제목이 있다(CSS, 2026-09-15 저녁)
     style: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, pointerEvents: "none",
              padding: "10px 16px", textAlign: "center",
              background: "linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0))" }
