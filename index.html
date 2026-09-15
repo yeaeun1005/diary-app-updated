@@ -770,8 +770,10 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 @keyframes tutShine{0%,100%{box-shadow:var(--tut-glow-lo)}50%{box-shadow:var(--tut-glow-hi)}}
 @media (prefers-reduced-motion:reduce){.tut-shine{animation:none;box-shadow:var(--tut-glow-still)}}
 .tut-bubble{position:fixed;z-index:92;left:0;top:0;width:max-content;max-width:min(320px,calc(100vw - 24px));box-sizing:border-box;padding:13px 16px 11px;font-family:'Gowun Dodum',sans-serif;font-size:14px;line-height:1.55;box-shadow:0 10px 30px rgba(0,0,0,.35);word-break:keep-all}
-.tut-bubble.wood{--tb:3px;--bg:#e7cc92;--bd:#b05a3a;color:#4a3a24}
-.tut-bubble.plain{--tb:2px;--bg:#fff;--bd:#bae6fd;color:#1e293b}
+.tut-bubble.wood{--tb:3px;--bg:#e7cc92;--bd:#b05a3a;--do:#8c4328;color:#4a3a24}
+.tut-bubble.plain{--tb:2px;--bg:#fff;--bd:#bae6fd;--do:#0369a1;color:#1e293b}
+.tut-do{font-weight:700;color:var(--do)}   /* 해야 할 행동(문구의 **…**, tutRich). 나무 톤은 틀의 벽돌색, 흰 톤은 파랑 */
+.tut-do.nl{display:block;margin-top:6px}   /* 앞에 설명이 있으면 줄을 바꿔 설명과 지시를 가른다 */
 .tut-bubble{background:var(--bg);border:var(--tb) solid var(--bd);border-radius:13px}
 .tut-arrow{position:absolute;width:14px;height:14px;z-index:0;background:var(--bg);border:0 solid var(--bd);transform:translate(-50%,-50%) rotate(45deg)}
 .tut-arrow[data-side=bottom]{border-top-width:var(--tb);border-left-width:var(--tb)}
@@ -8533,7 +8535,10 @@ var CHAR_LAST = {};
 var SND = {
   cfg: { bgm:   { src: "sounds/piano_loop.mp3", loop: true, vol: 0.30 },
          steps: { src: "sounds/step.mp3",       loop: true, vol: 1.0 },
-         woosh: { src: "sounds/woosh.mp3",      vol: 0.10 } },
+         woosh: { src: "sounds/woosh.mp3",      vol: 0.10 },
+         // 튜토리얼 단계 전환음(2026-09-15). 같은 woosh를 1.8배 속도·음높이 그대로 올려(pitch:false) 0.35초쯤의 가벼운 "휙"으로. 실측: 알맹이는 0.15~0.55초(피크 0.30초, 0 dB), 0.9초 뒤는 −50 dB 아래라 사실상 무음
+         // 음량 0.08(−22 dB → 큰 구간 −27쯤, 배경음 큰 구간 −29와 비슷·중앙값 −39보다는 위) — 배경음을 덮지 않고 묻히지도 않게. 별도 <audio>라 화면 전환음(woosh)과 겹쳐도 서로 끊지 않는다. 소리 꺼짐이면 play()가 바로 돌아간다
+         tut:   { src: "sounds/woosh.mp3",      vol: 0.08, rate: 1.8, pitch: false } },
   els: {}, loopEl: null, loopName: null, holdEl: null, leaveTm: 0, retryArmed: false, subs: [],
   on: function () { try { return localStorage.getItem("snd") === "on"; } catch (e) { return false; } },
   // 버튼이 보여 주는 것은 저장값이 아니라 실제 재생 상태다(2026-09-14). 켠 채 새로고침하면 autoplay 정책으로 재생이 거부되는데,
@@ -8547,7 +8552,7 @@ var SND = {
     if (!on) { SND.stopLoop(); SND.release(); SND.emit(); return; }
     // 켜는 클릭 안에서 바로 튼다(autoplay 해제). 효과음은 미리 받아 두어 첫 전환·첫 걸음이 조용하지 않게 한다(48KB·220KB)
     if (SND.loopName) SND.loop(SND.loopName);
-    SND.el("woosh"); SND.el("steps");
+    SND.el("woosh"); SND.el("steps"); SND.el("tut");
     SND.emit();
   },
   el: function (name) {
@@ -8555,13 +8560,14 @@ var SND = {
     var c = SND.cfg[name]; if (!c) return null;
     var a = document.createElement("audio"); a.preload = "auto"; a.src = c.src;
     a.loop = !!c.loop; a.volume = c.vol == null ? 0.5 : c.vol;
+    if (c.pitch === false) { try { a.preservesPitch = false; a.webkitPreservesPitch = false; } catch (e) {} }   // 빠르게 틀면 음높이도 같이 오르게(기본은 음높이 보존)
     if (name === "bgm") ["playing", "pause", "ended"].forEach(function (ev) { a.addEventListener(ev, SND.emit); });   // 실제 재생 상태 → 버튼
     SND.els[name] = a; return a;
   },
   // 한 번 소리(전환음). 이미 나는 중이면 처음부터 다시
   play: function (name, rate) {
     if (!SND.on()) return;
-    try { var a = SND.el(name); if (!a) return; a.currentTime = 0; a.playbackRate = rate || 1; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    try { var a = SND.el(name); if (!a) return; a.currentTime = 0; a.playbackRate = rate || SND.cfg[name].rate || 1; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
   },
   // 배경음. 3D 화면(내 섬·친구 섬·바다·광장)마다 마운트 때 부른다. 화면이 바뀌어도 이름을 기억해 두었다가, 소리를 켜는 순간 이어서 튼다.
   // 같은 <audio> 하나를 계속 쓰므로 화면을 옮겨도 처음부터 다시 나거나 두 겹으로 나지 않는다. leave()가 미뤄 둔 정지는 여기서 취소한다.
@@ -8574,7 +8580,7 @@ var SND = {
       if (SND.loopEl && SND.loopEl !== a) SND.loopEl.pause();
       SND.loopEl = a;
       if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () { SND.armRetry(); SND.emit(); }); }
-      SND.el("woosh"); SND.el("steps");   // 켠 채로 새로고침한 경우에도 효과음을 미리 받아 둔다
+      SND.el("woosh"); SND.el("steps"); SND.el("tut");   // 켠 채로 새로고침한 경우에도 효과음을 미리 받아 둔다
     } catch (e) {}
   },
   stopLoop: function () { if (SND.loopEl) { try { SND.loopEl.pause(); } catch (e) {} } SND.loopEl = null; SND.emit(); },
@@ -8656,7 +8662,7 @@ function coarsePointer() {
 // me는 지금 학생, myState는 내 어휘(공감 조건 판정), arrive = { boatDir } 면 배로 도착한다.
 // onHome은 친구 섬의 "내 섬으로".
 // hub면 내 섬이 첫 화면이다. 오른쪽 위는 로그아웃, 3D가 안 뜨면 onNo3D, 느리면 배너가 뜨고 onSlowGo로 일기로 간다.
-function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive, hub, onLogout, onNo3D, onSlowGo, onTut, onTour, tutOn }) {
+function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, friend, me, myState, arrive, hub, onLogout, trial, onNo3D, onSlowGo, onTut, onTour, tutOn }) {   // trial: 체험으로 들어온 시연 학생 — 로그아웃 버튼이 "체험 끝내기"(2026-09-15)
   // 튜토리얼(2026-09-15): onTut(kind, id)로 "walk"(걷기 시작)·"near"(팻말 앞 도착/이탈)·"go"(스페이스로 들어감)를 알린다. tutOn이면 렌더 루프가
   // 팻말 판·캐릭터의 월드 상자를 투영해 보이지 않는 앵커 div를 맞춘다 — 엔진은 getBoundingClientRect만 읽는다. 렌더 효과가 다시 돌지 않게 ref로 받는다
   const tutCbRef = useRef(null); tutCbRef.current = onTut || null;
@@ -8863,7 +8869,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
     var keys = {}, dbgMarks = null;
-    var walkT = 0, faceDir = Math.PI * 0.75, wasMoving = false;
+    var walkT = 0, faceDir = Math.PI * 0.75, wasMoving = false, lastDir = null;
     function walk(dt) {
       if (!charGrp || !theIsle) return;
       var mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -8877,7 +8883,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         walkT += dt;
       }
       // 발걸음은 걷는 동안 루프, 멈추면 끈다(2026-09-14). 파일에 발자국이 여러 개라 발과 맞추지 않는다
-      if (moving !== wasMoving) { wasMoving = moving; if (moving) { SND.hold("steps"); if (tutCbRef.current) tutCbRef.current("walk"); } else SND.release(); }   // 튜토리얼: 걷기 시작 신호
+      if (moving) { var dk = mx + "," + mz; if (dk !== lastDir) { lastDir = dk; if (tutCbRef.current) tutCbRef.current("dir", dk); } }   // 튜토리얼: 방향(8방위 키 조합)이 바뀔 때 신호. 멈췄다 같은 방향으로 다시 가는 건 안 센다
+      if (moving !== wasMoving) { wasMoving = moving; if (moving) { SND.hold("steps"); if (tutCbRef.current) tutCbRef.current("walk"); } else { SND.release(); if (tutCbRef.current) tutCbRef.current("stop"); } }   // 튜토리얼: 걷기 시작·멈춤 신호
       if (charGrp.userData.step) charGrp.userData.step(walkT, moving, faceDir);
       // 높이는 매 프레임 지면에서 다시 잡는다. 지금 높이를 함께 넘겨야
       // 다리 밑을 걸을 때 상판으로 끌려 올라가지 않는다.
@@ -9324,10 +9331,10 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     }, dbg) : null,
     // 허브면 "돌아가기"가 갈 곳이 없다. 이 자리는 로그아웃이다(일기 화면에도 있다).
     React.createElement("button", { className: "tut-dim",
-      onClick: isFriend ? (onHome || onBack) : (hub && onLogout ? function () { if (confirm("로그아웃할까요?")) onLogout(); } : onBack),
+      onClick: isFriend ? (onHome || onBack) : (hub && onLogout ? function () { if (confirm(trial ? "체험을 끝낼까요?" : "로그아웃할까요?")) onLogout(); } : onBack),
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13,
                color: isFriend ? "#0e7490" : undefined, border: isFriend ? "1px solid #99d8c9" : undefined }
-    }, isFriend ? "내 섬으로" : hub ? "로그아웃" : "돌아가기"),
+    }, isFriend ? "내 섬으로" : hub ? (trial ? "체험 끝내기" : "로그아웃") : "돌아가기"),
     React.createElement(SndBtn, { small: small, className: "tut-dim" }),
     // 느린 기기. 걸어서 잠수 지점까지 가기 힘들면 여기서 바로 간다. "일기로 가기"를 고르면 이 기기는 다음부터 일기가 먼저다.
     slow === 1 ? React.createElement("div", { className: "tut-dim",
@@ -12953,7 +12960,11 @@ function HomeSigns(props) {
     sign(I1, W1, { onClick: props.onLogin, "aria-label": "로그인" },
       { "--rot": "-2deg", "--sway": "5.6s", "--amp": "1deg", "--shine": "5s", left: L.x, top: L.y, zIndex: 3 }),
     sign(I2, W2, { onClick: props.onTrial, "aria-label": "로그인 없이 체험하기", title: "체험 모드에서는 일기가 저장되지 않습니다" },
-      { "--rot": "5deg", "--sway": "4.3s", "--amp": "1.6deg", "--sway-delay": "-1.7s", "--shine": "6s", "--shine-delay": "-2.6s", left: T.x, top: T.y, zIndex: 4, animationDelay: "0.15s" }));
+      { "--rot": "5deg", "--sway": "4.3s", "--amp": "1.6deg", "--sway-delay": "-1.7s", "--shine": "6s", "--shine-delay": "-2.6s", left: T.x, top: T.y, zIndex: 4, animationDelay: "0.15s" }),
+    // 체험 판 위 작은 나무 팻말 조각(2026-09-15, A안·문구 확정). 체험으로 들어가면 튜토리얼이 있다는 것을 첫 화면에서 알린다 — 간판 그림은 글자라 못 고치므로 따로 띄운다.
+    // 3D 팻말 밑 [스페이스] 표시·소리 버튼과 같은 WOOD_TAG. 발치(T.x, 기둥 가운데) 위 그림 높이(H2)만큼 올린 자리 = 판 위 모서리. 로그인 간판보다 작고 같은 나무 톤이라 겨루지 않는다. 클릭은 안 받는다
+    React.createElement("span", { "aria-hidden": true, style: { ...WOOD_TAG, position: "absolute", left: T.x, top: T.y - H2 - 14, transform: "translate(-50%, -100%) rotate(-3deg)", zIndex: 4, pointerEvents: "none",   // 14px: 판이 +5° 기울어 오른쪽 귀가 13px쯤 올라오고, 흔들림·hover 커짐이 더 있어도 안 닿게
+      padding: phone ? "3px 9px" : "5px 12px", fontSize: phone ? 12 : 14, fontFamily: HOME_FONT.body, fontWeight: HOME_FONT.bw } }, "✨ 들어가면 안내가 함께해요"));
 }
 // 소개 섹션 "어떤 마음이든 자란다"(2026-09-13). 배치·움직임은 CSS(.intro …)에, 여기는 구조와 IntersectionObserver뿐.
 // 그림: intro/isle-16.webp(시연 시드 sc=24에 어휘 16가지를 네 영역 4개씩, 2320×1380) + 영역 확대 zoom-ha·la·lv·hv(같은 렌더의 dpr 2에서 잘라냄). 전부 lazy.
@@ -13310,6 +13321,13 @@ var TUT = {
   glowHi: "0 0 0 4px rgba(255,215,122,.9), 0 0 30px 10px rgba(255,215,122,.85)",   // 반짝임 셀 때(1.6초 주기)
   glowStill: "0 0 0 3px rgba(255,215,122,.7), 0 0 20px 6px rgba(255,215,122,.7)"   // 움직임 줄이기 설정일 때(고정)
 };
+// 말풍선 문구의 **…**는 "해야 할 행동"(2026-09-15). 굵게·진한 색(.tut-do)이고, 앞에 설명이 있으면 줄을 바꿔(.nl) 설명과 지시가 갈린다. 문구가 함수면 부른 뒤에 건다
+function tutRich(s) {
+  if (typeof s !== "string" || s.indexOf("**") < 0) return s;
+  var parts = s.split("**"), out = [];
+  for (var i = 0; i < parts.length; i++) { if (!parts[i]) continue; out.push(i % 2 ? React.createElement("strong", { key: i, className: "tut-do" + (out.length ? " nl" : "") }, parts[i]) : parts[i]); }
+  return out;
+}
 function tutFind(step) {
   if (!step || !step.target) return null;
   if (typeof step.target === "function") return step.target() || null;
@@ -13323,6 +13341,7 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var [tick, setTick] = useState(0);      // 리사이즈 → 말풍선 재배치
   var bubRef = useRef(null), arrowRef = useRef(null), cb = useRef(null);
   var maskRefs = useRef({}), ringRef = useRef(null), coverRef = useRef(null);
+  var held = useRef({});   // 이 단계가 통과시킨 키 중 아직 눌린 것(code). 누른 채 단계가 바뀌어도 keyup은 통과시켜야 화면(걷기)이 키를 놓았다는 걸 안다(2026-09-15 — 안 그러면 캐릭터가 혼자 계속 걷는다)
   cb.current = { next: onNext, skip: onSkip };
   // 구멍·링·덮개 자리를 rAF에서 바로 DOM에 쓴다(2026-09-15). setRect의 재렌더는 말풍선 배치·귀퉁이용이고, 시각적 추종은 이 함수가 같은 프레임에 끝낸다
   function applyRect(r) {
@@ -13370,7 +13389,8 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
     var onKey = function (e) {
       if (e.key === "Escape") { e.stopImmediatePropagation(); e.preventDefault(); if (e.type === "keydown") cb.current.skip(); return; }
       if (bubRef.current && bubRef.current.contains(document.activeElement)) return;
-      if (allow.indexOf(e.code) >= 0 || allow.indexOf(e.key) >= 0) { if (step.next === "key" && e.type === "keydown") setTimeout(cb.current.next, 0); return; }
+      if (e.type === "keyup" && held.current[e.code]) { delete held.current[e.code]; return; }   // 앞 단계에서 통과시킨 키를 놓는 것은 이 단계가 막지 않는다
+      if (allow.indexOf(e.code) >= 0 || allow.indexOf(e.key) >= 0) { if (e.type === "keydown") held.current[e.code] = true; if (step.next === "key" && e.type === "keydown") setTimeout(cb.current.next, 0); return; }
       e.stopImmediatePropagation(); e.preventDefault();
       if ((step.next == null || step.next === "button") && e.type === "keydown" && !e.repeat && (e.key === "Enter" || e.key === " ")) cb.current.next();
     };
@@ -13430,11 +13450,12 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
       h("div", { ref: arrowRef, className: "tut-arrow" }),
       h("div", { style: { position: "relative", zIndex: 1 } },
         step.title && h("div", { className: "tut-title" }, step.title),
-        h("div", null, typeof step.text === "function" ? step.text() : step.text),   // 함수면 그릴 때 묻는다(신호에 따라 바뀌는 문구)
+        h("div", null, tutRich(typeof step.text === "function" ? step.text() : step.text)),   // 함수면 그릴 때 묻는다(신호에 따라 바뀌는 문구). **…**는 행동 지시(tutRich)
         h("div", { className: "tut-row" },
           h("span", { className: "tut-count" }, (i + 1) + " / " + steps.length),
-          h("button", { className: "tut-skip", onClick: onSkip }, "건너뛰기"),
-          nextBtn && h("button", { className: "tut-next", onClick: onNext }, isLast ? "끝내기" : "다음")))));
+          // "튜토리얼 끝내기"(2026-09-15, 전에는 "건너뛰기"). 마지막 단계에 [끝내기]가 같이 서면 둘이 헷갈리므로 그때는 이 버튼을 뺀다(둘 다 투어를 끝낸다). 마지막 단계가 신호로 넘어가는 경우([다음] 없음)엔 남긴다
+          isLast && nextBtn ? null : h("button", { className: "tut-skip", onClick: onSkip }, "튜토리얼 끝내기"),
+          nextBtn && h("button", { className: "tut-next", onClick: onNext }, isLast ? "다 봤어요" : "다음")))));   // 마지막은 "다 봤어요"(2026-09-15 확정)
 }
 // ── 교사 대시보드 투어(3단계, 2026-09-15, 문구 A안 확정) ──
 // 대상은 전부 정지한 DOM(data-tut="t-…" 카드). 화면 순서대로 짚고, 없는 카드는 skipMissing으로 건너뛴다. 전부 inert(설명만) — 구멍 안 [보기]가 모달을 열지 않게.
@@ -13457,7 +13478,7 @@ function seaTourSteps() {
   var touch = coarsePointer();
   return [
     { target: "sea-hint", free: true, title: "둘러보기", place: "top",
-      text: touch ? "섬을 누르면 배가 가요. 끌어서 둘러보고, 두 손가락으로 확대해요. 지금 한번 끌어 보세요." : "섬을 누르면 배가 가요. 끌어서 둘러보고, 휠로 확대해요. 지금 한번 끌어 보세요." },
+      text: touch ? "섬을 누르면 배가 가요. 끌어서 둘러보고, 두 손가락으로 확대해요. **지금 한번 끌어 보세요.**" : "섬을 누르면 배가 가요. 끌어서 둘러보고, 휠로 확대해요. **지금 한번 끌어 보세요.**" },
     { target: null, free: true, title: "바다 색", text: "바다 색은 오늘 우리 반의 기분이에요. 밝은 일기가 많은 날은 맑고, 무거운 날은 어두워져요." },
     { target: "sea-today", free: true, title: "오늘의 섬", text: "오늘의 섬이에요. 눌러도 되고 안 눌러도 돼요. 날마다 다른 친구 섬을 권해요." },
     { target: "sea-isle", free: true, title: "친구 섬", pad: 0, radius: 40, text: "친구 섬에 내리면 꽃과 나무를 구경할 수 있어요. 같은 마음을 써 본 적 있으면 '나도 그래'를 보낼 수 있어요." }
@@ -13477,6 +13498,9 @@ function plazaTourSteps() {
 // 3D 대상(부두·잠수 지점·광장 표지·캐릭터)은 IslandView가 투어 중에만 그리는 보이지 않는 앵커 div(data-tut="lm-<id>"·"char")로 짚는다.
 // 문구는 화면에 이미 있는 말을 재사용한다 — 걷기 힌트, 랜드마크 hint("바다로 나가요"…), 식생 배너("내가 직접 쓴 마음 말이에요"), 나침반 제목.
 var ISLE_WALK_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"];
+// 1단계 "걷는 법"이 넘어가는 조건(2026-09-15, 전에는 걷기 시작 0.7초 뒤). 걸은 시간 합계(멈춘 시간은 안 센다)가 ms 이상이고 방향을 turns번 바꿨거나(예: 위→왼쪽→아래), 그냥 maxMs 이상 걸었으면.
+// 시간만 채우고 방향을 안 바꿨으면 말풍선이 "다른 방향으로도"로 바뀐다. 너무 길면 지루하니 maxMs가 상한
+var TUT_WALK = { ms: 2000, turns: 2, maxMs: 6000 };
 var ISLE_LM_HINT = { dock: "바다로 나가요", dive: "내 안으로 내려가요", plaza: "우리 반 광장으로 가요" };
 function isleTourSteps(sig) {
   var touch = coarsePointer();
@@ -13491,16 +13515,18 @@ function isleTourSteps(sig) {
     if (!out) return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
     out.width = out.right - out.left; out.height = out.bottom - out.top; return out; } }; };
   var diveTag = union(["lm-dive", "lm-tag"]);
+  var walked = function () { return sig.walkMs + (sig.walkAt ? performance.now() - sig.walkAt : 0); };   // 지금까지 걸은 시간(ms). 걷는 중이면 현재까지
   return [
-    { target: "char", title: "걷는 법", text: "이게 나예요. 방향키 또는 WASD로 걸어보세요.",
-      keys: ISLE_WALK_KEYS, next: function () { return !!sig.walkAt && performance.now() - sig.walkAt > 700; } },
+    { target: "char", title: "걷는 법",
+      text: function () { var ms = walked(); return ms >= TUT_WALK.ms && sig.turns < TUT_WALK.turns ? "잘했어요! **이번엔 다른 방향으로도 걸어 보세요.**" : "이게 나예요. **방향키 또는 WASD로 이리저리 걸어 보세요.**"; },
+      keys: ISLE_WALK_KEYS, next: function () { var ms = walked(); return ms >= TUT_WALK.maxMs || (ms >= TUT_WALK.ms && sig.turns >= TUT_WALK.turns); } },
     { target: "vocab", title: "마음 말", text: "섬의 꽃과 나무는 내가 직접 쓴 마음 말이에요. 가까이 가면 뜻이 떠요. 일기를 쓸수록 늘어나요.", next: "button" },
     { target: "compass", title: "나침반", text: "활기·평온·슬픔·떨림, 네 방향이에요. 섬에서도 같은 방향에 자라요. 어느 마음이 많이 자랐나요?", next: "button", radius: 60 },
     // 4·5단계는 잠수 지점(일기)으로 고정한다(2026-09-15). 가까운 팻말을 짚으면 아이마다 다른 곳으로 간다 — 첫 투어는 일기로 데려가고, 바다·광장은 일기를 쓴 뒤다
-    { target: "lm-dive", title: "팻말", text: "팻말은 갈 수 있는 곳이에요. 바다로 나가요 · 내 안으로 내려가요 · 우리 반 광장으로 가요. 먼저 '내 안으로' 팻말 앞까지 걸어가 보세요.",
+    { target: "lm-dive", title: "팻말", text: "팻말은 갈 수 있는 곳이에요. 바다로 나가요 · 내 안으로 내려가요 · 우리 반 광장으로 가요. **먼저 '내 안으로' 팻말 앞까지 걸어가 보세요.**",
       keys: ISLE_WALK_KEYS, next: function () { return sig.near === "dive"; } },
     { target: function () { return diveTag; }, title: "들어가기",
-      text: ISLE_LM_HINT.dive + ". " + (touch ? "팻말 밑 [눌러서 가기]를 누르세요." : "스페이스를 눌러요."),
+      text: ISLE_LM_HINT.dive + ". " + (touch ? "**팻말 밑 [눌러서 가기]를 누르세요.**" : "**스페이스를 눌러요.**"),
       keys: ISLE_WALK_KEYS.concat(["Space", "Enter", "NumpadEnter"]), next: function () { return !!sig.go; }, pad: 6 }   // 다른 팻말로 들어가도 화면이 바뀌므로 투어는 끝낸다
   ];
 }
@@ -13517,6 +13543,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // 4단계: 시연·체험(메모리에만 쓰는 상태)에서는 "✅ …" 성공 안내 뒤에 저장되지 않았다는 꼬리를 붙인다 — 삭제·비우기를 누른 뒤 실제로 지워진 줄 알지 않게
   const setMsg = useCallback(function (m) { setMsgRaw(MEM_ONLY && typeof m === "string" && m.charAt(0) === "✅" ? m + MEM_NOTES.msg : m); }, []);
   const [currentUser, setCU] = useState(null);
+  const [trialUser, setTrialUser] = useState(false);   // 체험 간판·"시연 학급으로 들어가기"로 시연 학생에 들어왔는지(2026-09-15). 내 섬의 오른쪽 위 버튼이 "체험 끝내기"가 된다. 아이디를 쳐서 들어오면 false
   setDemoClock(currentUser);   // 시연 시계 플래그(2단계). 렌더마다 동기로 세운다 — 아래 효과들(살펴봐·반딧불·달라진 아이)이 첫 실행부터 고정 시계를 보게. 로그인 함수도 setCU 앞에서 세운다
   if (page === "trial") MEM_ONLY = true;   // 체험 모드도 메모리에만 쓴다(3단계) — 마음대화가 app/chat_trial_… 에 남던 것을 막는다
   if (!MEM_ONLY && MEM_OPS.length) MEM_OPS = [];   // 시연·체험을 벗어나면 세션 메모리를 비운다
@@ -14178,7 +14205,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     setMsg("");
   };
   // 학생 로그인 본체. 로그인 창(studentLogin)과 체험 간판·"시연 학급으로 들어가기"(demoLogin)가 같이 쓴다. 들어갔으면 true, 아니면 setMsg 뒤 false.
-  const studentLoginWith = async (code, lid, pw) => {
+  const studentLoginWith = async (code, lid, pw, viaTrial) => {   // viaTrial: 체험 간판·시연 링크로(2026-09-15)
     let school = await sGet(schPubKey(code));
     if (!school || !school.schoolName) {
       // 새 경로에 없으면 옛 목록. 4단계 뒤에는 읽히지 않으니 "존재하지 않습니다"로 끝난다.
@@ -14212,7 +14239,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       schoolCode: code,
       schoolName: school.schoolName
     });
-    setDemoClock(scu); setCU(scu);
+    setDemoClock(scu); setCU(scu); setTrialUser(!!viaTrial);
     // 실패해도 로그인은 진행한다. dLoad가 옛 경로로 폴백하므로 일기는 보인다.
     try { await d2Ensure(me.id); } catch (e) { console.error("d2Ensure:", e); }
     const entries = await dLoad(me.id);
@@ -14242,7 +14269,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     if (demoBusy.current) return;
     demoBusy.current = true;
     var ok = false;
-    try { ok = await studentLoginWith(DEMO_CODE, DEMO_TRIAL.lid, DEMO_TRIAL.pw); }
+    try { ok = await studentLoginWith(DEMO_CODE, DEMO_TRIAL.lid, DEMO_TRIAL.pw, true); }
     catch (e) { console.error("demoLogin:", e); ok = false; }
     demoBusy.current = false;
     if (!ok && onFail) onFail();
@@ -14472,7 +14499,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     await d2Del(currentUser.id, e);
   }, [currentUser]);
   const logout = () => {
-    setDemoClock(null); setCU(null);
+    setDemoClock(null); setCU(null); setTrialUser(false);
     setPage("home");
     setMsg("");
     setVS(null);
@@ -14489,17 +14516,20 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, [page]);
   useEffect(function () { if (devMode()) window.__app = { setPage: setPage }; });   // #dev: 하네스가 로그인 없이 화면을 바꾼다
   // 내 섬 투어(2026-09-15). IslandView가 onTut으로 신호(걷기·팻말 앞·스페이스)를 주고, 단계의 next 함수가 그걸 본다. 시작 팻말이 onTour를 부른다
-  const isleSig = useRef({ walkAt: 0, near: null, go: null });
+  // 걷기 신호(2026-09-15): walkAt(지금 걷는 중이면 시작 시각)·walkMs(멈출 때마다 더한 걸은 시간 합계)·dir(마지막 방향)·turns(방향 바꾼 횟수). 1단계 조건은 TUT_WALK
+  const isleSig = useRef({ walkAt: 0, walkMs: 0, dir: null, turns: 0, near: null, go: null });
   const isleOnTut = useCallback(function (kind, id) {
     var s = isleSig.current;
     if (kind === "walk") { if (!s.walkAt) s.walkAt = performance.now(); }
+    else if (kind === "stop") { if (s.walkAt) { s.walkMs += performance.now() - s.walkAt; s.walkAt = 0; } }
+    else if (kind === "dir") { if (s.dir && id !== s.dir) s.turns++; s.dir = id; }
     else if (kind === "near") s.near = id || null;
     else if (kind === "go") s.go = id;
   }, []);
   const teacherTour = useCallback(function () { tutStart(teacherTourSteps(), { tone: "plain", skipMissing: true }); }, [tutStart]);   // 교사 대시보드 "이 화면 안내"(2026-09-15)
   const seaTour = useCallback(function (onDone) { tutStart(seaTourSteps(), { skipMissing: true, onDone: onDone }); }, [tutStart]);       // 바다(2026-09-15)
   const plazaTour = useCallback(function (onDone) { tutStart(plazaTourSteps(), { skipMissing: true, onDone: onDone }); }, [tutStart]);   // 광장(2026-09-15)
-  const isleTour = useCallback(function (onDone) { var s = isleSig.current; s.walkAt = 0; s.near = null; s.go = null; tutStart(isleTourSteps(s), { onDone: onDone }); }, [tutStart]);
+  const isleTour = useCallback(function (onDone) { var s = isleSig.current; s.walkAt = 0; s.walkMs = 0; s.dir = null; s.turns = 0; s.near = null; s.go = null; tutStart(isleTourSteps(s), { onDone: onDone }); }, [tutStart]);
 
   const [showPwChange, setShowPwChange] = useState(false);
   const [pwForm, setPwF] = useState({
@@ -15077,7 +15107,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     arrive: isleFrom,
     hub: ISLE_HUB,
     tutOn: tutOn, onTut: isleOnTut, onTour: isleTour,   // 내 섬 투어(2026-09-15)
-    onLogout: logout,
+    onLogout: logout, trial: trialUser,   // 체험 간판으로 들어왔으면 "체험 끝내기"(2026-09-15)
     onNo3D: function (why) { setNo3d(why || "3D를 표시할 수 없어요"); setIsleFrom(null); setPage("studentDiary"); },
     onSlowGo: function () { setIsleFrom(null); setPage("studentDiary"); },
     onBack: function () { setIsleFrom(null); setPage("studentDiary"); },
@@ -16144,7 +16174,7 @@ function App() {
     setTut({ steps: steps, i: 0, tone: opts && opts.tone, onDone: opts && opts.onDone });
   }, []);
   const tutEnd = useCallback(function (how) { var t = tutRef.current; setTut(null); if (t && t.onDone) t.onDone(how); }, []);
-  const tutNext = useCallback(function () { var t = tutRef.current; if (!t) return; if (t.i + 1 < t.steps.length) setTut({ ...t, i: t.i + 1 }); else tutEnd("done"); }, [tutEnd]);
+  const tutNext = useCallback(function () { var t = tutRef.current; if (!t) return; if (t.i + 1 < t.steps.length) { SND.play("tut"); setTut({ ...t, i: t.i + 1 }); } else tutEnd("done"); }, [tutEnd]);   // 단계 전환음(2026-09-15). 끝내기·건너뛰기에는 없다. 소리 꺼짐이면 SND.play가 아무것도 안 한다
   const tutSkip = useCallback(function () { if (tutRef.current) tutEnd("skip"); }, [tutEnd]);
   useEffect(function () { if (devMode()) window.__tut = { start: tutStart, next: tutNext, skip: tutSkip, state: function () { var t = tutRef.current; return t ? { i: t.i, n: t.steps.length } : null; } }; });   // #dev: 콘솔·하네스에서 조작
   return React.createElement(React.Fragment, null,
