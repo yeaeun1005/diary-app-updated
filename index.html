@@ -8559,14 +8559,19 @@ function seaPath(a, b, obstacles) {
 // 하나만 있어도 예쁘다. 어휘당 최대 3개, 섬당 최대 8개, 최근 7일 것만.
 // 등불은 슬픔 3층의 표식이라 공감 표식으로 못 쓴다.
 var FF_PER_WORD = 3, FF_PER_ISLE = 8, FF_DAYS = 7;
-function buildFireflies(spots) {   // spot.fresh면(지난 방문 뒤 온 것, 2026-09-15 저녁) 헤일로만 1.9배 — 개수는 그대로, 새 것만 눈에 띈다
+// 반딧불 지오메트리·재질 한 벌(2026-09-15 밤). 섬을 열 때 한 번 만들어 인스턴스 반딧불(buildFireflies)과 날아가는 반딧불(나도 그래 연출)이 같이 쓴다. 섬을 나갈 때 한 번 지운다
+function ffResources() {
+  return { coreGeo: new THREE.SphereGeometry(0.05, 6, 5), haloGeo: new THREE.SphereGeometry(0.15, 8, 6),
+           coreMat: new THREE.MeshBasicMaterial({ color: 0xfff1a6, transparent: true, opacity: 0.95, depthWrite: false }),
+           haloMat: new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, opacity: 0.22, depthWrite: false }),
+           dispose: function () { this.coreGeo.dispose(); this.haloGeo.dispose(); this.coreMat.dispose(); this.haloMat.dispose(); } };
+}
+function buildFireflies(spots, res) {   // spot.fresh면(지난 방문 뒤 온 것, 2026-09-15 저녁) 헤일로만 1.9배 — 개수는 그대로, 새 것만 눈에 띈다. res: 공용 지오메트리·재질(없으면 새로)
   var n = spots.length;
   if (!n) return null;
-  var g = new THREE.Group();
-  var core = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 6, 5),
-    new THREE.MeshBasicMaterial({ color: 0xfff1a6, transparent: true, opacity: 0.95, depthWrite: false }), n);
-  var halo = new THREE.InstancedMesh(new THREE.SphereGeometry(0.15, 8, 6),
-    new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, opacity: 0.22, depthWrite: false }), n);
+  var g = new THREE.Group(), R = res || ffResources();
+  var core = new THREE.InstancedMesh(R.coreGeo, R.coreMat, n);
+  var halo = new THREE.InstancedMesh(R.haloGeo, R.haloMat, n);
   [core, halo].forEach(function (m) { m.frustumCulled = false; m.renderOrder = 950; g.add(m); });
   var mm = new THREE.Matrix4(), hm = new THREE.Matrix4();
   g.userData.at = function (t) {
@@ -8624,7 +8629,9 @@ var SND = {
          woosh: { src: "sounds/woosh.mp3",      vol: 0.10 },
          // 튜토리얼 단계 전환음(2026-09-15). 같은 woosh를 1.8배 속도·음높이 그대로 올려(pitch:false) 0.35초쯤의 가벼운 "휙"으로. 실측: 알맹이는 0.15~0.55초(피크 0.30초, 0 dB), 0.9초 뒤는 −50 dB 아래라 사실상 무음
          // 음량 0.08(−22 dB → 큰 구간 −27쯤, 배경음 큰 구간 −29와 비슷·중앙값 −39보다는 위) — 배경음을 덮지 않고 묻히지도 않게. 별도 <audio>라 화면 전환음(woosh)과 겹쳐도 서로 끊지 않는다. 소리 꺼짐이면 play()가 바로 돌아간다
-         tut:   { src: "sounds/woosh.mp3",      vol: 0.08, rate: 1.8, pitch: false } },
+         tut:   { src: "sounds/woosh.mp3",      vol: 0.08, rate: 1.8, pitch: false },
+         // 나도 그래(2026-09-15 밤): 같은 woosh를 2.4배로 더 짧고 높게(0.25초쯤) — 반딧불이 날아오르는 "휙". 새 음원(짧은 종소리)이 생기면 src만 바꾼다
+         emp:   { src: "sounds/woosh.mp3",      vol: 0.08, rate: 2.4, pitch: false } },
   els: {}, loopEl: null, loopName: null, holdEl: null, leaveTm: 0, retryArmed: false, subs: [],
   on: function () { try { return localStorage.getItem("snd") === "on"; } catch (e) { return false; } },
   // 버튼이 보여 주는 것은 저장값이 아니라 실제 재생 상태다(2026-09-14). 켠 채 새로고침하면 autoplay 정책으로 재생이 거부되는데,
@@ -8638,7 +8645,7 @@ var SND = {
     if (!on) { SND.stopLoop(); SND.release(); SND.emit(); return; }
     // 켜는 클릭 안에서 바로 튼다(autoplay 해제). 효과음은 미리 받아 두어 첫 전환·첫 걸음이 조용하지 않게 한다(48KB·220KB)
     if (SND.loopName) SND.loop(SND.loopName);
-    SND.el("woosh"); SND.el("steps"); SND.el("tut");
+    SND.el("woosh"); SND.el("steps"); SND.el("tut"); SND.el("emp");
     SND.emit();
   },
   el: function (name) {
@@ -8666,7 +8673,7 @@ var SND = {
       if (SND.loopEl && SND.loopEl !== a) SND.loopEl.pause();
       SND.loopEl = a;
       if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () { SND.armRetry(); SND.emit(); }); }
-      SND.el("woosh"); SND.el("steps"); SND.el("tut");   // 켠 채로 새로고침한 경우에도 효과음을 미리 받아 둔다
+      SND.el("woosh"); SND.el("steps"); SND.el("tut"); SND.el("emp");   // 켠 채로 새로고침한 경우에도 효과음을 미리 받아 둔다
     } catch (e) {}
   },
   stopLoop: function () { if (SND.loopEl) { try { SND.loopEl.pause(); } catch (e) {} } SND.loopEl = null; SND.emit(); },
@@ -8741,6 +8748,7 @@ function webglOK() {
 }
 function hubStart() { return ISLE_HUB && !isleOff() && webglOK() ? "island" : "studentDiary"; }
 // 터치 기기에서는 "스페이스" 안내를 빼고 배너를 눌러 들어간다.
+function reducedMotion() { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }
 function coarsePointer() {
   try { return window.matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
 }
@@ -9071,7 +9079,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       }
     }
     var nearPlantRef = null, plantsRef = plants || [], sentToday = false, hiddenLocal = {};
-    var namesToday = {}, ffGrp = null, empList = [];
+    var namesToday = {}, ffGrp = null, empList = [], ffRes = ffResources(), flights = [];   // flights: 날아가는 반딧불(나도 그래 연출, 2026-09-15 밤)
     if (theIsle) plants.forEach(function (p) { if (hiddenSet[p.label]) hiddenLocal[p.label] = 1; });
     function plantInfo(p) {
       return { label: p.label, q: p.q, key: p.key, x: p.x, meaning: emoMeaning(p.label),
@@ -9080,9 +9088,37 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     }
     var ffSeen = Infinity;   // 이 시각 뒤에 온 반딧불이 "새 것"(헤일로 크게). 친구 섬은 Infinity라 새 것이 없다. 내 섬은 아래 empLoad에서 localStorage(ffSeen:<id>)로 정한다
     function refreshFireflies() {
-      if (ffGrp) { scene.remove(ffGrp); ffGrp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); ffGrp = null; }
-      ffGrp = buildFireflies(fireflySpots(empList, plantsRef, ffSeen));
+      if (ffGrp) { scene.remove(ffGrp); ffGrp.traverse(function (o) { if (o.isInstancedMesh) o.dispose(); }); ffGrp = null; }   // 지오메트리·재질은 공용(ffRes)이라 인스턴스 버퍼만 지운다
+      ffGrp = buildFireflies(fireflySpots(empList, plantsRef, ffSeen), ffRes);
       if (ffGrp) scene.add(ffGrp);
+    }
+    // 나도 그래 연출(2026-09-15 밤): 내 캐릭터 머리 위에서 반딧불 하나가 곡선으로 날아가 그 식생 위에 앉는다(0.8초, 2차 베지어, 가운데를 위로 들고 옆으로 살짝 휜다).
+    // 앉는 순간 done()이 목록에 반딧불을 더한다(인스턴스로 다시 그림). 여러 개가 겹쳐도 각자 돈다. 섬을 나가면 cleanup이 전부 걷는다.
+    // prefers-reduced-motion이면 부르지 않고 바로 앉힌다(전과 같음). 메시 2개(core·halo)뿐이라 draw call은 날아가는 동안 +2
+    function flyFirefly(p, done) {
+      if (!charGrp || !p) { done(); return; }
+      var g = new THREE.Group();
+      var core = new THREE.Mesh(ffRes.coreGeo, ffRes.coreMat), halo = new THREE.Mesh(ffRes.haloGeo, ffRes.haloMat);
+      halo.scale.setScalar(1.4);
+      [core, halo].forEach(function (m) { m.frustumCulled = false; m.renderOrder = 950; g.add(m); });
+      var from = new THREE.Vector3(charGrp.position.x, charGrp.position.y + 1.15, charGrp.position.z);
+      var to = new THREE.Vector3(p.x, (p.top != null ? p.top : p.y + 0.5) + 0.12, p.z);
+      var mid = from.clone().lerp(to, 0.5), dist = from.distanceTo(to);
+      var side = new THREE.Vector3(-(to.z - from.z), 0, to.x - from.x); if (side.lengthSq() > 1e-6) side.normalize().multiplyScalar(0.35 + dist * 0.12); else side.set(0.4, 0, 0);
+      var ctrl = mid.add(new THREE.Vector3(0, 0.8 + dist * 0.18, 0)).add(side);
+      g.position.copy(from);
+      scene.add(g);
+      flights.push({ grp: g, core: core, halo: halo, from: from, ctrl: ctrl, to: to, t0: performance.now(), dur: 800, done: done });
+    }
+    function tickFlights(now) {
+      for (var i = flights.length - 1; i >= 0; i--) {
+        var f = flights[i], u = Math.min(1, (now - f.t0) / f.dur);
+        var e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;   // 천천히 떠서 천천히 앉는다
+        var a = (1 - e) * (1 - e), b = 2 * (1 - e) * e, c = e * e;
+        f.grp.position.set(a * f.from.x + b * f.ctrl.x + c * f.to.x, a * f.from.y + b * f.ctrl.y + c * f.to.y, a * f.from.z + b * f.ctrl.z + c * f.to.z);
+        f.halo.scale.setScalar(1.4 + 0.5 * Math.sin(now / 90));   // 날면서 깜빡
+        if (u >= 1) { scene.remove(f.grp); flights.splice(i, 1); if (!disposed) f.done(); }
+      }
     }
     // 받은 공감 — 반딧불과 (내 섬이면) 오늘 보낸 친구 이름. 한 번만 읽는다.
     // 실시간 리스너를 달지 않는다. 섬을 보는 중에 반딧불이 늘면 그게 알림이 되고, 알림은 기다리게 만든다.
@@ -9129,7 +9165,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       act: function () { if (actRef.current) actRef.current(); },
       go: function () { if (goRef.current) goRef.current(); },
       skip: function () { if (docking) { docking.t0 -= 99999; } },
-      dbg: function () { return { going: !!going, docking: !!docking, keys: JSON.stringify(keys), pos: charGrp ? [+charGrp.position.x.toFixed(2), +charGrp.position.z.toFixed(2)] : null }; },   // 하네스 진단(2026-09-15 저녁)
+      dbg: function () { return { going: !!going, docking: !!docking, keys: JSON.stringify(keys), pos: charGrp ? [+charGrp.position.x.toFixed(2), +charGrp.position.z.toFixed(2)] : null, flights: flights.length, ff: ffGrp ? ffGrp.children[0].count : 0, calls: renderer.info.render.calls }; },   // 하네스 진단(2026-09-15 저녁)
+      fly: function () { if (nearPlantRef) flyFirefly(nearPlantRef, function () {}); return !!nearPlantRef; },   // 연출만(저장·목록 없음, 겹침 확인용)
       warpLm: function (id) {
         var L = (theIsle.userData.landmarks || []).filter(function (l) { return l.id === id; })[0];
         if (!L || !charGrp) return false;
@@ -9145,9 +9182,10 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         if (!me || sentToday || !myQuads[p.q]) return;
         sentToday = true;
         setSentTo({ label: p.label });
-        // 반딧불을 바로 하나 띄운다. 저장이 돌아오길 기다리게 하지 않는다.
-        empList = empList.concat([{ ts: nowTs(), l: p.key, from: String(me.id), date: dayStamp(), name: me.name || "" }]);
-        refreshFireflies();
+        // 반딧불을 바로 하나 띄운다. 저장이 돌아오길 기다리게 하지 않는다. 2026-09-15 밤: 내 캐릭터에서 날아가 앉는 연출(0.8초) 뒤에 목록에 더한다. 움직임 줄이기면 바로
+        var rec = { ts: nowTs(), l: p.key, from: String(me.id), date: dayStamp(), name: me.name || "" };
+        var land = function () { empList = empList.concat([rec]); refreshFireflies(); };
+        if (reducedMotion()) land(); else { flyFirefly(p, land); SND.play("emp"); }
         setToast(friend.name + "에게 나도 그래를 보냈어요");
         window.setTimeout(function () { if (!disposed) setToast(""); }, 2600);
         empSend(me, friend.id, p.q, p.key).catch(function (e) { console.error("empSend:", e); });
@@ -9256,6 +9294,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       SEA_UNI.uTime.value = t0 / 1000;   // 바다 물결·반짝임·파도선 시간(프레임당 한 번)
       // 탭을 다시 열면 dt가 몇 초로 튄다. 그대로 쓰면 캐릭터가 순간이동한다.
       if (ffGrp) ffGrp.userData.at(t0 / 1000);
+      if (flights.length) tickFlights(t0);   // 날아가는 반딧불(나도 그래)
       if (docking) {
         // 0~48% 배가 들어온다 · 48~62% 내린다 · 62~100% 부두 판 앞까지 걷는다
         var du = Math.min(1, (t0 - docking.t0) / docking.dur);
@@ -9386,6 +9425,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       window.removeEventListener("keydown", onKeyDown);
       padRef.current = null;
       window.removeEventListener("keyup", onKeyUp);
+      flights.forEach(function (f) { scene.remove(f.grp); }); flights.length = 0;   // 날아가는 중에 나가면 걷는다(done은 부르지 않는다 — 저장은 눌렀을 때 이미 했다)
+      ffRes.dispose();
       scene.traverse(function (o) {
         if (o.geometry) o.geometry.dispose();
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.dispose(); });
