@@ -312,6 +312,13 @@
     return out;
   }
 
+  // 말 건 날(2026-09-15): 기준일 D를 포함해 평일을 거꾸로 셋 센 뒤 그 앞 평일. D가 수요일이면 금요일(월·화·수가 수업일 사흘) — 기준일이 바뀌어도 「다시 볼 때예요」 조건(수업일 3일)에 딱 맞는다. 시각은 정오
+  function talkDayOf(D) {
+    var d = new Date(D.getTime()), n = 0;
+    while (true) { if (!isWeekend(d)) { n++; if (n === 3) break; } d = new Date(d.getTime() - DAY); }
+    do { d = new Date(d.getTime() - DAY); } while (isWeekend(d));
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+  }
   function generate(D, mood, app) {
     D = midnight(D);
     mood = mood === "heavy" ? "heavy" : "bright";
@@ -321,12 +328,16 @@
     var entries = {}, isle = {};
     gens.forEach(function (g) { entries[sid(g.st.i)] = g.entries; isle[sid(g.st.i)] = isleOf(app, g.st, g.entries); });
     var day = dayNodeOf(app, gens, D);
+    var talkDay = talkDayOf(D), talk = {};
+    (DATA.TALK || []).forEach(function (i) { talk[String(sid(i))] = talkDay.getTime(); });   // 「말 걸어봤어요」 사례 — app/tpriv/<교사>/<해시>/talk/<학생id> = 시각
     return {
       code: DATA.CODE, schoolName: DATA.SCHOOL_NAME, teacher: DATA.TEACHER, pw: DATA.PW,
       D: D, mood: mood, students: students, entries: entries, isle: isle,
       day: day, emp: empOf(app, gens, days, D), plaza: plazaOf(app, gens, D, mood),
+      talk: talk, talkDay: talkDay,
       expect: { flagged: [sid(DATA.FLAG_CLEAR), sid(DATA.FLAG_BORDER)], A: sid(DATA.A), B: sid(DATA.B),
                 shift: { mono: sid(DATA.SHIFT_MONO), gap: sid(DATA.SHIFT_GAP), swing: sid(DATA.SHIFT_SWING) },   // 요즘 달라진 아이 ①②③(③은 심은 아이 + 자연 발생)
+                talk: { better: sid((DATA.TALK || [])[0]), worseOrSame: sid((DATA.TALK || [])[1]) },   // 「다시 볼 때예요」 사례 둘
                 vocab: DATA.STUDENTS.reduce(function (o, st) { o[sid(st.i)] = st.n; return o; }, {}) }
     };
   }

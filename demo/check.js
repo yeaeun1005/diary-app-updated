@@ -20,7 +20,8 @@ function loadApp() {
     slice(lines, /^const SITUATION_MAP = /, /^var NEED_OPTIONS = /),
     slice(lines, /^var SAD_EMOS = /, /^var CREATURES = /),
     slice(lines, /^var CAUSAL_ENDINGS = /, /^var ISLE = \{/),
-    "__out = { patternShifts: patternShifts, SHIFT: SHIFT, analyzeEntry: analyzeEntry, EMOTIONS_28: EMOTIONS_28, SAD_EMOS: SAD_EMOS, CESD_KEYWORDS: CESD_KEYWORDS, labelKey: labelKey, anonKey: anonKey, entryKey: entryKey, dayStamp: dayStamp, fmtDate: fmtDate, hashSeed: hashSeed, mulberry32: mulberry32, plazaNameHit: plazaNameHit, extractSituations: extractSituations, QC: QC };"
+    slice(lines, /^var TALK_RETURN_DAYS = /, /^async function credSetStudent/),   // 「말 걸어봤어요」 비교·수업일 셈(2026-09-15)
+    "__out = { talkCompare: talkCompare, talkSchoolDays: talkSchoolDays, shiftSchoolDayFn: shiftSchoolDayFn, TALK_RETURN_DAYS: TALK_RETURN_DAYS, talkMDW: talkMDW, patternShifts: patternShifts, SHIFT: SHIFT, analyzeEntry: analyzeEntry, EMOTIONS_28: EMOTIONS_28, SAD_EMOS: SAD_EMOS, CESD_KEYWORDS: CESD_KEYWORDS, labelKey: labelKey, anonKey: anonKey, entryKey: entryKey, dayStamp: dayStamp, fmtDate: fmtDate, hashSeed: hashSeed, mulberry32: mulberry32, plazaNameHit: plazaNameHit, extractSituations: extractSituations, QC: QC };"
   ].join("\n");
   var ctx = { firebase: { database: function () { return { ref: function () { throw new Error("no-fb"); } }; } }, console: console, setTimeout: setTimeout, Promise: Promise, Date: Date, Math: Math, JSON: JSON, String: String, Number: Number, Object: Object, Array: Array, Set: Set, Map: Map, RegExp: RegExp, Error: Error, parseInt: parseInt, parseFloat: parseFloat, isNaN: isNaN, encodeURIComponent: encodeURIComponent, TextEncoder: TextEncoder, __out: null };
   vm.createContext(ctx);
@@ -133,6 +134,18 @@ for (var dd = 0; dd < 7; dd++) {
     if (of("swing").length > 8) fail(tag + " 기복 " + of("swing").length + "명 (8 이하 기대)");
     if (g.students.length !== 25) fail(tag + " 학생 수 " + g.students.length + " ≠ 25");
     if (of("mono").concat(of("gap")).some(function (id) { return exp.indexOf(id) >= 0; })) fail(tag + " 달라진 아이가 살펴봐주세요와 겹친다");
+    // 「말 걸어봤어요」 사례(2026-09-15): 둘 다 수업일 딱 3일 전 → 「다시 볼 때예요」. 소율은 주요 감정이 줄고 새 긍정 감정이 있고, 건우는 늘거나 그대로. 살펴봐·심은 달라진 아이·A·B와 안 겹친다
+    var tIds = Object.keys(g.talk), isSD = app.shiftSchoolDayFn(g.entries, g.students.length), nowT = D.getTime() + 18 * 3600000;
+    if (tIds.length !== 2) fail(tag + " 말 걸어봤어요 사례 수 " + tIds.length);
+    tIds.forEach(function (id) {
+      var n = app.talkSchoolDays(g.talk[id], nowT, isSD); if (n !== app.TALK_RETURN_DAYS) fail(tag + " " + names[id] + " 말 건 뒤 수업일 " + n + " ≠ " + app.TALK_RETURN_DAYS);
+      if (exp.indexOf(id) >= 0 || [g.expect.shift.mono, g.expect.shift.gap, g.expect.shift.swing, g.expect.A, g.expect.B].map(String).indexOf(id) >= 0) fail(tag + " 말 걸어봤어요 사례가 다른 사례와 겹친다: " + names[id]);
+      var c = app.talkCompare(g.entries[id], g.talk[id], nowT);
+      if (!c.afterN || !c.emo) fail(tag + " " + names[id] + " 비교 데이터가 비었다");
+      else if (id === String(g.expect.talk.better) && !(c.emo.after < c.emo.before && c.newPos.length)) fail(tag + " " + names[id] + " 좋아진 사례가 아니다: " + c.emo.label + " " + c.emo.before + "→" + c.emo.after + " 새 긍정 " + c.newPos.length);
+      else if (id === String(g.expect.talk.worseOrSame) && !(c.emo.after >= c.emo.before)) fail(tag + " " + names[id] + " 나빠지거나 그대로인 사례가 아니다: " + c.emo.label + " " + c.emo.before + "→" + c.emo.after);
+      if (dd === 0 && mood === "bright") report.push("말 걸어봤어요 사례 " + names[id] + " (" + app.dayStamp(g.talk[id]) + "): 그 뒤 일기 " + c.afterN + "편/" + c.afterDays + "일 · " + (c.emo ? c.emo.label + " " + c.emo.before + "→" + c.emo.after : "-") + " · 새 긍정 " + c.newPos.map(function (p) { return p.label + " " + app.talkMDW(p.ts); }).join(", "));
+    });
     // 오늘: 참여·바다 색
     var vs = Object.keys(g.day.node).map(function (ak) { return g.day.node[ak].v; });
     var med = median(vs), tone = Math.max(0.15, Math.min(0.85, 0.5 + med * 0.35));

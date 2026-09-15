@@ -89,9 +89,10 @@
 
   // 전체 다시 만들기. 기준일 D(자정)와 오늘의 기분. 교사 비밀번호가 맞아야 돈다.
   function rebuild(D, mood, log, pw) {
-    return verify(pw, log).then(function (ok) { if (!ok) return false; return rebuildNow(D, mood, log); });
+    // 교사 해시(2026-09-15): 「말 걸어봤어요」 사례가 갈 경로 tpriv/<교사>/<해시>/talk에 필요하다. 로그인과 같은 계산 — 패널이 받은 비밀번호로 여기서 구한다
+    return verify(pw, log).then(function (ok) { if (!ok) return false; return pwHash("t", "", data().TEACHER.id, String(pw || "").trim()).then(function (th) { return rebuildNow(D, mood, log, th); }); });
   }
-  function rebuildNow(D, mood, log) {
+  function rebuildNow(D, mood, log, th) {
     guard();
     var d = data(), g = gen().generate(D, mood, app()), ids = g.students.map(function (s) { return s.id; });
     var t0 = Date.now(), okAll = true;
@@ -128,6 +129,11 @@
     // 4) 오늘 노드·광장
       .then(function () { return putDeep(log, dayKey(d.CODE, g.day.date), g.day.node).then(note); })
       .then(function () { return putDeep(log, plazaKey(d.CODE), g.plaza).then(note); })
+    // 5) 「말 걸어봤어요」 사례(2026-09-15): 교사 전용 노드. set이라 전에 있던 표시는 지워진다. 해시가 없으면(직접 호출) 건너뛴다
+      .then(function () {
+        if (!th) { log("교사 해시가 없어 「말 걸어봤어요」 사례는 건너뛴다"); return true; }
+        return put(log, tprivKey(d.TEACHER.id, th) + "/talk", g.talk).then(function (ok) { note(ok); if (ok) log("말 걸어봤어요 사례 " + Object.keys(g.talk).length + "명 (" + dayStamp(g.talkDay.getTime()) + " 정오)"); return ok; });
+      })
       .then(function () {
         var cur = g.plaza.cur;
         log("오늘 노드 " + Object.keys(g.day.node).length + "명 · 광장 답 " + Object.keys(g.plaza.n[cur]).length + " (승인 " + Object.keys(g.plaza.pub[cur]).length + ")");
