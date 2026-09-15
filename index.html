@@ -793,7 +793,13 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .tut-arrow[data-side=left]{border-top-width:var(--tb);border-right-width:var(--tb)}
 .tut-title{font-family:'Jua','Gowun Dodum',sans-serif;font-size:17px;margin-bottom:4px}
 html.tut-on .tut-dim:not(.tut-target){visibility:hidden}   /* 투어 중 부수 UI는 숨긴다. 그 단계의 대상만 남는다(2026-09-15) */
-html.tut-on .tut-target{visibility:visible}   /* 숨긴 상자 안의 대상(바다의 오늘의 섬 버튼)도 보이게 — visibility는 자식이 되살릴 수 있다 */
+html.tut-on .tut-target{visibility:visible}
+/* 터치 기기 방향 패드(2026-09-15 저녁). 걷기가 방향키뿐이라 태블릿·터치 크롬북에서 한 발짝도 못 갔다. 막(90~92) 위(95)에 있어 투어 걷기 단계에서 쓸 수 있고, 그 밖의 단계에서는 숨는다 */
+.isle-pad{position:absolute;z-index:95;display:grid;grid-template-columns:repeat(3,var(--pad,42px));grid-template-rows:repeat(3,var(--pad,42px));gap:4px;touch-action:none;user-select:none;-webkit-user-select:none}
+.isle-pad button{width:var(--pad,42px);height:var(--pad,42px);border-radius:12px;border:2px solid #b05a3a;background:#e7cc92;color:#4a3a24;font-size:18px;line-height:1;padding:0;cursor:pointer;box-shadow:0 2px 0 #845430;touch-action:none;-webkit-tap-highlight-color:transparent}
+.isle-pad button:active,.isle-pad button.on{background:#f0c383;transform:translateY(2px);box-shadow:0 0 0 #845430}
+html.tut-on .isle-pad{visibility:hidden}
+html.tut-on.tut-walk .isle-pad{visibility:visible}   /* 숨긴 상자 안의 대상(바다의 오늘의 섬 버튼)도 보이게 — visibility는 자식이 되살릴 수 있다 */
 .isle-tour-btn .sign-shine{-webkit-mask:none;mask:none;border-radius:inherit;--shine:4s}   /* 내 섬 시작 팻말: 첫 화면 간판의 빛 스침을 팻말 모양 그대로(2026-09-15) */
 .tut-row{display:flex;align-items:center;gap:8px;margin-top:10px}
 .tut-count{font-size:12px;opacity:.7;margin-right:auto}
@@ -8553,7 +8559,7 @@ function seaPath(a, b, obstacles) {
 // 하나만 있어도 예쁘다. 어휘당 최대 3개, 섬당 최대 8개, 최근 7일 것만.
 // 등불은 슬픔 3층의 표식이라 공감 표식으로 못 쓴다.
 var FF_PER_WORD = 3, FF_PER_ISLE = 8, FF_DAYS = 7;
-function buildFireflies(spots) {
+function buildFireflies(spots) {   // spot.fresh면(지난 방문 뒤 온 것, 2026-09-15 저녁) 헤일로만 1.9배 — 개수는 그대로, 새 것만 눈에 띈다
   var n = spots.length;
   if (!n) return null;
   var g = new THREE.Group();
@@ -8562,36 +8568,37 @@ function buildFireflies(spots) {
   var halo = new THREE.InstancedMesh(new THREE.SphereGeometry(0.15, 8, 6),
     new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, opacity: 0.22, depthWrite: false }), n);
   [core, halo].forEach(function (m) { m.frustumCulled = false; m.renderOrder = 950; g.add(m); });
-  var mm = new THREE.Matrix4();
+  var mm = new THREE.Matrix4(), hm = new THREE.Matrix4();
   g.userData.at = function (t) {
     for (var i = 0; i < n; i++) {
       var p = spots[i], ph = i * 1.7 + (p.ph || 0);
       var x = p.x + Math.cos(t * 1.1 + ph) * 0.28, z = p.z + Math.sin(t * 0.9 + ph) * 0.28;
       var y = p.top + 0.12 + Math.sin(t * 2.3 + ph) * 0.10;
       mm.makeTranslation(x, y, z);
-      core.setMatrixAt(i, mm); halo.setMatrixAt(i, mm);
+      var hs = p.fresh ? 1.9 : 1; hm.makeScale(hs, hs, hs).setPosition(x, y, z);
+      core.setMatrixAt(i, mm); halo.setMatrixAt(i, hm);
     }
     core.instanceMatrix.needsUpdate = true; halo.instanceMatrix.needsUpdate = true;
   };
   g.userData.at(0);
   return g;
 }
-// 받은 공감 목록 → 반딧불 자리. 최근 것부터, 어휘당 3개·섬당 8개.
-function fireflySpots(list, plants) {
-  var since = nowTs() - FF_DAYS * 86400000, byKey = {}, order = [];
+// 받은 공감 목록 → 반딧불 자리. 최근 것부터, 어휘당 3개·섬당 8개. seenTs 뒤에 온 것은 fresh(헤일로 크게, 2026-09-15 저녁). 안 주면 fresh 없음
+function fireflySpots(list, plants, seenTs) {
+  var since = nowTs() - FF_DAYS * 86400000, byKey = {}, order = [], seen = seenTs == null ? Infinity : seenTs;
   list.slice().sort(function (a, b) { return b.ts - a.ts; }).forEach(function (e) {
     if (!e.ts || e.ts < since || !e.l) return;
-    if (!byKey[e.l]) { byKey[e.l] = 0; order.push(e.l); }
-    byKey[e.l]++;
+    if (!byKey[e.l]) { byKey[e.l] = []; order.push(e.l); }
+    byKey[e.l].push(e.ts);
   });
   var out = [];
   order.forEach(function (k) {
     var ps = plants.filter(function (p) { return p.key === k; });
     if (!ps.length) return;
-    var m = Math.min(FF_PER_WORD, byKey[k]);
+    var m = Math.min(FF_PER_WORD, byKey[k].length);
     for (var i = 0; i < m && out.length < FF_PER_ISLE; i++) {
       var p = ps[i % ps.length];
-      out.push({ x: p.x, z: p.z, top: p.top, ph: i * 2.1 });
+      out.push({ x: p.x, z: p.z, top: p.top, ph: i * 2.1, fresh: byKey[k][i] > seen });
     }
   });
   return out;
@@ -8747,7 +8754,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   const tutCbRef = useRef(null); tutCbRef.current = onTut || null;
   const tutOnRef = useRef(false); tutOnRef.current = !!tutOn;
   const tutAnchorRefs = useRef({});
-  const [tutSeen, setTutSeen] = useState(function () { try { return localStorage.getItem("tutIsle") === "1"; } catch (e) { return false; } });
+  const [tutSeen, setTutSeen] = useState(function () { try { return localStorage.getItem(friend ? "tutFriend" : "tutIsle") === "1"; } catch (e) { return false; } });   // 친구 섬 투어는 따로 센다(tutFriend, 2026-09-15 저녁)
   const hostRef = useRef(null);
   const [fps, setFps] = useState(0);
   const [slow, setSlow] = useState(0);      // 0 없음 · 1 배너 · 2 아이가 "괜찮아요"
@@ -8767,6 +8774,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   const goRef = useRef(null);
   const lmTagRef = useRef(null);                      // 팻말 아래 [스페이스]/[눌러서 가기] 표시. 렌더 루프가 매 프레임 자리를 잡는다
   const actRef = useRef(null);                        // 식생 배너의 동작(나도 그래 / 가리기)
+  const padRef = useRef(null);                        // 터치 방향 패드 → 걷기 키 상태(keys)에 그대로 놓는다(2026-09-15 저녁). 3D 쪽은 키를 누른 것과 구분하지 않는다
+  const [ffNew, setFfNew] = useState(null);           // 지난 방문 뒤 새로 온 반딧불이 앉은 식생 키들(내 섬만). 있으면 한 줄 안내, 그 꽃에 가면 사라진다(2026-09-15 저녁)
   const arriveRef = useRef(arrive);
   const isFriend = !!friend;
   useEffect(function () {
@@ -8789,6 +8798,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   }, []);
   const compass = small ? 74 : 104;
   const fleetN = fleetCount();
+  useEffect(function () { if (ffNew && nearPlant && ffNew[nearPlant.key]) setFfNew(null); }, [nearPlant]);   // 새 반딧불 안내는 그 꽃에 가 보면 사라진다
   // 3D가 안 뜨면 허브에 갇힌다 — 일기조차 못 쓴다(§3의 걱정). 바로 일기 화면으로 보낸다.
   useEffect(function () { if (err && hub && !friend && onNo3D) onNo3D(err); }, [err]);
   // 느림 감시. 처음 5초는 만드는 중(그림자 맵 준비)이라 세지 않는다. 그 뒤 **10fps 미만이 6초**(0.5초 표본 12개)
@@ -8948,6 +8958,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
     var keys = {}, dbgMarks = null;
+    padRef.current = function (d, on) { keys[d] = on ? 1 : 0; };   // 터치 방향 패드(2026-09-15 저녁). 방향키와 같은 자리에 놓으니 walk()·투어 신호(dir/walk/stop)가 그대로 돈다
     var walkT = 0, faceDir = Math.PI * 0.75, wasMoving = false, lastDir = null;
     function walk(dt) {
       if (!charGrp || !theIsle) return;
@@ -9053,6 +9064,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       if ((bp && bp.key + bp.x) !== (nearPlantRef && nearPlantRef.key + nearPlantRef.x)) {
         nearPlantRef = bp;
         setNearPlant(bp ? plantInfo(bp) : null);
+        if (tutCbRef.current) tutCbRef.current("plant", bp ? bp.key : null);   // 친구 섬 투어: 식생 앞 도착·이탈 신호(2026-09-15 저녁)
       }
     }
     var nearPlantRef = null, plantsRef = plants || [], sentToday = false, hiddenLocal = {};
@@ -9063,9 +9075,10 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
                mine: !!myLabels[p.label], can: !!myQuads[p.q], hidden: !!hiddenLocal[p.label],
                names: namesToday[p.key] || [] };
     }
+    var ffSeen = Infinity;   // 이 시각 뒤에 온 반딧불이 "새 것"(헤일로 크게). 친구 섬은 Infinity라 새 것이 없다. 내 섬은 아래 empLoad에서 localStorage(ffSeen:<id>)로 정한다
     function refreshFireflies() {
       if (ffGrp) { scene.remove(ffGrp); ffGrp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); ffGrp = null; }
-      ffGrp = buildFireflies(fireflySpots(empList, plantsRef));
+      ffGrp = buildFireflies(fireflySpots(empList, plantsRef, ffSeen));
       if (ffGrp) scene.add(ffGrp);
     }
     // 받은 공감 — 반딧불과 (내 섬이면) 오늘 보낸 친구 이름. 한 번만 읽는다.
@@ -9079,7 +9092,26 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
           if (friend) { if (me && String(e.from) === String(me.id) && e.date === today) { sentToday = true; setSentTo({ label: labelUnkey(e.l) }); } }
           else if (e.date === today && e.name) { (namesToday[e.l] = namesToday[e.l] || []).push(e.name); }
         });
+        if (!friend) {
+          // 받는 쪽이 알아채게(2026-09-15 저녁, DESIGN §7 보완). 지난 방문(localStorage ffSeen:<id>, 마지막으로 본 공감의 ts) 뒤에 온 반딧불이 있으면
+          // 그 식생 키들을 ffNew에 두고 한 줄 안내를 띄운다. 개수·이름은 쓰지 않고, 새 것이 없으면 아무 말도 없다(빈 상태 문구 없음). 실시간이 아니라 섬을 열 때 한 번
+          var seenKey = "ffSeen:" + me.id, seen = 0; try { seen = parseInt(localStorage.getItem(seenKey) || "0", 10) || 0; } catch (e) {}
+          var since = nowTs() - FF_DAYS * 86400000, newest = seen, fresh = {};
+          list.forEach(function (e) { if (!e.ts || e.ts < since) return; if (e.ts > newest) newest = e.ts; if (e.ts > seen && plantsRef.some(function (p) { return p.key === e.l; })) fresh[e.l] = 1; });
+          ffSeen = seen;
+          if (Object.keys(fresh).length) setFfNew(fresh);
+          if (newest > seen) { try { localStorage.setItem(seenKey, String(Math.ceil(newest))); } catch (e) {} }   // ts에 소수가 섞여도(시연 시계) 다음에 같은 것을 새것으로 보지 않게 올림
+        }
         refreshFireflies();
+        if (nearPlantRef) setNearPlant(plantInfo(nearPlantRef));
+      }).catch(function () {});
+    }
+    // 내 섬의 가린 말(친구에게 안 보이게) 복원(2026-09-15 저녁, 버그). 내 섬은 일기에서 어휘를 만들어(islandState) h 표시가 없었다 — 전에 가린 말이 다시 들어오면 "안 보이게"로 보였다.
+    // 내 isle 노드를 한 번 읽어 hiddenLocal에 넣는다. 내 섬 그림에는 영향 없다(내 섬에서는 가린 말도 그대로 보인다)
+    if (theIsle && !friend && me && me.id) {
+      isleLoad(me.id).then(function (r) {
+        if (disposed) return;
+        (r.state || []).forEach(function (e) { if (e.hidden) hiddenLocal[e.label] = 1; });
         if (nearPlantRef) setNearPlant(plantInfo(nearPlantRef));
       }).catch(function () {});
     }
@@ -9094,6 +9126,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       act: function () { if (actRef.current) actRef.current(); },
       go: function () { if (goRef.current) goRef.current(); },
       skip: function () { if (docking) { docking.t0 -= 99999; } },
+      dbg: function () { return { going: !!going, docking: !!docking, keys: JSON.stringify(keys), pos: charGrp ? [+charGrp.position.x.toFixed(2), +charGrp.position.z.toFixed(2)] : null }; },   // 하네스 진단(2026-09-15 저녁)
       warpLm: function (id) {
         var L = (theIsle.userData.landmarks || []).filter(function (l) { return l.id === id; })[0];
         if (!L || !charGrp) return false;
@@ -9348,6 +9381,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       window.removeEventListener("orientationchange", onResize);
       if (ro) ro.disconnect();
       window.removeEventListener("keydown", onKeyDown);
+      padRef.current = null;
       window.removeEventListener("keyup", onKeyUp);
       scene.traverse(function (o) {
         if (o.geometry) o.geometry.dispose();
@@ -9358,7 +9392,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       if (renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
     };
   }, [seed, seaTone, entries, state]);
-  var bannerBottom = small ? 100 : 18;
+  var bannerBottom = small ? (touch ? 190 : 100) : 18;   // 터치 기기는 오른쪽 아래 방향 패드(높이 130쯤) 위로(2026-09-15 저녁)
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
     // 튜토리얼 앵커(투어 중에만). 보이지 않고 클릭도 받지 않는다 — 자리는 렌더 루프(placeTutAnchors)가 잡는다
@@ -9388,17 +9422,18 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
                background: "rgba(255,214,102,0.9)", fontSize: 12, color: "#6b4a00" }
     }, "성능 확인 모드 · 섬 " + fleetN + "개") : null,
     // 튜토리얼 시작 팻말(2026-09-15). 예전 "방향키 또는 WASD로 걸어보세요" 자리. 처음엔 빛 스침(첫 화면 간판의 sign-shine)으로 눈에 띄게,
-    // 한 번 보고 나면(localStorage tutIsle) 물음표만 든 작은 팻말. 친구 섬·성능 확인 모드에는 없다
-    fleetN > 0 || isFriend || !onTour ? null : React.createElement("button", {
+    // 한 번 보고 나면(localStorage tutIsle / 친구 섬은 tutFriend) 물음표만 든 작은 팻말. 성능 확인 모드에는 없다. 친구 섬 투어(2단계)는 2026-09-15 저녁에 붙였다
+    fleetN > 0 || !onTour ? null : React.createElement("button", {
       className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
-      "aria-label": "걷는 법 보기", title: tutSeen ? "걷는 법 보기" : undefined,
+      "aria-label": isFriend ? "친구 섬 둘러보기" : "걷는 법 보기", title: tutSeen ? (isFriend ? "친구 섬 둘러보기" : "걷는 법 보기") : undefined,
       onClick: function () {
-        onTour(function () { try { localStorage.setItem("tutIsle", "1"); } catch (e) {} setTutSeen(true); });
+        onTour(function () { try { localStorage.setItem(isFriend ? "tutFriend" : "tutIsle", "1"); } catch (e) {} setTutSeen(true); });
         if (onTut) onTut("near", nearLm ? nearLm.id : null);   // 이미 팻말 앞이면 그 상태부터 알린다
+        if (onTut) onTut("plant", nearPlant ? nearPlant.key : null);   // 이미 식생 앞이면(친구 섬 투어 1단계) 그 상태부터
       },
       style: { ...WOOD_TAG, position: "absolute", left: 10, top: 36, zIndex: 5, cursor: "pointer", fontFamily: HOME_FONT.body,
                padding: tutSeen ? "2px 9px" : "5px 12px", fontSize: tutSeen ? 14 : 13, overflow: "hidden" }
-    }, tutSeen ? "?" : "처음 오셨나요? 걷는 법 보기",
+    }, tutSeen ? "?" : isFriend ? "처음 오셨나요? 친구 섬 둘러보기" : "처음 오셨나요? 걷는 법 보기",
        tutSeen ? null : React.createElement("span", { className: "sign-shine", "aria-hidden": true })),
     devMode() && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 10, top: 66, padding: "2px 7px", borderRadius: 6, background: "rgba(255,255,255,0.6)", fontSize: 11, color: "#5b7684" }
@@ -9428,8 +9463,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
                borderRadius: 10, background: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }
     }, toast) : null,
     // ⑥-2 어휘 식생 배너. 친구 섬 = 뜻 + 나도 그래. 내 섬 = 뜻 + 친구에게 안 보이게.
-    nearPlant && !nearLm && !wipe && !soon ? React.createElement("div", { className: "tut-dim",
-      style: { position: "absolute", left: "50%", bottom: bannerBottom, transform: "translateX(-50%)",
+    nearPlant && !nearLm && !wipe && !soon ? React.createElement("div", { className: "tut-dim", "data-tut": "plant-banner",   // 친구 섬 투어 2단계의 대상(2026-09-15 저녁)
+      style: { position: "absolute", left: touch && !small ? "calc(50% - 75px)" : "50%", bottom: bannerBottom, transform: "translateX(-50%)",   // 터치 태블릿은 오른쪽 아래 패드를 비켜 왼쪽으로 75px
                display: "flex", alignItems: "center", gap: 12, maxWidth: "min(94vw, 560px)",
                padding: "10px 14px 10px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
                boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 15, color: "#28444f" }
@@ -9438,22 +9473,26 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
           React.createElement("b", { style: { color: "#0e7490", fontSize: 16 } }, nearPlant.label),
           React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#4f6b77", border: "1px solid #c9d8de", borderRadius: 6, padding: "1px 6px" } }, Q_NAME[nearPlant.q] || ""),
+          // 판정은 같은 영역(사분면)의 말을 써 봤는가(can)이고, 칩은 같은 말이 내 섬에 있는가(mine)라 둘이 어긋나 보였다(2026-09-15 저녁). 버튼이 있으면 칩이 그 이유를 말한다
           isFriend && !nearPlant.mine ? React.createElement("span", {
-            style: { fontSize: 11, fontWeight: 700, color: "#b45309", background: "#fff4dc", borderRadius: 6, padding: "1px 6px" } }, "내 섬에는 아직 없는 말") : null,
+            style: { fontSize: 11, fontWeight: 700, color: "#b45309", background: "#fff4dc", borderRadius: 6, padding: "1px 6px" } },
+            nearPlant.can ? "내 섬에는 없는 말 · 같은 쪽 마음은 써 봤어요" : "내 섬에는 아직 없는 말") : null,
           !isFriend && nearPlant.hidden ? React.createElement("span", {
             style: { fontSize: 11, fontWeight: 700, color: "#4f6b77", background: "#eef3f5", borderRadius: 6, padding: "1px 6px" } }, "친구에게 안 보임") : null),
         React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#3a5561", marginTop: 3, lineHeight: 1.5 } },
           nearPlant.meaning || (isFriend ? josa(friend.name, "이가") + " 직접 쓴 마음 말이에요" : "내가 직접 쓴 마음 말이에요")),
         !isFriend && nearPlant.names.length ? React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#b45309", marginTop: 3 } },
           "오늘 " + nearPlant.names.slice(0, -1).concat([josa(nearPlant.names[nearPlant.names.length - 1], "이가")]).join(", ") + " 나도 그래 했어요") : null),
+      // 보낸 뒤: 어떤 말에 보냈는지 드러낸다(2026-09-15 저녁). 전에는 그 섬의 모든 식생에서 "오늘은 이미 ○○에게 했어요"라 전부 한 것처럼 보였다
       isFriend ? (sentTo ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#4f6b77", whiteSpace: "nowrap" } },
-          "오늘은 이미", React.createElement("br"), friend.name + "에게 했어요")
+          sentTo.label === nearPlant.label ? ["오늘 이 마음에", React.createElement("br", { key: "b" }), "나도 그래 했어요"]
+            : ["오늘은 " + friend.name + "에게", React.createElement("br", { key: "b" }), "'" + sentTo.label + "'으로 이미 했어요"])
         : nearPlant.can ? React.createElement("button", {
             onClick: function () { if (actRef.current) actRef.current(); },
             style: { ...bPri, padding: "8px 14px", fontSize: 14, whiteSpace: "nowrap", flexShrink: 0 }
           }, "나도 그래", touch ? null : React.createElement("span", { style: { fontSize: 11, opacity: 0.8, marginLeft: 6 } }, "스페이스"))
-        : React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#4f6b77", maxWidth: 150, lineHeight: 1.4 } },
-            "이 마음은 아직 써 본 적이 없어요. 써 본 뒤에 누를 수 있어요"))
+        : React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#4f6b77", maxWidth: 170, lineHeight: 1.4 } },
+            "이 마음과 같은 쪽(" + (Q_NAME[nearPlant.q] || "") + ") 마음을 아직 써 본 적이 없어요. 써 본 뒤에 누를 수 있어요"))   // 같은 영역 기준임이 드러나게(2026-09-15 저녁)
       : React.createElement("button", {
           onClick: function () { if (actRef.current) actRef.current(); },
           style: { ...bSoft, padding: "7px 12px", fontSize: 13, color: "#0e7490", whiteSpace: "nowrap", flexShrink: 0 }
@@ -9523,12 +9562,31 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     }, fleetN > 0 ? "합성 어휘 " : isFriend ? friend.name + "의 마음 말 " : "내가 쓴 마음 말 ",
        React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"),
     // 무엇을 세는 숫자인지 눌렀을 때만 알려준다. 늘 띄우면 섬을 가린다.
+    // 친구 섬은 친구 섬 문구로(2026-09-15 저녁, 전에는 내 섬 문구가 그대로 떴다). 반딧불이 무엇인지도 여기서 말한다(광장의 "보는 법"과 같은 자리 — 눌러야 보인다)
     vocabTip && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
-      style: { position: "absolute", right: 12, bottom: 52, maxWidth: 210,
+      style: { position: "absolute", right: touch ? 12 + 3 * (small ? 38 : 42) + 8 + 8 : 12, bottom: 52, maxWidth: 220,   // 터치 기기는 방향 패드 왼쪽에
                padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.94)",
                boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, fontWeight: 700, color: "#2b4650",
                lineHeight: 1.6 }
-    }, "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요.") : null);
+    }, isFriend ? josa(friend.name, "이가") + " 일기에 쓴 마음 말의 가짓수예요. 반딧불은 친구들이 '나도 그래' 한 마음이에요."
+                : "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요. 반딧불은 친구가 '나도 그래' 한 마음이에요.") : null,
+    // 새 반딧불 안내(2026-09-15 저녁). 지난 방문 뒤에 온 반딧불이 있을 때만, 배너 자리에. 개수·이름 없음. 그 꽃에 가 보면 사라진다
+    ffNew && !nearPlant && !nearLm && !wipe && !soon && !isFriend ? React.createElement("div", { className: "tut-dim",
+      style: { position: "absolute", left: touch && !small ? "calc(50% - 75px)" : "50%", bottom: bannerBottom, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8,
+               padding: "8px 16px", borderRadius: 14, background: "rgba(255,255,255,0.94)", boxShadow: "0 3px 14px rgba(0,0,0,0.18)",
+               fontSize: 14, fontWeight: 700, color: "#2b4650", whiteSpace: "nowrap" }
+    }, React.createElement("span", { "aria-hidden": true, style: { width: 10, height: 10, borderRadius: "50%", background: "#ffe28a", boxShadow: "0 0 8px 3px rgba(255,226,138,0.8)" } }),
+       "반딧불이 왔어요. 빛나는 꽃에 가 보세요") : null,
+    // 터치 기기 방향 패드(2026-09-15 저녁). 오른쪽 아래, 어휘 수 칩 위. 누르고 있는 동안 걷는다 — 방향키와 같은 keys에 놓는다. 마우스·키보드 기기에는 없다(coarsePointer)
+    // body에 직접 그린다(portal): 섬 화면 틀이 position:fixed라 z-index가 그 안에 갇혀 투어 막(90~92, 최상위) 아래로 깔렸다. 막 위에 있어야 걷기 단계에서 누른다
+    touch ? ReactDOM.createPortal(React.createElement("div", { className: "isle-pad", "aria-label": "걷기 방향 패드", style: { position: "fixed", right: 12, bottom: 52, "--pad": (small ? 38 : 42) + "px" } },
+      [["up", "▲", 2], ["left", "◀", 4], ["right", "▶", 6], ["down", "▼", 8]].map(function (b) {
+        var on = function (e) { if (padRef.current) padRef.current(b[0], true); e.currentTarget.classList.add("on"); try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); };
+        var off = function (e) { if (padRef.current) padRef.current(b[0], false); e.currentTarget.classList.remove("on"); };
+        return React.createElement("button", { key: b[0], type: "button", "aria-label": { up: "위로", left: "왼쪽으로", right: "오른쪽으로", down: "아래로" }[b[0]],
+          style: { gridArea: Math.ceil(b[2] / 3) + " / " + ((b[2] - 1) % 3 + 1) },
+          onPointerDown: on, onPointerUp: off, onPointerCancel: off, onLostPointerCapture: off, onContextMenu: function (e) { e.preventDefault(); } }, b[1]);
+      })), document.body) : null);
 }
 // ⑥-1 바다 화면. 내 섬이 가운데, 친구 섬이 고리로 둘러싼다.
 //  · 바다 색 = 학급 온도계(dayTone). 색상은 그대로, 밝기·채도만(DESIGN.md §6)
@@ -10169,7 +10227,6 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
   const [listOpen, setListOpen] = useState(false);
   const [sel, setSel] = useState(null);          // 고른 섬 {id, name}
   const [sailing, setSailing] = useState(null);  // 항해 중 {name}
-  const [arrived, setArrived] = useState(null);  // 도착 {id, name}
   const [reveal, setReveal] = useState(!!arrive);  // 부두 덮개가 걷히는 연출
   const [cover, setCover] = useState(false);       // 친구 섬에 내릴 때 덮개
   const [todayIsle, setTodayIsle] = useState(null); // 오늘의 섬 {id, name}
@@ -10539,7 +10596,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       sail = { e: e, curve: curve, t0: performance.now(),
                dur: Math.max(1400, Math.min(3000, len / 22 * 1000)),
                head0: boat.rotation.y, headEnd: -th };
-      setSel(null); setArrived(null);
+      setSel(null);
       setSailing({ label: e.home ? "내 섬" : e.name + "의 섬" });
       if (hi) { hi = null; hiRing.visible = false; }
     }
@@ -10563,7 +10620,6 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
     };
     api.current.sail = function (id) { sailTo(findIsle(id)); };
     api.current.home = function () { if (sail) return; goal.set(0, 0, 0); follow = false; };
-    api.current.leave = function () { if (sail) return; dGoal = D_SEA; setArrived(null); };
     api.current.zoom = function (v) { dGoal = clampD(v); };
     if (devMode()) window.__sea = api.current;   // #dev: 콘솔·하네스에서 조작
 
@@ -10627,7 +10683,6 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       });
       if (best) {
         // DESIGN.md §7 — 친구 섬을 탭하면 배가 항해한다.
-        setArrived(null);
         sailTo(best);
       } else if (Math.hypot(p.x, p.z) < 9.5) {
         goal.set(0, 0, 0); follow = false; setSel(null);
@@ -10693,9 +10748,8 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
             var info = { id: e.id, name: e.name, state: e.state, boatDir: e.isle.userData.boatDir };
             window.setTimeout(function () { if (!disposed) onGo("friend", info); }, 480);
           } else {
-            goal.set(e.x, 0, e.z); dGoal = D_ISLE * 1.25;   // 도착한 섬을 화면에 담는다
+            goal.set(e.x, 0, e.z); dGoal = D_ISLE * 1.25;   // 도착한 섬을 화면에 담는다(onGo가 없을 때뿐 — App은 항상 준다)
             follow = false;
-            setArrived({ id: e.id, name: e.name });
             refreshNear(true);
           }
         }
@@ -10878,7 +10932,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
                background: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 700, color: "#2b4650" }
     }, loading) : null,
     // 고른 섬 배너. 배너가 곧 버튼이다(③-8과 같은 방식).
-    sel && !sailing && !arrived ? React.createElement("div", { className: "tut-dim",
+    sel && !sailing ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)",
                display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
                padding: "8px 10px 8px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
@@ -10896,21 +10950,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
     sailing ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)", whiteSpace: "nowrap",
                padding: "9px 18px", borderRadius: 14, background: "rgba(255,255,255,0.9)", fontSize: 15, color: "#28444f" }
-    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.label), "으로 가는 중…") : null,
-    // 도착. ⑥-2 친구 섬 방문은 아직이라 여기서 멈춘다.
-    arrived ? React.createElement("div", { className: "tut-dim",
-      style: { position: "absolute", left: "50%", bottom: small ? 60 : 24, transform: "translateX(-50%)",
-               background: "#fff", borderRadius: 16, padding: "18px 22px", textAlign: "center",
-               width: "min(92vw, 320px)", boxShadow: "0 6px 24px rgba(0,0,0,0.25)" }
-    },
-      React.createElement("div", { style: { fontSize: 16, color: "#0e7490", fontWeight: 700, marginBottom: 6 } }, arrived.name + "의 섬에 도착했어요"),
-      React.createElement("div", { style: { fontSize: 14, color: "#5b7684", lineHeight: 1.7 } }, "섬 구경은 아직 준비 중이에요.", React.createElement("br"), "곧 올라갈 수 있어요."),
-      React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center", marginTop: 12 } },
-        React.createElement("button", {
-          onClick: function () { if (api.current.leave) api.current.leave(); },
-          style: { ...bSoft, padding: "7px 16px", fontSize: 14, color: "#0e7490" }
-        }, "다른 섬 가기"),
-        React.createElement("button", { onClick: function () { if (api.current.homeSail) api.current.homeSail(); else onBack(null); }, style: { ...bPri, padding: "7px 16px", fontSize: 14 } }, "내 섬으로"))) : null);
+    }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.label), "으로 가는 중…") : null);   // ⑥-1의 "섬 구경은 아직 준비 중이에요" 도착 팝업은 ⑥-2 뒤로 닿을 수 없어 지웠다(2026-09-15 저녁)
 }
 function DiaryView({
   entries,
@@ -13481,6 +13521,8 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var step = steps[i];
   // 투어 중 html.tut-on — 화면의 부수 UI(.tut-dim)는 막 아래로 숨고, 그 단계의 대상(.tut-target)만 남는다(2026-09-15). 시연 띠는 tut-dim이 아니라 그대로
   useEffect(function () { document.documentElement.classList.add("tut-on"); return function () { document.documentElement.classList.remove("tut-on"); }; }, []);
+  // 걷기 키를 흘려 보내는 단계면 html.tut-walk — 터치 기기의 방향 패드(.isle-pad)가 막 위에 남는다(2026-09-15 저녁). 다른 단계에서는 패드도 숨는다
+  useEffect(function () { var walk = (step.keys || []).indexOf("ArrowUp") >= 0; document.documentElement.classList.toggle("tut-walk", walk); return function () { document.documentElement.classList.remove("tut-walk"); }; }, [step]);
   var [rect, setRect] = useState(null);   // 구멍(뷰포트 좌표, pad 포함) [x, y, w, h]. 없으면 막이 전체를 덮는다
   var [tick, setTick] = useState(0);      // 리사이즈 → 말풍선 재배치
   var bubRef = useRef(null), arrowRef = useRef(null), cb = useRef(null);
@@ -13662,7 +13704,7 @@ function isleTourSteps(sig) {
   var walked = function () { return sig.walkMs + (sig.walkAt ? performance.now() - sig.walkAt : 0); };   // 지금까지 걸은 시간(ms). 걷는 중이면 현재까지
   return [
     { target: "char", title: "걷는 법",
-      text: function () { var ms = walked(); return ms >= TUT_WALK.ms && sig.turns < TUT_WALK.turns ? "잘했어요! **이번엔 다른 방향으로도 걸어 보세요.**" : "이게 나예요. **방향키 또는 WASD로 이리저리 걸어 보세요.**"; },
+      text: function () { var ms = walked(); return ms >= TUT_WALK.ms && sig.turns < TUT_WALK.turns ? "잘했어요! **이번엔 다른 방향으로도 걸어 보세요.**" : "이게 나예요. " + (touch ? "**오른쪽 아래 방향 패드로 이리저리 걸어 보세요.**" : "**방향키 또는 WASD로 이리저리 걸어 보세요.**"); },   // 터치 기기는 방향 패드(2026-09-15 저녁)
       keys: ISLE_WALK_KEYS, next: function () { var ms = walked(); return ms >= TUT_WALK.maxMs || (ms >= TUT_WALK.ms && sig.turns >= TUT_WALK.turns); } },
     { target: "vocab", title: "마음 말", text: "섬의 꽃과 나무는 내가 직접 쓴 마음 말이에요. 가까이 가면 뜻이 떠요. 일기를 쓸수록 늘어나요.", next: "button" },
     { target: "compass", title: "나침반", text: "활기·평온·슬픔·떨림, 네 방향이에요. 섬에서도 같은 방향에 자라요. 어느 마음이 많이 자랐나요?", next: "button", radius: 60 },
@@ -13672,6 +13714,18 @@ function isleTourSteps(sig) {
     { target: function () { return diveTag; }, title: "들어가기",
       text: ISLE_LM_HINT.dive + ". " + (touch ? "**팻말 밑 [눌러서 가기]를 누르세요.**" : "**스페이스를 눌러요.**"),
       keys: ISLE_WALK_KEYS.concat(["Space", "Enter", "NumpadEnter"]), next: function () { return !!sig.go; }, pad: 6 }   // 다른 팻말로 들어가도 화면이 바뀌므로 투어는 끝낸다
+  ];
+}
+// ── 친구 섬 투어(2단계, 2026-09-15 저녁, 문구 A안 확정) ── 1단계는 걷기 신호(sig.plant: 식생 앞 도착)로 넘어가고, 2단계는 식생 배너(data-tut="plant-banner")를 짚는다. 이름은 친구 이름
+var FRIEND_NO_ENTRIES = [];   // 친구 섬에 넘기는 빈 일기 목록 — 렌더마다 새 배열이면 3D 효과가 다시 돈다
+function friendTourSteps(sig, name) {
+  var touch = coarsePointer();
+  return [
+    { target: "char", title: "친구 섬",
+      text: name + "의 섬이에요. 꽃과 나무는 " + josa(name, "이가") + " 일기에 쓴 마음 말이에요. " + (touch ? "**오른쪽 아래 방향 패드로 가까운 꽃이나 나무까지 걸어가 보세요.**" : "**방향키로 가까운 꽃이나 나무까지 걸어가 보세요.**"),
+      keys: ISLE_WALK_KEYS, next: function () { return !!sig.plant; } },
+    { target: "plant-banner", title: "나도 그래", pad: 6,
+      text: "같은 쪽 마음을 써 본 적이 있으면 [나도 그래]를 보낼 수 있어요. 친구 섬에 반딧불이 하나 켜져요. 친구마다 하루 한 번이에요.", next: "button" }
   ];
 }
 function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로 투어를 켠다, tutOn이면 투어 중(2026-09-15)
@@ -14663,19 +14717,24 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   useEffect(function () { if (devMode()) window.__app = { setPage: setPage }; });   // #dev: 하네스가 로그인 없이 화면을 바꾼다
   // 내 섬 투어(2026-09-15). IslandView가 onTut으로 신호(걷기·팻말 앞·스페이스)를 주고, 단계의 next 함수가 그걸 본다. 시작 팻말이 onTour를 부른다
   // 걷기 신호(2026-09-15): walkAt(지금 걷는 중이면 시작 시각)·walkMs(멈출 때마다 더한 걸은 시간 합계)·dir(마지막 방향)·turns(방향 바꾼 횟수). 1단계 조건은 TUT_WALK
-  const isleSig = useRef({ walkAt: 0, walkMs: 0, dir: null, turns: 0, near: null, go: null });
-  const isleOnTut = useCallback(function (kind, id) {
-    var s = isleSig.current;
+  const isleSig = useRef({ walkAt: 0, walkMs: 0, dir: null, turns: 0, near: null, go: null, plant: null });
+  const friendSig = useRef({ walkAt: 0, walkMs: 0, dir: null, turns: 0, near: null, go: null, plant: null });   // 친구 섬 투어(2026-09-15 저녁)는 신호를 따로 둔다
+  var tutSigHandler = function (ref) { return function (kind, id) {
+    var s = ref.current;
     if (kind === "walk") { if (!s.walkAt) s.walkAt = performance.now(); }
     else if (kind === "stop") { if (s.walkAt) { s.walkMs += performance.now() - s.walkAt; s.walkAt = 0; } }
     else if (kind === "dir") { if (s.dir && id !== s.dir) s.turns++; s.dir = id; }
     else if (kind === "near") s.near = id || null;
+    else if (kind === "plant") s.plant = id || null;   // 식생 앞 도착·이탈(친구 섬 투어 1단계)
     else if (kind === "go") s.go = id;
-  }, []);
+  }; };
+  const isleOnTut = useCallback(tutSigHandler(isleSig), []);
+  const friendOnTut = useCallback(tutSigHandler(friendSig), []);
   const teacherTour = useCallback(function () { tutStart(teacherTourSteps(), { tone: "plain", skipMissing: true }); }, [tutStart]);   // 교사 대시보드 "이 화면 안내"(2026-09-15)
   const seaTour = useCallback(function (onDone) { tutStart(seaTourSteps(), { skipMissing: true, onDone: onDone }); }, [tutStart]);       // 바다(2026-09-15)
   const plazaTour = useCallback(function (onDone) { tutStart(plazaTourSteps(), { skipMissing: true, onDone: onDone }); }, [tutStart]);   // 광장(2026-09-15)
   const isleTour = useCallback(function (onDone) { var s = isleSig.current; s.walkAt = 0; s.walkMs = 0; s.dir = null; s.turns = 0; s.near = null; s.go = null; tutStart(isleTourSteps(s), { onDone: onDone }); }, [tutStart]);
+  const friendTour = useCallback(function (onDone) { var s = friendSig.current, p = s.plant; s.walkAt = 0; s.walkMs = 0; s.dir = null; s.turns = 0; s.near = null; s.go = null; s.plant = p; tutStart(friendTourSteps(s, friendInfo ? friendInfo.name : "친구"), { onDone: onDone }); }, [tutStart, friendInfo]);   // 이미 식생 앞이면 1단계가 바로 넘어간다
 
   const [showPwChange, setShowPwChange] = useState(false);
   const [pwForm, setPwF] = useState({
@@ -15266,6 +15325,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     }
   })));
   // ⑥-2 친구 섬. 걸어다니고, 어휘를 발견하고, 나도 그래를 보낸다. 일기 본문은 없다.
+  // 친구 섬 IslandView의 3D 효과는 [seed, seaTone, entries, state]에 걸려 있다. entries를 매 렌더마다 새 []로 주면 App이 다시 그릴 때마다(투어 켜짐, 안내문 등)
+  // 섬을 통째로 다시 만들고 배 도착 연출이 재시작됐다(2026-09-15 저녁, 친구 섬 투어를 붙이다 발견). 고정 객체로 준다
   if (page === "friend" && currentUser && friendInfo) return React.createElement("div", {
     style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
   }, React.createElement("div", {
@@ -15279,12 +15340,13 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     style: { position: "absolute", inset: 0 }
   }, React.createElement(IslandView, {
     key: "friend-" + friendInfo.id,
-    entries: [],
-    state: friendInfo.state || [],
+    entries: FRIEND_NO_ENTRIES,
+    state: friendInfo.state || FRIEND_NO_ENTRIES,
     seed: String(friendInfo.id || friendInfo.name),
     friend: { id: friendInfo.id, name: friendInfo.name },
     me: currentUser,
     myState: islandState(myEntries),
+    tutOn: tutOn, onTut: friendOnTut, onTour: friendTour,   // 친구 섬 투어(2026-09-15 저녁)
     arrive: friendInfo.boatDir != null ? { boatDir: friendInfo.boatDir } : null,
     onBack: function () { setPage("sea"); },
     onHome: function () { setSeaFrom({ fromId: friendInfo.id, autoHome: true }); setPage("sea"); },
