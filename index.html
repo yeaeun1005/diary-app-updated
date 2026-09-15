@@ -778,6 +778,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .tut-arrow[data-side=right]{border-left-width:var(--tb);border-bottom-width:var(--tb)}
 .tut-arrow[data-side=left]{border-top-width:var(--tb);border-right-width:var(--tb)}
 .tut-title{font-family:'Jua','Gowun Dodum',sans-serif;font-size:17px;margin-bottom:4px}
+html.tut-on .tut-dim:not(.tut-target){visibility:hidden}   /* 투어 중 부수 UI는 숨긴다. 그 단계의 대상만 남는다(2026-09-15) */
 .isle-tour-btn .sign-shine{-webkit-mask:none;mask:none;border-radius:inherit;--shine:4s}   /* 내 섬 시작 팻말: 첫 화면 간판의 빛 스침을 팻말 모양 그대로(2026-09-15) */
 .tut-row{display:flex;align-items:center;gap:8px;margin-top:10px}
 .tut-count{font-size:12px;opacity:.7;margin-right:auto}
@@ -8597,7 +8598,7 @@ var WOOD_TAG = { borderRadius: 7, border: "2px solid #b05a3a", background: "#e7c
 // 켜짐/꺼짐: 아이콘(🔊/🔇)이 바뀌고, 꺼지면 판이 흐려진다(opacity 0.72) — 글자만으로는 멀리서 안 갈리고, 색을 바꾸면 나무 톤을 벗어난다.
 // 표시는 실제 재생 상태(SND.playing)다. 켠 채 새로고침해 재생이 거부됐으면 "꺼짐"으로 보이고, 누르면 그 클릭 안에서 재생이 시작되며
 // playing 이벤트로 "켜짐"이 된다. 다음 입력 때 저절로 재생되는 경우(armRetry)에도 같은 이벤트로 표시가 따라간다.
-function SndBtn({ top, small, wood }) {
+function SndBtn({ top, small, wood, className }) {   // className: 투어 중 막 아래로 내릴 표시(tut-dim, 2026-09-15)
   const [on, setOn] = useState(SND.playing());
   useEffect(function () {
     var f = function () { setOn(SND.playing()); };
@@ -8605,13 +8606,13 @@ function SndBtn({ top, small, wood }) {
     return function () { SND.unsub(f); };
   }, []);
   if (wood) return React.createElement("button", {
-    onClick: function () { SND.set(!on); },
+    onClick: function () { SND.set(!on); }, className: className,
     title: on ? "소리 끄기" : "소리 켜기",
     style: { ...WOOD_TAG, position: "absolute", right: 14, top: top == null ? 14 : top, zIndex: 5, padding: "5px 12px", fontSize: 13, cursor: "pointer",
              fontFamily: HOME_FONT.body, opacity: on ? 1 : 0.72, transition: "opacity 0.2s" }
   }, on ? "🔊 소리" : "🔇 소리");
   return React.createElement("button", {
-    onClick: function () { SND.set(!on); },
+    onClick: function () { SND.set(!on); }, className: className,
     title: on ? "소리 끄기" : "소리 켜기",
     style: { position: "absolute", right: 10, top: top == null ? 46 : top, ...bSoft, padding: "5px 11px", fontSize: small ? 12 : 13,
              color: on ? "#0e7490" : "#7a8f9a", border: on ? "1px solid #99d8c9" : "1px solid #dbe6ea" }
@@ -9278,18 +9279,19 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     err ? React.createElement("div", {
       style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 }
     }, err) : null,
-    React.createElement("div", {
+    // 측정용 HUD(fps·draw call)는 #dev에서만(2026-09-15). 배포본에서는 안 보인다 — 느림 감시(noteFpsRef)는 이것과 무관하게 돈다
+    devMode() ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 10, top: 10, padding: "3px 9px", borderRadius: 8, background: "rgba(255,255,255,0.82)", fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums" }
     }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
-        "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri  ·  " + seaFxText()) : null),
-    fleetN > 0 ? React.createElement("div", {
+        "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri  ·  " + seaFxText()) : null) : null,
+    fleetN > 0 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 10, top: 36, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,214,102,0.9)", fontSize: 12, color: "#6b4a00" }
     }, "성능 확인 모드 · 섬 " + fleetN + "개") : null,
     // 튜토리얼 시작 팻말(2026-09-15). 예전 "방향키 또는 WASD로 걸어보세요" 자리. 처음엔 빛 스침(첫 화면 간판의 sign-shine)으로 눈에 띄게,
     // 한 번 보고 나면(localStorage tutIsle) 물음표만 든 작은 팻말. 친구 섬·성능 확인 모드에는 없다
     fleetN > 0 || isFriend || !onTour ? null : React.createElement("button", {
-      className: tutSeen ? "isle-tour-btn seen" : "isle-tour-btn",
+      className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
       "aria-label": "걷는 법 보기", title: tutSeen ? "걷는 법 보기" : undefined,
       onClick: function () {
         onTour(function () { try { localStorage.setItem("tutIsle", "1"); } catch (e) {} setTutSeen(true); });
@@ -9299,23 +9301,23 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
                padding: tutSeen ? "2px 9px" : "5px 12px", fontSize: tutSeen ? 14 : 13, overflow: "hidden" }
     }, tutSeen ? "?" : "처음 오셨나요? 걷는 법 보기",
        tutSeen ? null : React.createElement("span", { className: "sign-shine", "aria-hidden": true })),
-    devMode() && fleetN === 0 ? React.createElement("div", {
+    devMode() && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 10, top: 66, padding: "2px 7px", borderRadius: 6, background: "rgba(255,255,255,0.6)", fontSize: 11, color: "#5b7684" }
     }, "G: 2층 최소 폭") : null,
-    dbg ? React.createElement("div", {
+    dbg ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 10, top: 62, padding: "3px 9px", borderRadius: 8,
                background: "rgba(30,30,40,0.82)", fontSize: 12, color: "#ffe9c4",
                fontVariantNumeric: "tabular-nums" }
     }, dbg) : null,
     // 허브면 "돌아가기"가 갈 곳이 없다. 이 자리는 로그아웃이다(일기 화면에도 있다).
-    React.createElement("button", {
+    React.createElement("button", { className: "tut-dim",
       onClick: isFriend ? (onHome || onBack) : (hub && onLogout ? function () { if (confirm("로그아웃할까요?")) onLogout(); } : onBack),
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13,
                color: isFriend ? "#0e7490" : undefined, border: isFriend ? "1px solid #99d8c9" : undefined }
     }, isFriend ? "내 섬으로" : hub ? "로그아웃" : "돌아가기"),
-    React.createElement(SndBtn, { small: small }),
+    React.createElement(SndBtn, { small: small, className: "tut-dim" }),
     // 느린 기기. 걸어서 잠수 지점까지 가기 힘들면 여기서 바로 간다. "일기로 가기"를 고르면 이 기기는 다음부터 일기가 먼저다.
-    slow === 1 ? React.createElement("div", {
+    slow === 1 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", top: small ? 70 : 60, transform: "translateX(-50%)", zIndex: 6,
                display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center",
                padding: "8px 14px", borderRadius: 12, background: "rgba(255,255,255,0.95)",
@@ -9323,12 +9325,12 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     }, "섬이 느리네요. 일기로 바로 갈까요?",
       React.createElement("button", { onClick: function () { isleSetOff(true); if (onSlowGo) onSlowGo(); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "일기로 가기"),
       React.createElement("button", { onClick: function () { setSlow(2); try { localStorage.setItem("isleSlowOk", dayStamp()); } catch (e) {} }, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "괜찮아요")) : null,
-    toast ? React.createElement("div", {
+    toast ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", top: 52, transform: "translateX(-50%)", padding: "7px 14px",
                borderRadius: 10, background: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 13, whiteSpace: "nowrap" }
     }, toast) : null,
     // ⑥-2 어휘 식생 배너. 친구 섬 = 뜻 + 나도 그래. 내 섬 = 뜻 + 친구에게 안 보이게.
-    nearPlant && !nearLm && !wipe && !soon ? React.createElement("div", {
+    nearPlant && !nearLm && !wipe && !soon ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: bannerBottom, transform: "translateX(-50%)",
                display: "flex", alignItems: "center", gap: 12, maxWidth: "min(94vw, 560px)",
                padding: "10px 14px 10px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
@@ -9362,7 +9364,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // 팻말과 같은 나무 톤(붉은 틀·밝은 판·어두운 갈색 글자). 흰 알약·회색 네모는 쓰지 않는다.
     // 키보드에서는 "스페이스", 터치 기기에서는 이게 곧 버튼이라 "눌러서 가기". 친구 섬의 잠수 지점은 못 들어가므로 그 말만 적고 누를 수 없다.
     nearLm && !wipe && !soon ? React.createElement("button", {
-      ref: lmTagRef, "data-tut": "lm-tag",
+      ref: lmTagRef, "data-tut": "lm-tag", className: "tut-dim",
       onClick: nearLm.inert ? undefined : function () { if (goRef.current) goRef.current(); },
       style: { ...WOOD_TAG, position: "absolute", left: 0, top: 0, visibility: "hidden", zIndex: 5, willChange: "transform",
                padding: nearLm.inert ? "5px 12px" : touch ? "9px 16px" : "3px 10px",
@@ -9396,14 +9398,14 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       }, "돌아가기"))) : null,
     // 나침반 제목 — 네 단어만 있으면 무엇을 보라는 건지 알 수 없다.
     // §5의 "어느 영역이 무성한지가 눈에 보인다"를 아이 말로 옮긴 것이다.
-    fleetN > 0 || isFriend ? null : React.createElement("div", {
+    fleetN > 0 || isFriend ? null : React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 12, bottom: 12 + compass + 6, width: compass,
                textAlign: "center", fontSize: small ? 10 : 11, color: "#4a6672",
                background: "rgba(255,255,255,0.72)", borderRadius: 8, padding: "3px 4px",
                lineHeight: 1.3, userSelect: "none" }
     }, "어느 마음이", React.createElement("br"), "많이 자랐나요?"),
     // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
-    React.createElement("div", {
+    React.createElement("div", { className: "tut-dim",
       "data-tut": "compass",
       style: { position: "absolute", left: 12, bottom: 12, width: compass, height: compass, borderRadius: "50%",
                background: "rgba(255,255,255,0.72)", boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
@@ -9414,7 +9416,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       React.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: 7, textAlign: "center", color: "#4a72a0", fontWeight: 700 } }, "슬픔"),
       React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#7d5ba6", fontWeight: 700 } }, "떨림"),
       React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 7, height: 7, marginLeft: -3.5, marginTop: -3.5, borderRadius: "50%", background: "#9fb0bb" } })),
-    React.createElement("div", {
+    React.createElement("div", { className: "tut-dim",
       "data-tut": "vocab",
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
                borderRadius: 10, background: "rgba(255,255,255,0.82)",
@@ -9423,7 +9425,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     }, fleetN > 0 ? "합성 어휘 " : isFriend ? friend.name + "의 마음 말 " : "내가 쓴 마음 말 ",
        React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"),
     // 무엇을 세는 숫자인지 눌렀을 때만 알려준다. 늘 띄우면 섬을 가린다.
-    vocabTip && fleetN === 0 ? React.createElement("div", {
+    vocabTip && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", right: 12, bottom: 52, maxWidth: 210,
                padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.94)",
                boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, color: "#4a6672",
@@ -10606,13 +10608,13 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
     err ? React.createElement("div", {
       style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 }
     }, err) : null,
-    // 측정용 HUD. 카드 상태를 함께 보여 크롬북에서 무엇을 켜고 껐는지 바로 안다.
-    React.createElement("div", {
+    // 측정용 HUD. 카드 상태를 함께 보여 크롬북에서 무엇을 켜고 껐는지 바로 안다. #dev에서만(2026-09-15, 배포본에서는 안 보인다)
+    devMode() ? React.createElement("div", {
       style: { position: "absolute", left: 10, top: 10, padding: "3px 9px", borderRadius: 8, background: "rgba(255,255,255,0.82)",
                fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums", lineHeight: 1.5 }
     }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
         "  ·  " + stats.calls + " calls  ·  " + (stats.tris / 1000).toFixed(0) + "k tri") : null,
-      React.createElement("div", { style: { fontSize: 11, color: "#7a8f9a", fontFamily: "ui-monospace, Menlo, monospace" } }, seaCardText(cards) + "  " + seaFxText())),
+      React.createElement("div", { style: { fontSize: 11, color: "#7a8f9a", fontFamily: "ui-monospace, Menlo, monospace" } }, seaCardText(cards) + "  " + seaFxText())) : null,
     React.createElement("style", null, "@keyframes seaCover{from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0 0 0 0)}}"),
     cover ? React.createElement("div", {
       style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6,
@@ -13253,6 +13255,8 @@ function tutFind(step) {
 }
 function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var step = steps[i];
+  // 투어 중 html.tut-on — 화면의 부수 UI(.tut-dim)는 막 아래로 숨고, 그 단계의 대상(.tut-target)만 남는다(2026-09-15). 시연 띠는 tut-dim이 아니라 그대로
+  useEffect(function () { document.documentElement.classList.add("tut-on"); return function () { document.documentElement.classList.remove("tut-on"); }; }, []);
   var [rect, setRect] = useState(null);   // 구멍(뷰포트 좌표, pad 포함) [x, y, w, h]. 없으면 막이 전체를 덮는다
   var [tick, setTick] = useState(0);      // 리사이즈 → 말풍선 재배치
   var bubRef = useRef(null), arrowRef = useRef(null), cb = useRef(null);
@@ -13260,10 +13264,12 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var pad = step.pad == null ? TUT.pad : step.pad, radius = step.radius == null ? TUT.radius : step.radius;
   // 매 프레임 대상의 자리를 읽어 바뀌었을 때만 상태를 갱신한다 — 리사이즈·스크롤·3D 앵커 이동을 한 길로. 요소 하나의 rect 읽기라 가볍다
   useEffect(function () {
-    var raf = 0, last = "", stopped = false;
+    var raf = 0, last = "", stopped = false, marked = [];
     var loop = function () {
       if (stopped) return;
       var el = tutFind(step), key = "";
+      var els = el ? (el.els || (el.nodeType === 1 ? [el] : [])) : [];   // 대상 표시(.tut-target): tut-dim이어도 이 요소는 보인다
+      if (els.length !== marked.length || els.some(function (e, i) { return e !== marked[i]; })) { marked.forEach(function (e) { e.classList.remove("tut-target"); }); els.forEach(function (e) { e.classList.add("tut-target"); }); marked = els; }
       if (el) { var r = el.getBoundingClientRect(); if (r.width || r.height) key = [Math.round(r.left - pad), Math.round(r.top - pad), Math.round(r.width + pad * 2), Math.round(r.height + pad * 2)].join(","); }
       if (key !== last) { last = key; setRect(key ? key.split(",").map(Number) : null); }
       if (typeof step.next === "function" && step.next()) { stopped = true; cb.current.next(); return; }
@@ -13272,7 +13278,7 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
     loop();
     var onResize = function () { setTick(function (t) { return t + 1; }); };
     window.addEventListener("resize", onResize);
-    return function () { stopped = true; cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+    return function () { stopped = true; cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); marked.forEach(function (e) { e.classList.remove("tut-target"); }); };
   }, [step, pad]);
   // 키보드: window capture에서 허용된 키만 넘기고 나머지는 끊는다. 말풍선 안(버튼)에 초점이 있을 때는 그대로 둔다(Tab·Enter로 버튼을 쓸 수 있게)
   useEffect(function () {
@@ -13357,7 +13363,7 @@ function isleTourSteps(sig) {
   // 여러 요소를 한 구멍에(자리 잡힌 것만). 5단계: 잠수 팻말 판 + 판 밑 [스페이스]/[눌러서 가기] 표시 — 터치 기기는 그 표시가 곧 버튼이다.
   // 캐릭터는 구멍에 넣지 않는다(2026-09-15): 캐릭터까지 감싸면 구멍이 섬의 절반이라 아무것도 짚지 못하고 가운데 "우리 반으로"가 목표처럼 보였다.
   // 아이는 방금 움직였으니 자기 위치를 안다. 카메라가 섬을 화면에 맞추므로 팻말이 화면 밖인 경우는 없다
-  var union = function (names) { return { getBoundingClientRect: function () {
+  var union = function (names) { return { get els() { return names.map(q).filter(Boolean); }, getBoundingClientRect: function () {
     var out = null;
     names.forEach(function (n) { var e = q(n); if (!e) return; var r = e.getBoundingClientRect(); if (!r.width || !r.height) return;
       out = out ? { left: Math.min(out.left, r.left), top: Math.min(out.top, r.top), right: Math.max(out.right, r.right), bottom: Math.max(out.bottom, r.bottom) } : { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; });
@@ -14896,7 +14902,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, React.createElement("h1", {
     className: "diary-h1",
     style: { fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: 0, fontSize: "clamp(15px, 4vw, 22px)" }
-  }, currentUser.name, "의 마음 섬")), plazaNew ? React.createElement("div", {
+  }, currentUser.name, "의 마음 섬")), plazaNew ? React.createElement("div", { className: "tut-dim",
     style: { position: "absolute", left: "50%", top: 44, transform: "translateX(-50%)", zIndex: 4 }
   }, plazaBannerEl()) : null, React.createElement("div", {
     style: { position: "absolute", inset: 0 }
