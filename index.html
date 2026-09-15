@@ -780,6 +780,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .tut-arrow[data-side=left]{border-top-width:var(--tb);border-right-width:var(--tb)}
 .tut-title{font-family:'Jua','Gowun Dodum',sans-serif;font-size:17px;margin-bottom:4px}
 html.tut-on .tut-dim:not(.tut-target){visibility:hidden}   /* 투어 중 부수 UI는 숨긴다. 그 단계의 대상만 남는다(2026-09-15) */
+html.tut-on .tut-target{visibility:visible}   /* 숨긴 상자 안의 대상(바다의 오늘의 섬 버튼)도 보이게 — visibility는 자식이 되살릴 수 있다 */
 .isle-tour-btn .sign-shine{-webkit-mask:none;mask:none;border-radius:inherit;--shine:4s}   /* 내 섬 시작 팻말: 첫 화면 간판의 빛 스침을 팻말 모양 그대로(2026-09-15) */
 .tut-row{display:flex;align-items:center;gap:8px;margin-top:10px}
 .tut-count{font-size:12px;opacity:.7;margin-right:auto}
@@ -9713,8 +9714,9 @@ function buildPlazaTag(text) {
 }
 // 광장 화면. 카메라 고정, 걷기 없음. 질문·답·어휘는 화면 위 카드다.
 // me = 지금 학생, myState = 내 어휘(칩 순서), backLabel/onBack = 돌아갈 곳, onSeen = 질문을 본 것을 알린다.
-function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
+function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tutOn }) {
   const hostRef = useRef(null);
+  const [tutSeen, setTutSeen] = useState(function () { try { return localStorage.getItem("tutPlaza") === "1"; } catch (e) { return false; } });   // 광장 투어(2026-09-15)
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState(null);
@@ -9984,19 +9986,19 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
       React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a", flex: 1 } }, "오늘의 질문"),
       ans ? React.createElement("button", { onClick: function () { setFold(true); }, style: { ...bSoft, padding: "3px 10px", fontSize: 12 } }, "접기") : null),
-    React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45 } }, q.t),
-    !ans ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" } },
+    React.createElement("div", { "data-tut": "plz-q", style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45 } }, q.t),
+    !ans ? React.createElement("div", { "data-tut": "plz-how", style: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" } },
       React.createElement("span", { style: { fontSize: 13, color: "#5b7684" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
       React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "답하기"))
     : React.createElement("div", null,
-      ansCard(ans, true),
+      React.createElement("div", { "data-tut": "plz-mine" }, ansCard(ans, true)),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" } },
         ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, color: "#9a5b2b" } }, ans.nmf ? "이름이 들어 있어 선생님이 확인한 뒤에 보여요" : "선생님이 확인하고 있어요")
         : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, color: "#0e7490" } }, "광장에 올라갔어요") : null,
         ans.s !== 2 || ans.nmf ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "고치기") : null),
       // 광장은 섬을 키우지 않는다. 자동이 아니라 초대다 — 안 써도 아무것도 기록하지 않는다.
       bridge ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#0e7490", background: "#e6f4f7", borderRadius: 8, padding: "6px 10px" } }, "이 마음을 일기에도 써 보면 섬에 자라요") : null,
-      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#2f6a97", marginTop: 14 } }, "친구들의 답"),
+      React.createElement("div", { "data-tut": "plz-pub", style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#2f6a97", marginTop: 14 } }, "친구들의 답"),
       // 내 답은 위에 있으니 여기서는 뺀다. 문턱(3개)은 pub 전체로 세고 보이는 것만 거른다.
       pub.length ? pub.filter(function (p2) { return !p2.mine; }).map(function (p2, i) { return React.createElement(React.Fragment, { key: i }, ansCard(p2, false)); })
         : React.createElement("div", { style: { fontSize: 13, color: "#7a8f9a", marginTop: 4 } }, "선생님이 고른 답이 여기에 이름 없이 올라와요.")),
@@ -10010,20 +10012,34 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen }) {
                background: "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
                animation: "isleReveal 720ms cubic-bezier(0.2,0.4,0.4,1) 0ms forwards" } }) : null,
     err ? React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 } }, err) : null,
-    React.createElement("button", {
+    React.createElement("button", { className: "tut-dim",
       onClick: onBack,
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
     }, backLabel || "내 섬으로"),
-    React.createElement(SndBtn, { small: small }),
-    React.createElement("div", {
+    React.createElement(SndBtn, { small: small, className: "tut-dim" }),
+    // 튜토리얼 시작 팻말(2026-09-15). 내 섬·바다와 같은 모양. 한 번 본 뒤(localStorage tutPlaza)엔 물음표만
+    onTour ? React.createElement("button", {
+      className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
+      "aria-label": "광장 안내 보기", title: tutSeen ? "광장 안내 보기" : undefined,
+      onClick: function () { onTour(function () { try { localStorage.setItem("tutPlaza", "1"); } catch (e) {} setTutSeen(true); }); },
+      style: { ...WOOD_TAG, position: "absolute", left: 10, top: 10, zIndex: 5, cursor: "pointer", fontFamily: HOME_FONT.body,
+               padding: tutSeen ? "2px 9px" : "5px 12px", fontSize: tutSeen ? 14 : 13, overflow: "hidden" }
+    }, tutSeen ? "?" : "처음 오셨나요? 광장 안내 보기",
+       tutSeen ? null : React.createElement("span", { className: "sign-shine", "aria-hidden": true })) : null,
+    React.createElement("div", { "data-tut": "plz-card",
       style: { position: "absolute", left: "50%", bottom: small ? 8 : 16, transform: "translateX(-50%)",
                width: "min(94vw, 600px)", maxHeight: small ? "66vh" : "min(70vh, 600px)", overflowY: "auto", boxSizing: "border-box",
                padding: "12px 16px 14px", borderRadius: 14, background: "rgba(255,255,255,0.95)",
                boxShadow: "0 3px 14px rgba(0,0,0,0.18)", color: "#28444f" }
     }, body));
 }
-function SeaView({ me, entries, arrive, onBack, onGo }) {
+function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
   const hostRef = useRef(null);
+  // 투어(2026-09-15): tutOn이면 렌더 루프가 오늘의 섬 상자를 매 프레임 투영해 앵커 div(sea-isle)에 쓴다 — 카메라가 움직이는 화면이라 리사이즈만이 아니라 끌기·항해·확대 때마다 바뀐다
+  const tutOnRef = useRef(false); tutOnRef.current = !!tutOn;
+  const todayRef = useRef(null);
+  const seaAnchorRef = useRef(null);
+  const [tutSeen, setTutSeen] = useState(function () { try { return localStorage.getItem("tutSea") === "1"; } catch (e) { return false; } });
   const [fps, setFps] = useState(0);
   const [stats, setStats] = useState(null);
   const [err, setErr] = useState("");
@@ -10037,6 +10053,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
   const [reveal, setReveal] = useState(!!arrive);  // 부두 덮개가 걷히는 연출
   const [cover, setCover] = useState(false);       // 친구 섬에 내릴 때 덮개
   const [todayIsle, setTodayIsle] = useState(null); // 오늘의 섬 {id, name}
+  todayRef.current = todayIsle;
   const [small, setSmall] = useState(function () {
     try { return window.innerWidth < 560; } catch (e) { return false; }
   });
@@ -10330,6 +10347,24 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       return null;
     }
 
+    // 튜토리얼 앵커(2026-09-15): 오늘의 섬을 감싸는 상자(반폭 7·높이 3, 탭 반경 9.5와 같은 급) 여덟 귀를 투영해 화면 bbox를 앵커 div에 쓴다. 같으면 style을 안 건드린다
+    var anchV = new THREE.Vector3(), anchPts = [];
+    for (var ai = 0; ai < 8; ai++) anchPts.push(new THREE.Vector3());
+    function placeSeaAnchor() {
+      var el = seaAnchorRef.current, ti = todayRef.current;
+      if (!el || !ti) return;
+      var e = findIsle(ti.id); if (!e) return;
+      var w = renderer.domElement.clientWidth, hh = renderer.domElement.clientHeight, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
+      for (var dx = -1; dx <= 1; dx += 2) for (var dz = -1; dz <= 1; dz += 2) for (var dy = 0; dy <= 1; dy++) {
+        anchV.set(e.x + dx * 7, e.holder.position.y + dy * 3, e.z + dz * 7).project(cam);
+        var sx = (anchV.x + 1) / 2 * w, sy = (1 - anchV.y) / 2 * hh;
+        if (sx < x0) x0 = sx; if (sx > x1) x1 = sx; if (sy < y0) y0 = sy; if (sy > y1) y1 = sy;
+      }
+      var k = Math.round(x0) + "," + Math.round(y0) + "," + Math.round(x1 - x0) + "," + Math.round(y1 - y0);
+      if (el.__k === k) return;
+      el.__k = k;
+      el.style.left = Math.round(x0) + "px"; el.style.top = Math.round(y0) + "px"; el.style.width = Math.round(x1 - x0) + "px"; el.style.height = Math.round(y1 - y0) + "px";
+    }
     // 항해. 탭한 섬의 부두 앞까지. 섬을 뚫지 않게 돌아가고, 3초 안에 닿는다.
     var sail = null;
     function sailTo(e) {
@@ -10555,6 +10590,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       if (!intro && !sail) refreshNear(false);
       cull();
       renderer.render(scene, cam);
+      if (tutOnRef.current) placeSeaAnchor();   // 투어 중에만, 렌더 뒤(카메라가 이 프레임 자리)
       frames++;
       var now = performance.now();
       if (now - last >= 500) {
@@ -10601,6 +10637,8 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
   var panel = { background: "rgba(255,255,255,0.94)", borderRadius: 12, boxShadow: "0 3px 14px rgba(0,0,0,0.16)" };
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
+    // 튜토리얼 앵커(오늘의 섬이 정해졌을 때만 존재, 자리는 투어 중 렌더 루프가). 보이지 않고 클릭도 받지 않는다
+    todayIsle ? React.createElement("div", { "data-tut": "sea-isle", ref: seaAnchorRef, style: { position: "absolute", left: 0, top: 0, width: 0, height: 0, pointerEvents: "none", visibility: "hidden" } }) : null,
     React.createElement("style", null, "@keyframes seaReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
     reveal ? React.createElement("div", {
       style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5,
@@ -10610,7 +10648,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 }
     }, err) : null,
     // 측정용 HUD. 카드 상태를 함께 보여 크롬북에서 무엇을 켜고 껐는지 바로 안다. #dev에서만(2026-09-15, 배포본에서는 안 보인다)
-    devMode() ? React.createElement("div", {
+    devMode() ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 10, top: 10, padding: "3px 9px", borderRadius: 8, background: "rgba(255,255,255,0.82)",
                fontSize: 12, color: fps && fps < 30 ? "#dc2626" : "#4a72a0", fontVariantNumeric: "tabular-nums", lineHeight: 1.5 }
     }, fps, " fps", stats ? React.createElement("span", { style: { color: "#94a3b8" } },
@@ -10621,13 +10659,22 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
       style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6,
                background: "linear-gradient(90deg, rgba(99,195,204,0.8), rgba(59,163,187,0.99))",
                animation: "seaCover 460ms cubic-bezier(0.55,0,0.85,0.6) 0ms forwards" } }) : null,
-    React.createElement("button", {
+    React.createElement("button", { className: "tut-dim",
       onClick: function () { if (api.current.homeSail) api.current.homeSail(); else onBack(null); },
       style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
     }, "내 섬으로"),
-    React.createElement(SndBtn, { small: small }),
+    React.createElement(SndBtn, { small: small, className: "tut-dim" }),
+    // 튜토리얼 시작 팻말(2026-09-15). 내 섬의 것과 같은 모양 — 처음이면 크게(빛 스침), 한 번 본 뒤(localStorage tutSea)엔 물음표만. #dev에서는 HUD 아래
+    onTour ? React.createElement("button", {
+      className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
+      "aria-label": "바다 둘러보기", title: tutSeen ? "바다 둘러보기" : undefined,
+      onClick: function () { onTour(function () { try { localStorage.setItem("tutSea", "1"); } catch (e) {} setTutSeen(true); }); },
+      style: { ...WOOD_TAG, position: "absolute", left: 10, top: devMode() ? 62 : 10, zIndex: 5, cursor: "pointer", fontFamily: HOME_FONT.body,
+               padding: tutSeen ? "2px 9px" : "5px 12px", fontSize: tutSeen ? 14 : 13, overflow: "hidden" }
+    }, tutSeen ? "?" : "처음 오셨나요? 바다 둘러보기",
+       tutSeen ? null : React.createElement("span", { className: "sign-shine", "aria-hidden": true })) : null,
     // 친구 찾기 — 검색과 명단 둘 다.
-    React.createElement("div", {
+    React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", top: small ? 66 : 52, transform: "translateX(-50%)", width: small ? "min(92vw, 340px)" : 360, zIndex: 4 }
     },
       React.createElement("div", { style: { display: "flex", gap: 6 } },
@@ -10653,7 +10700,7 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
         })) : null,
       // 오늘의 섬. 강제가 아니다 — 눌러도 되고 안 눌러도 되고, 안 누른 것을 기록하지 않는다.
       todayIsle && !matches.length && !listOpen ? React.createElement("button", {
-        onClick: function () { pick(todayIsle); },
+        "data-tut": "sea-today", onClick: function () { pick(todayIsle); },
         style: { display: "block", margin: "6px auto 0", padding: "6px 14px", borderRadius: 12, border: "1px solid #ffe2a8",
                  background: "rgba(255,248,230,0.94)", cursor: "pointer", fontSize: 13, color: "#8a5a12", fontFamily: "inherit" }
       }, "오늘은 ", React.createElement("b", null, todayIsle.name), "의 섬에 놀러 가 볼까요?") : null,
@@ -10666,16 +10713,16 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
           }, n.name);
         }) : React.createElement("div", { style: { padding: 14, fontSize: 13, color: "#6b8792" } }, loading || "아직 친구 섬이 없어요")) : null),
     // 조작 안내
-    !small ? React.createElement("div", {
+    !small ? React.createElement("div", { "data-tut": "sea-hint", className: "tut-dim",
       style: { position: "absolute", left: 10, bottom: 12, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,255,255,0.78)", fontSize: 12, color: "#5b7684" }
     }, touch ? "섬을 누르면 배가 가요 · 끌어서 둘러보기" : "섬을 누르면 배가 가요 · 끌어서 둘러보기 · 휠로 확대") : null,
-    loading ? React.createElement("div", {
+    loading ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", padding: "6px 14px", borderRadius: 10,
                background: "rgba(255,255,255,0.86)", fontSize: 13, color: "#5b7684" }
     }, loading) : null,
     // 고른 섬 배너. 배너가 곧 버튼이다(③-8과 같은 방식).
-    sel && !sailing && !arrived ? React.createElement("div", {
+    sel && !sailing && !arrived ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)",
                display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
                padding: "8px 10px 8px 18px", borderRadius: 14, background: "rgba(255,255,255,0.94)",
@@ -10690,12 +10737,12 @@ function SeaView({ me, entries, arrive, onBack, onGo }) {
         onClick: function () { setSel(null); },
         style: { background: "transparent", border: "none", cursor: "pointer", fontSize: 16, color: "#94a3b8", padding: "2px 4px" }
       }, "✕")) : null,
-    sailing ? React.createElement("div", {
+    sailing ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 18, transform: "translateX(-50%)", whiteSpace: "nowrap",
                padding: "9px 18px", borderRadius: 14, background: "rgba(255,255,255,0.9)", fontSize: 15, color: "#28444f" }
     }, React.createElement("b", { style: { color: "#0e7490" } }, sailing.label), "으로 가는 중…") : null,
     // 도착. ⑥-2 친구 섬 방문은 아직이라 여기서 멈춘다.
-    arrived ? React.createElement("div", {
+    arrived ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: small ? 60 : 24, transform: "translateX(-50%)",
                background: "#fff", borderRadius: 16, padding: "18px 22px", textAlign: "center",
                width: "min(92vw, 320px)", boxShadow: "0 6px 24px rgba(0,0,0,0.25)" }
@@ -13238,6 +13285,7 @@ function DemoSeedPanel() {
 //   next "button"(기본): 말풍선의 [다음]·Enter. "click": 구멍 안 대상을 누르면. "key": keys 중 하나를 누르면. 함수: 매 프레임 물어 true면(예: 캐릭터가 팻말에 닿았을 때).
 //   target 함수는 요소 대신 getBoundingClientRect만 가진 객체를 돌려줘도 된다(여러 요소를 한 구멍에). text도 함수면 그릴 때 부른다.
 //   inert: 구멍 위에 투명 덮개를 얹어 대상도 못 누르게(설명만 하는 단계 — 교사 대시보드처럼 구멍 안 버튼이 모달을 열면 곤란할 때).
+//   free: 막을 깔지 않고 링(반짝임)과 말풍선만(2026-09-15, 바다 투어). 끌기·확대·섬 누르기가 그대로 되고 링은 매 프레임 대상을 따라간다. 대상이 없으면 말풍선만 가운데.
 //   대상이 화면 밖이면 단계가 바뀔 때 scrollIntoView(가운데)로 데려온 뒤 구멍이 따라간다. 투어 옵션 skipMissing: 시작 때 대상이 없는 단계를 빼고 번호를 다시 매긴다.
 //   keys: 막 아래로 흘려 보내는 키(걷기 방향키 등). 그 밖의 키는 window capture에서 끊는다(소리 버튼의 첫 입력 감지와 같은 방식). Esc는 언제나 나가기.
 //   target이 없으면(null·아직 안 그려짐) 막이 전체를 덮고 말풍선은 가운데. 대상이 나타나면 그 프레임에 구멍이 열린다.
@@ -13263,18 +13311,28 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var [rect, setRect] = useState(null);   // 구멍(뷰포트 좌표, pad 포함) [x, y, w, h]. 없으면 막이 전체를 덮는다
   var [tick, setTick] = useState(0);      // 리사이즈 → 말풍선 재배치
   var bubRef = useRef(null), arrowRef = useRef(null), cb = useRef(null);
+  var maskRefs = useRef({}), ringRef = useRef(null), coverRef = useRef(null);
   cb.current = { next: onNext, skip: onSkip };
+  // 구멍·링·덮개 자리를 rAF에서 바로 DOM에 쓴다(2026-09-15). setRect의 재렌더는 말풍선 배치·귀퉁이용이고, 시각적 추종은 이 함수가 같은 프레임에 끝낸다
+  function applyRect(r) {
+    var M = maskRefs.current, px = function (v) { return Math.max(0, v) + "px"; };
+    if (M.t) M.t.style.height = px(r[1]);
+    if (M.b) M.b.style.top = px(r[1] + r[3]);
+    if (M.l) { M.l.style.top = px(r[1]); M.l.style.width = px(r[0]); M.l.style.height = px(r[3]); }
+    if (M.r) { M.r.style.left = px(r[0] + r[2]); M.r.style.top = px(r[1]); M.r.style.height = px(r[3]); }
+    [ringRef.current, coverRef.current].forEach(function (el) { if (!el) return; el.style.left = r[0] + "px"; el.style.top = r[1] + "px"; el.style.width = r[2] + "px"; el.style.height = r[3] + "px"; });
+  }
   var pad = step.pad == null ? TUT.pad : step.pad, radius = step.radius == null ? TUT.radius : step.radius;
   // 매 프레임 대상의 자리를 읽어 바뀌었을 때만 상태를 갱신한다 — 리사이즈·스크롤·3D 앵커 이동을 한 길로. 요소 하나의 rect 읽기라 가볍다
   useEffect(function () {
-    var raf = 0, last = "", stopped = false, marked = [];
+    var raf = 0, last = null, stopped = false, marked = [];
     var loop = function () {
       if (stopped) return;
       var el = tutFind(step), key = "";
       var els = el ? (el.els || (el.nodeType === 1 ? [el] : [])) : [];   // 대상 표시(.tut-target): tut-dim이어도 이 요소는 보인다
       if (els.length !== marked.length || els.some(function (e, i) { return e !== marked[i]; })) { marked.forEach(function (e) { e.classList.remove("tut-target"); }); els.forEach(function (e) { e.classList.add("tut-target"); }); marked = els; }
       if (el) { var r = el.getBoundingClientRect(); if (r.width || r.height) key = [Math.round(r.left - pad), Math.round(r.top - pad), Math.round(r.width + pad * 2), Math.round(r.height + pad * 2)].join(","); }
-      if (key !== last) { last = key; setRect(key ? key.split(",").map(Number) : null); }
+      if (key !== last) { last = key; var nr = key ? key.split(",").map(Number) : null; if (nr) applyRect(nr); setRect(nr); }
       if (typeof step.next === "function" && step.next()) { stopped = true; cb.current.next(); return; }
       raf = requestAnimationFrame(loop);
     };
@@ -13340,8 +13398,8 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
     if (side === "bottom" || side === "top") { a.style.left = clamp(rect[0] + rect[2] / 2 - x, 20, bw - 20) + "px"; a.style.top = (side === "bottom" ? 0 : bh) + "px"; }
     else { a.style.top = clamp(rect[1] + rect[3] / 2 - y, 20, bh - 20) + "px"; a.style.left = (side === "right" ? 0 : bw) + "px"; }
   });
-  var h = React.createElement, mask = function (k, st) { return h("div", { key: k, className: "tut-mask", style: { ...st, background: TUT.mask } }); };
-  var masks = rect ? [
+  var h = React.createElement, mask = function (k, st) { return h("div", { key: k, className: "tut-mask", ref: function (el) { maskRefs.current[k] = el; }, style: { ...st, background: TUT.mask } }); };
+  var masks = step.free ? [] : rect ? [
     mask("t", { left: 0, top: 0, right: 0, height: Math.max(0, rect[1]) }),
     mask("b", { left: 0, top: Math.max(0, rect[1] + rect[3]), right: 0, bottom: 0 }),
     mask("l", { left: 0, top: Math.max(0, rect[1]), width: Math.max(0, rect[0]), height: Math.max(0, rect[3]) }),
@@ -13352,8 +13410,8 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   var corner = function (k, at, st) { return h("div", { key: k, className: "tut-corner", style: { ...st, width: R, height: R, background: "radial-gradient(circle at " + at + ", transparent " + (R - 0.6) + "px, " + TUT.mask + " " + (R + 0.4) + "px)" } }); };
   var isLast = i + 1 >= steps.length, nextBtn = step.next == null || step.next === "button";
   return h(React.Fragment, null, masks,
-    rect && step.inert ? h("div", { className: "tut-cover", style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3] } }) : null,
-    rect && h("div", { className: "tut-ring", style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3], borderRadius: R, "--tut-shine": TUT.shine, "--tut-shine-w": TUT.shineWidth + "px", "--tut-glow-lo": TUT.glowLo, "--tut-glow-hi": TUT.glowHi, "--tut-glow-still": TUT.glowStill } },
+    rect && step.inert && !step.free ? h("div", { className: "tut-cover", ref: coverRef, style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3] } }) : null,
+    rect && h("div", { className: "tut-ring", ref: ringRef, style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3], borderRadius: R, "--tut-shine": TUT.shine, "--tut-shine-w": TUT.shineWidth + "px", "--tut-glow-lo": TUT.glowLo, "--tut-glow-hi": TUT.glowHi, "--tut-glow-still": TUT.glowStill } },
       corner("tl", "100% 100%", { left: 0, top: 0 }), corner("tr", "0% 100%", { right: 0, top: 0 }),
       corner("bl", "100% 0%", { left: 0, bottom: 0 }), corner("br", "0% 0%", { right: 0, bottom: 0 }),
       h("div", { className: "tut-shine" })),
@@ -13380,6 +13438,27 @@ function teacherTourSteps() {
     S("t-emp", "나도 그래", "친구 섬에서 주고받는 공감이에요. 최근 7일에 받지 못한 학생과 보내지 않은 학생을 보여 줘요. 지시가 아니라 정보예요."),
     S("t-plaza", "광장", "반 전체가 보는 광장이에요. 오늘의 질문을 올리고 마감하며, 아이들의 답변을 여기서 관리해요."),
     S("t-roster", "학생 명단", "[항해 일지]를 누르면 그 아이의 일기를 읽을 수 있어요. [오늘 참여 현황]은 오늘 누가 썼는지와 많이 쓴 감정 말이에요.")
+  ];
+}
+// ── 바다 투어(4단계, 2026-09-15, 문구 A안 확정) ── 전부 free(막 없음). 카메라가 움직이는 화면이라 막으로 끌기를 막지 않고 링만 대상을 따라간다.
+// 대상: 조작 안내(sea-hint, 좁은 화면엔 없음)·오늘의 섬 버튼(sea-today)·오늘의 섬 3D 앵커(sea-isle, 렌더 루프가 매 프레임 투영). 없는 것은 skipMissing으로 건너뛴다.
+function seaTourSteps() {
+  var touch = coarsePointer();
+  return [
+    { target: "sea-hint", free: true, title: "둘러보기", place: "top",
+      text: touch ? "섬을 누르면 배가 가요. 끌어서 둘러보고, 두 손가락으로 확대해요. 지금 한번 끌어 보세요." : "섬을 누르면 배가 가요. 끌어서 둘러보고, 휠로 확대해요. 지금 한번 끌어 보세요." },
+    { target: null, free: true, title: "바다 색", text: "바다 색은 오늘 우리 반의 기분이에요. 밝은 일기가 많은 날은 맑고, 무거운 날은 어두워져요." },
+    { target: "sea-today", free: true, title: "오늘의 섬", text: "오늘의 섬이에요. 눌러도 되고 안 눌러도 돼요. 날마다 다른 친구 섬을 권해요." },
+    { target: "sea-isle", free: true, title: "친구 섬", pad: 0, radius: 40, text: "친구 섬에 내리면 꽃과 나무를 구경할 수 있어요. 같은 마음을 써 본 적 있으면 '나도 그래'를 보낼 수 있어요." }
+  ];
+}
+// ── 광장 투어(3단계, 2026-09-15, 문구 A안 확정) ── 대상은 광장 카드 안 DOM. 답을 쓰기 전(plz-how)과 쓴 뒤(plz-mine)·질문이 없는 날(plz-card)을 함수로 고른다. inert(설명만).
+function plazaTourSteps() {
+  var q = function (n) { return document.querySelector('[data-tut="' + n + '"]'); };
+  return [
+    { target: "plz-q", inert: true, title: "오늘의 질문", text: "선생님이 올린 오늘의 질문이에요. [답하기]를 누르고 관찰·느낌·바람 세 칸으로 답해요. 관찰은 본 것, 느낌은 그때 마음, 바람은 어떻게 되면 좋겠는지예요." },
+    { target: function () { return q("plz-how") || q("plz-mine"); }, inert: true, title: "이름은 쓰지 않아요", text: "친구 이름은 쓰지 않아요. '어떤 친구가'라고 써요. 선생님이 고른 답만 이름 없이 광장에 올라와요." },
+    { target: function () { return q("plz-pub") || q("plz-card"); }, inert: true, title: "광장과 섬", text: "광장에 쓴 답은 섬을 키우지 않아요. 같은 마음을 일기에도 쓰면 그때 섬에 자라요." }
   ];
 }
 // ── 내 섬 투어(2단계, 2026-09-15) ──
@@ -14370,6 +14449,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     else if (kind === "go") s.go = id;
   }, []);
   const teacherTour = useCallback(function () { tutStart(teacherTourSteps(), { tone: "plain", skipMissing: true }); }, [tutStart]);   // 교사 대시보드 "이 화면 안내"(2026-09-15)
+  const seaTour = useCallback(function (onDone) { tutStart(seaTourSteps(), { skipMissing: true, onDone: onDone }); }, [tutStart]);       // 바다(2026-09-15)
+  const plazaTour = useCallback(function (onDone) { tutStart(plazaTourSteps(), { skipMissing: true, onDone: onDone }); }, [tutStart]);   // 광장(2026-09-15)
   const isleTour = useCallback(function (onDone) { var s = isleSig.current; s.walkAt = 0; s.near = null; s.go = null; tutStart(isleTourSteps(s), { onDone: onDone }); }, [tutStart]);
 
   const [showPwChange, setShowPwChange] = useState(false);
@@ -14886,6 +14967,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     me: currentUser,
     entries: myEntries,
     arrive: page === "sea" ? seaFrom : null,
+    tutOn: tutOn, onTour: seaTour,   // 바다 투어(2026-09-15)
     onGo: function (where, info) {
       if (where === "friend" && info) { setSeaFrom(null); setFriendInfo(info); setPage("friend"); }
     },
@@ -14918,6 +15000,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     me: currentUser,
     myState: islandState(myEntries),
     arrive: true,
+    tutOn: tutOn, onTour: plazaTour,   // 광장 투어(2026-09-15)
     backLabel: plazaBack === "friend" && friendInfo ? friendInfo.name + "의 섬으로" : "내 섬으로",
     onSeen: plazaMarkSeen,
     onBack: function () {
