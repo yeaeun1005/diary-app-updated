@@ -6,7 +6,7 @@
   var D = {};
 
   D.CODE = "DEMO01";
-  D.SCHOOL_NAME = "시연 학급 (가상 데이터)";
+  D.SCHOOL_NAME = "마음 바다 체험 학급";   // 2026-09-15 저녁(전: "시연 학급 (가상 데이터)"). 실제 Firebase의 DEMO01은 다시 만들어야 바뀐다
   D.TEACHER = { id: "demoteacher", name: "시연 교사" };   // 비밀번호는 저장소에 두지 않는다. 패널 입력란에서 받는다
   D.ID_BASE = 700000000000;   // 학생 id = ID_BASE + 번호. 시각값(1.7e12)과 한눈에 구분된다
   D.PW = "1234";

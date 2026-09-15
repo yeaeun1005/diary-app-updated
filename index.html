@@ -751,6 +751,14 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .diary-tab-ico { width: 24px; height: 24px; vertical-align: middle; margin-right: 6px; }
 .diary-h1 { font-size: 27px; }
 .diary-sub { font-size: 14px; }
+/* 일기 화면 머리(2026-09-15 저녁): 왼쪽 배지 · 가운데 제목 · 오른쪽 버튼 넷의 세 칸 격자. 양옆이 같은 1fr이라 제목이 화면 가운데에 온다
+   (전에는 flex space-between이라 배지(78px)와 버튼 넷(360px)의 폭 차이만큼 제목이 왼쪽으로 밀렸다 — 1280에서 141px).
+   1100px 아래서는 버튼 넷이 한 줄에 안 들어가 제목 밑 줄로 내린다(제목은 그대로 가운데). 그 줄은 배지 아래 왼쪽 정렬 —
+   가운데에 두면 오른쪽 위에 고정된 시연 띠(#demo-ribbon, top 96px)가 버튼 위에 얹힌다(800·1024에서 확인). */
+.diary-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 12px; row-gap: 8px; }
+.diary-head > :first-child { justify-self: start; }
+.diary-head .diary-btns { justify-self: end; }
+@media (max-width: 1099px) { .diary-head .diary-btns { grid-column: 1 / -1; justify-self: start; justify-content: flex-start; } }
 @media (max-width: 767px) {
   .diary-tab { padding: 10px 16px; font-size: 14px; }
   .diary-tab-ico { width: 16px; height: 16px; margin-right: 4px; }
@@ -794,6 +802,11 @@ html.tut-on .tut-target{visibility:visible}   /* 숨긴 상자 안의 대상(바
 .tut-next:hover{filter:brightness(1.08)}
 .tut-skip:focus-visible,.tut-next:focus-visible{outline:2px solid #ffd77a;outline-offset:2px}
 #demo-ribbon{position:fixed;right:10px;top:96px;z-index:9999;background:#f59e0b;color:#1f2937;font:600 12px/1 'Gowun Dodum',sans-serif;padding:7px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;white-space:nowrap}
+/* 900px 아래서는 띠를 두 줄로 접는다(폭 44vw까지, 2026-09-15 저녁) — 한 줄 띠가 800 폭 일기 화면의 둘째 줄 버튼(로그아웃)에 얹혔다 */
+@media (max-width: 899px){#demo-ribbon{white-space:normal;max-width:44vw;text-align:center;line-height:1.3;padding:5px 12px}}
+/* 500px 아래(2026-09-15 저녁): 3D 화면은 바다의 친구 찾기 칸(66~104px) 밑(112px)으로. 일기 화면은 위에 두면 버튼 줄에 얹히므로 아래 가운데 한 줄(스크롤되는 기록 위 footer처럼).
+   넓은 화면의 일기 화면은 그대로 위 96px — 탭 상자("탐험일지 보기") 위 7px과 겹치지만 탭 글자(131px~)와는 9px 떨어져 가리는 것이 없다 */
+@media (max-width: 500px){#demo-ribbon{top:112px;max-width:46vw}#demo-ribbon[data-page="studentDiary"]{top:auto;bottom:10px;left:10px;right:10px;max-width:none}}
 </style>
 <script>
 var firebaseConfig = {
@@ -1401,8 +1414,9 @@ var MEM_OPS = [];
 // 4단계 안내 문구(2026-09-14 확정, 후보 C). band: 시연 계정 띠, trialBand: 체험 모드 띠, msg: 저장 성공 안내(✅)에 덧붙이는 꼬리
 var MEM_NOTES = { band: "시연 학급 · 실제 학생이 아닙니다 · 새로고침하면 처음으로 돌아가요",   // 교사 화면. 명단을 보는 사람에게 맞는 말
                   // 학생 화면(2026-09-14). 체험 간판으로 들어온 사람이 그 학생이 되어 있으므로 "실제 학생이 아닙니다"는 본인을 가리키는 말이 된다.
+                  // 2026-09-15 저녁 문구 확정: "둘러보기 중 · ○○은/는 가상 학생이에요 · 쓴 것은 저장되지 않아요"(전: "시연 학급 · 가상의 학생 ○○이/가 되어 둘러보는 중 · 새로고침하면 처음으로 돌아가요"). 이름은 로그인한 학생을 따라간다
                   studentBand: function (name) { var t = String(name || ""), c = t.charCodeAt(t.length - 1), bat = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0;
-                    return "시연 학급 · 가상의 학생 " + t + (bat ? "이" : "가") + " 되어 둘러보는 중 · 새로고침하면 처음으로 돌아가요"; },
+                    return "둘러보기 중 · " + t + (bat ? "은" : "는") + " 가상 학생이에요 · 쓴 것은 저장되지 않아요"; },
                   trialBand: "체험 모드 · 새로고침하면 처음으로 돌아가요",
                   msg: " · 새로고침하면 되돌아와요" };   // 순서대로 { p: [경로 조각], v: 값 | null(삭제) }. 다중 경로 update는 키마다 하나씩
 function memSegs(p) { return String(p).split("/").filter(Boolean); }
@@ -2009,6 +2023,10 @@ const bSoft = {
   borderRadius: 12,
   cursor: "pointer"
 };
+// "내 섬으로"(2026-09-15 저녁). 일기·바다·광장·친구 섬에서 돌아가는 길이라 그 화면의 다른 버튼(흰 알약, bSoft)보다 앞서 보여야 한다 —
+// 청록 채움·흰 굵은 글자·흰 테두리·그림자·한 치수 큰 글자(14). 바다·잔디 위에서는 흰 테두리가, 일기 화면(밝은 배경)에서는 채움이 구분한다. 기능은 그대로.
+const bBack = { ...bSoft, padding: "7px 16px", fontSize: 14, fontWeight: 700, color: "#fff", background: "#0e7490",
+                border: "2px solid rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.22)", whiteSpace: "nowrap" };
 // 첫 화면 클레이 톤 (2026-09-10). 3D 섬 팔레트에서 그대로 가져온다 — 나무 팻말 기둥(ISLE.wood 0xb05a3a),
 // 팻말 판 면(labelTexture #f2e3c2)·글자(#4a3a24), 판 옆면(#e8d9b8·#d8c49c), 흙벽(ISLE.cliff → #806952).
 // 그라데이션 없이 단색에 명암만. 그림자는 퍼뜨리지 않고 아래로 오프셋된 단단한 판(클레이 오브젝트).
@@ -8692,7 +8710,7 @@ function SndBtn({ top, small, wood, className }) {   // className: 투어 중 �
     onClick: function () { SND.set(!on); }, className: className,
     title: on ? "소리 끄기" : "소리 켜기",
     style: { position: "absolute", right: 10, top: top == null ? 46 : top, ...bSoft, padding: "5px 11px", fontSize: small ? 12 : 13,
-             color: on ? "#0e7490" : "#7a8f9a", border: on ? "1px solid #99d8c9" : "1px solid #dbe6ea" }
+             color: on ? "#0e7490" : "#5b7684", border: on ? "1px solid #99d8c9" : "1px solid #c9d8de" }   // 꺼짐 색을 어둡게(2026-09-15 저녁)
   }, on ? "🔊 소리" : "🔇 소리");
 }
 // ── 허브 승격 (2026-09-07, DESIGN.md §3) ──
@@ -9390,22 +9408,21 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // 허브면 "돌아가기"가 갈 곳이 없다. 이 자리는 로그아웃이다(일기 화면에도 있다).
     React.createElement("button", { className: "tut-dim",
       onClick: isFriend ? (onHome || onBack) : (hub && onLogout ? function () { if (confirm(trial ? "체험을 끝낼까요?" : "로그아웃할까요?")) onLogout(); } : onBack),
-      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13,
-               color: isFriend ? "#0e7490" : undefined, border: isFriend ? "1px solid #99d8c9" : undefined }
-    }, isFriend ? "내 섬으로" : hub ? (trial ? "체험 끝내기" : "로그아웃") : "돌아가기"),
-    React.createElement(SndBtn, { small: small, className: "tut-dim" }),
+      style: isFriend ? { position: "absolute", right: 10, top: 10, ...bBack } : { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13 }   // 친구 섬의 "내 섬으로"는 돌아가는 길(bBack)
+    }, isFriend ? "🏝 내 섬으로" : hub ? (trial ? "체험 끝내기" : "로그아웃") : "돌아가기"),
+    React.createElement(SndBtn, { small: small, className: "tut-dim", top: isFriend ? 52 : undefined }),   // bBack이 한 치수 커서 소리 버튼을 6px 내린다
     // 느린 기기. 걸어서 잠수 지점까지 가기 힘들면 여기서 바로 간다. "일기로 가기"를 고르면 이 기기는 다음부터 일기가 먼저다.
     slow === 1 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", top: small ? 70 : 60, transform: "translateX(-50%)", zIndex: 6,
                display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center",
                padding: "8px 14px", borderRadius: 12, background: "rgba(255,255,255,0.95)",
-               boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 13, color: "#28444f", maxWidth: "94vw" }
+               boxShadow: "0 3px 14px rgba(0,0,0,0.18)", fontSize: 13, fontWeight: 700, color: "#28444f", maxWidth: "94vw" }
     }, "섬이 느리네요. 일기로 바로 갈까요?",
       React.createElement("button", { onClick: function () { isleSetOff(true); if (onSlowGo) onSlowGo(); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "일기로 가기"),
       React.createElement("button", { onClick: function () { setSlow(2); try { localStorage.setItem("isleSlowOk", dayStamp()); } catch (e) {} }, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "괜찮아요")) : null,
     toast ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", top: 52, transform: "translateX(-50%)", padding: "7px 14px",
-               borderRadius: 10, background: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 13, whiteSpace: "nowrap" }
+               borderRadius: 10, background: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }
     }, toast) : null,
     // ⑥-2 어휘 식생 배너. 친구 섬 = 뜻 + 나도 그래. 내 섬 = 뜻 + 친구에게 안 보이게.
     nearPlant && !nearLm && !wipe && !soon ? React.createElement("div", { className: "tut-dim",
@@ -9417,22 +9434,22 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       React.createElement("div", { style: { minWidth: 0, flex: "1 1 auto" } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
           React.createElement("b", { style: { color: "#0e7490", fontSize: 16 } }, nearPlant.label),
-          React.createElement("span", { style: { fontSize: 11, color: "#7a8f9a", border: "1px solid #dbe6ea", borderRadius: 6, padding: "1px 6px" } }, Q_NAME[nearPlant.q] || ""),
+          React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#4f6b77", border: "1px solid #c9d8de", borderRadius: 6, padding: "1px 6px" } }, Q_NAME[nearPlant.q] || ""),
           isFriend && !nearPlant.mine ? React.createElement("span", {
-            style: { fontSize: 11, color: "#b45309", background: "#fff4dc", borderRadius: 6, padding: "1px 6px" } }, "내 섬에는 아직 없는 말") : null,
+            style: { fontSize: 11, fontWeight: 700, color: "#b45309", background: "#fff4dc", borderRadius: 6, padding: "1px 6px" } }, "내 섬에는 아직 없는 말") : null,
           !isFriend && nearPlant.hidden ? React.createElement("span", {
-            style: { fontSize: 11, color: "#6b7f8a", background: "#eef3f5", borderRadius: 6, padding: "1px 6px" } }, "친구에게 안 보임") : null),
-        React.createElement("div", { style: { fontSize: 13, color: "#5b7684", marginTop: 3, lineHeight: 1.5 } },
+            style: { fontSize: 11, fontWeight: 700, color: "#4f6b77", background: "#eef3f5", borderRadius: 6, padding: "1px 6px" } }, "친구에게 안 보임") : null),
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#3a5561", marginTop: 3, lineHeight: 1.5 } },
           nearPlant.meaning || (isFriend ? josa(friend.name, "이가") + " 직접 쓴 마음 말이에요" : "내가 직접 쓴 마음 말이에요")),
-        !isFriend && nearPlant.names.length ? React.createElement("div", { style: { fontSize: 13, color: "#b45309", marginTop: 3 } },
+        !isFriend && nearPlant.names.length ? React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#b45309", marginTop: 3 } },
           "오늘 " + nearPlant.names.slice(0, -1).concat([josa(nearPlant.names[nearPlant.names.length - 1], "이가")]).join(", ") + " 나도 그래 했어요") : null),
-      isFriend ? (sentTo ? React.createElement("span", { style: { fontSize: 12, color: "#6b8792", whiteSpace: "nowrap" } },
+      isFriend ? (sentTo ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#4f6b77", whiteSpace: "nowrap" } },
           "오늘은 이미", React.createElement("br"), friend.name + "에게 했어요")
         : nearPlant.can ? React.createElement("button", {
             onClick: function () { if (actRef.current) actRef.current(); },
             style: { ...bPri, padding: "8px 14px", fontSize: 14, whiteSpace: "nowrap", flexShrink: 0 }
           }, "나도 그래", touch ? null : React.createElement("span", { style: { fontSize: 11, opacity: 0.8, marginLeft: 6 } }, "스페이스"))
-        : React.createElement("span", { style: { fontSize: 12, color: "#6b8792", maxWidth: 150, lineHeight: 1.4 } },
+        : React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#4f6b77", maxWidth: 150, lineHeight: 1.4 } },
             "이 마음은 아직 써 본 적이 없어요. 써 본 뒤에 누를 수 있어요"))
       : React.createElement("button", {
           onClick: function () { if (actRef.current) actRef.current(); },
@@ -9478,8 +9495,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // §5의 "어느 영역이 무성한지가 눈에 보인다"를 아이 말로 옮긴 것이다.
     fleetN > 0 || isFriend ? null : React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: 12, bottom: 12 + compass + 6, width: compass,
-               textAlign: "center", fontSize: small ? 10 : 11, color: "#4a6672",
-               background: "rgba(255,255,255,0.72)", borderRadius: 8, padding: "3px 4px",
+               textAlign: "center", fontSize: small ? 10 : 11, fontWeight: 700, color: "#2b4650",   // 굵게·어둡게·바탕 진하게(2026-09-15 저녁, 3D 위 작은 글자)
+               background: "rgba(255,255,255,0.86)", borderRadius: 8, padding: "3px 4px",
                lineHeight: 1.3, userSelect: "none" }
     }, "어느 마음이", React.createElement("br"), "많이 자랐나요?"),
     // 나침반 — 아이가 네 영역을 인지할 수 있어야 한다(DESIGN.md §5).
@@ -9497,8 +9514,8 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     React.createElement("div", { className: "tut-dim",
       "data-tut": "vocab",
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
-               borderRadius: 10, background: "rgba(255,255,255,0.82)",
-               fontSize: small ? 12 : 13, color: "#3f5560" }
+               borderRadius: 10, background: "rgba(255,255,255,0.92)",
+               fontSize: small ? 12 : 13, fontWeight: 700, color: "#1f3a46" }
       , onClick: function () { if (fleetN === 0) setVocabTip(function (v) { return !v; }); }
     }, fleetN > 0 ? "합성 어휘 " : isFriend ? friend.name + "의 마음 말 " : "내가 쓴 마음 말 ",
        React.createElement("b", { style: { color: "#0e7490" } }, vocab), "가지"),
@@ -9506,7 +9523,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     vocabTip && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", right: 12, bottom: 52, maxWidth: 210,
                padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.94)",
-               boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, color: "#4a6672",
+               boxShadow: "0 2px 10px rgba(0,0,0,0.14)", fontSize: 12, fontWeight: 700, color: "#2b4650",
                lineHeight: 1.6 }
     }, "새로운 마음 말을 쓰면 섬이 자라요. 같은 말을 여러 번 써도 늘지 않아요.") : null);
 }
@@ -9939,7 +9956,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   useEffect(function () { if (figRef.current) figRef.current(figKeys); }, [figKeys]);
   // ── 카드 ──
   var lab = { HA: "활기", LA: "평온", LV: "슬픔", HV: "떨림" };
-  var pill = function (q2) { return React.createElement("span", { style: { fontSize: 11, color: "#7a8f9a", border: "1px solid #dbe6ea", borderRadius: 6, padding: "1px 6px", marginLeft: 6 } }, lab[q2] || ""); };
+  var pill = function (q2) { return React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#5b7684", border: "1px solid #c9d8de", borderRadius: 6, padding: "1px 6px", marginLeft: 6 } }, lab[q2] || ""); };
   function chipEl(c, sel, onTap, sizeK) {
     var k = sizeK == null ? 1 : sizeK;
     return React.createElement("button", {
@@ -9994,7 +10011,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   }
   var row = function (name, body) {
     return React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start", marginTop: 6 } },
-      React.createElement("span", { style: { flex: "0 0 auto", fontSize: 11, color: "#0e7490", background: "#e6f4f7", borderRadius: 6, padding: "2px 7px", marginTop: 2 } }, name),
+      React.createElement("span", { style: { flex: "0 0 auto", fontSize: 11, fontWeight: 700, color: "#0e7490", background: "#e6f4f7", borderRadius: 6, padding: "2px 7px", marginTop: 2 } }, name),
       React.createElement("div", { style: { flex: 1, fontSize: 14, color: "#28444f", lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" } }, body));
   };
   var flRow = function (fl, f) {
@@ -10005,7 +10022,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   };
   var ansCard = function (a, mineTag) {
     return React.createElement("div", { style: { background: "#f7fbfc", border: "1px solid #dfeaee", borderRadius: 12, padding: "8px 12px 10px", marginTop: 8 } },
-      mineTag ? React.createElement("div", { style: { fontSize: 11, color: "#0e7490", marginBottom: 2 } }, "내 답") : null,
+      mineTag ? React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#0e7490", marginBottom: 2 } }, "내 답") : null,
       row("관찰", a.o || "—"), row("느낌", flRow(a.fl, a.f)), row("바람", a.w || "—"));
   };
   var wordsEl = function (compact) {
@@ -10026,60 +10043,60 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", marginBottom: 8 } }, "오늘 우리 반이 많이 쓴 마음 말"),
     wordsEl(false), tipEl);
   else if (mode === "write") body = React.createElement("div", null,
-    React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a" } }, "오늘의 질문"),
+    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, "오늘의 질문"),
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45, marginBottom: 6 } }, q.t),
     q.nm ? React.createElement("div", { style: { fontSize: 12, color: "#9a5b2b", background: "#fff4e6", borderRadius: 8, padding: "5px 10px", marginBottom: 6 } }, "친구 이름은 쓰지 않아요. '어떤 친구가'라고 써요.") : null,
-    React.createElement("div", { style: { fontSize: 13, color: "#0e7490", marginTop: 6 } }, "관찰 · 무슨 일이 있었나요?"),
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 6 } }, "관찰 · 무슨 일이 있었나요?"),
     React.createElement("textarea", { value: form.o, maxLength: PLAZA_MAX, rows: 2, placeholder: "본 것, 들은 것을 그대로 써요",
       onChange: function (e) { setWarn(""); setForm({ ...form, o: e.target.value }); },
       style: { width: "100%", boxSizing: "border-box", marginTop: 3, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
-    React.createElement("div", { style: { fontSize: 13, color: "#0e7490", marginTop: 8 } }, "느낌 · 그때 마음은 어땠나요?",
-      React.createElement("span", { style: { fontSize: 11, color: "#8fa3ad", marginLeft: 6 } }, "다섯 개까지 골라요")),
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 8 } }, "느낌 · 그때 마음은 어땠나요?",
+      React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#6b8792", marginLeft: 6 } }, "다섯 개까지 골라요")),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5, maxHeight: 92, overflowY: "auto", padding: 2 } },
       chips.map(function (c) { return chipEl(c, form.fl.some(function (x) { return x.l === c.l; }), function () { toggleChip(c); }, 0.95); })),
-    React.createElement("div", { style: { fontSize: 11, color: "#8fa3ad", marginTop: 4 } }, "테두리가 점선이면 아직 내 섬에 없는 말이에요. 탭하면 뜻이 보여요."),
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#6b8792", marginTop: 4 } }, "테두리가 점선이면 아직 내 섬에 없는 말이에요. 탭하면 뜻이 보여요."),
     tipEl,
     React.createElement("input", { value: form.f, maxLength: PLAZA_MAX, placeholder: "한 줄로 덧붙여도 좋아요",
       onChange: function (e) { setWarn(""); setForm({ ...form, f: e.target.value }); },
       style: { width: "100%", boxSizing: "border-box", marginTop: 6, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit" } }),
-    React.createElement("div", { style: { fontSize: 13, color: "#0e7490", marginTop: 8 } }, "바람 · 어떻게 되면 좋겠나요?"),
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 8 } }, "바람 · 어떻게 되면 좋겠나요?"),
     React.createElement("textarea", { value: form.w, maxLength: PLAZA_MAX, rows: 2, placeholder: "이랬으면 좋겠다고 써요 (안 써도 괜찮아요)",
       onChange: function (e) { setWarn(""); setForm({ ...form, w: e.target.value }); },
       style: { width: "100%", boxSizing: "border-box", marginTop: 3, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
     warn ? React.createElement("div", { id: "plazaWarn", style: { marginTop: 8, fontSize: 13, color: "#b4532a", background: "#fff1ea", borderRadius: 8, padding: "6px 10px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
       React.createElement("span", { style: { flex: 1 } }, warn.text || warn),
       warn.name ? React.createElement("button", { onClick: function () { fixName(warn.name); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, color: "#b4532a", border: "1px solid #f0c9b3", background: "#fff" } }, "친구로 바꾸기") : null,
-      warn.name ? React.createElement("span", { style: { flexBasis: "100%", fontSize: 11, color: "#c47a5a" } }, "그대로 저장하면 선생님이 확인한 뒤에 보여요") : null) : null,
+      warn.name ? React.createElement("span", { style: { flexBasis: "100%", fontSize: 11, fontWeight: 700, color: "#c47a5a" } }, "그대로 저장하면 선생님이 확인한 뒤에 보여요") : null) : null,
     React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 } },
       React.createElement("button", { onClick: function () { setMode("view"); setWarn(""); setTip(null); }, style: { ...bSoft, padding: "7px 14px", fontSize: 14 } }, "취소"),
       React.createElement("button", { onClick: save, disabled: saving, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490", opacity: saving ? 0.6 : 1 } }, saving ? "저장 중…" : "저장")));
   else if (ans && fold) body = React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
     React.createElement("div", { style: { flex: "1 1 auto", minWidth: 0 } },
-      React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a" } }, "오늘의 질문 · 답을 썼어요"),
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684" } }, "오늘의 질문 · 답을 썼어요"),
       React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#0e7490", lineHeight: 1.4 } }, q.t)),
     React.createElement("button", { onClick: function () { setFold(false); }, style: { ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "내 답과 친구들의 답"));
   else body = React.createElement("div", null,
     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-      React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a", flex: 1 } }, "오늘의 질문"),
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684", flex: 1 } }, "오늘의 질문"),
       ans ? React.createElement("button", { onClick: function () { setFold(true); }, style: { ...bSoft, padding: "3px 10px", fontSize: 12 } }, "접기") : null),
     React.createElement("div", { "data-tut": "plz-q", style: { fontFamily: "'Jua',sans-serif", fontSize: 17, color: "#0e7490", lineHeight: 1.45 } }, q.t),
     !ans ? React.createElement("div", { "data-tut": "plz-how", style: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" } },
-      React.createElement("span", { style: { fontSize: 13, color: "#5b7684" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
+      React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#3a5561" } }, "관찰 · 느낌 · 바람 세 칸으로 답해요."),
       React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "7px 18px", fontSize: 14, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "답하기"))
     : React.createElement("div", null,
       React.createElement("div", { "data-tut": "plz-mine" }, ansCard(ans, true)),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" } },
-        ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, color: "#9a5b2b" } }, ans.nmf ? "이름이 들어 있어 선생님이 확인한 뒤에 보여요" : "선생님이 확인하고 있어요")
-        : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, color: "#0e7490" } }, "광장에 올라갔어요") : null,
+        ans.s === 2 ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#9a5b2b" } }, ans.nmf ? "이름이 들어 있어 선생님이 확인한 뒤에 보여요" : "선생님이 확인하고 있어요")
+        : ans.s === 1 ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#0e7490" } }, "광장에 올라갔어요") : null,
         ans.s !== 2 || ans.nmf ? React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "고치기") : null),
       // 광장은 섬을 키우지 않는다. 자동이 아니라 초대다 — 안 써도 아무것도 기록하지 않는다.
       bridge ? React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: "#0e7490", background: "#e6f4f7", borderRadius: 8, padding: "6px 10px" } }, "이 마음을 일기에도 써 보면 섬에 자라요") : null,
       React.createElement("div", { "data-tut": "plz-pub", style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#2f6a97", marginTop: 14 } }, "친구들의 답"),
       // 내 답은 위에 있으니 여기서는 뺀다. 문턱(3개)은 pub 전체로 세고 보이는 것만 거른다.
       pub.length ? pub.filter(function (p2) { return !p2.mine; }).map(function (p2, i) { return React.createElement(React.Fragment, { key: i }, ansCard(p2, false)); })
-        : React.createElement("div", { style: { fontSize: 13, color: "#7a8f9a", marginTop: 4 } }, "선생님이 고른 답이 여기에 이름 없이 올라와요.")),
+        : React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#5b7684", marginTop: 4 } }, "선생님이 고른 답이 여기에 이름 없이 올라와요.")),
     words.length ? React.createElement("div", { style: { marginTop: 14, paddingTop: 10, borderTop: "1px solid #e6eef1" } },
-      React.createElement("div", { style: { fontSize: 12, color: "#7a8f9a", marginBottom: 5 } }, "오늘 우리 반이 많이 쓴 마음 말"), wordsEl(true), tipEl) : null);
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#5b7684", marginBottom: 5 } }, "오늘 우리 반이 많이 쓴 마음 말"), wordsEl(true), tipEl) : null);
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
     React.createElement("div", { ref: hostRef, style: { position: "absolute", inset: 0 } }),
     React.createElement("style", null, "@keyframes isleReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
@@ -10090,9 +10107,9 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     err ? React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, color: "#475569", fontSize: 14, lineHeight: 1.8 } }, err) : null,
     React.createElement("button", { className: "tut-dim",
       onClick: onBack,
-      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
-    }, backLabel || "내 섬으로"),
-    React.createElement(SndBtn, { small: small, className: "tut-dim" }),
+      style: { position: "absolute", right: 10, top: 10, ...bBack }   // 돌아가는 길(2026-09-15 저녁, bBack)
+    }, "🏝 " + (backLabel || "내 섬으로")),
+    React.createElement(SndBtn, { small: small, className: "tut-dim", top: 52 }),
     // 튜토리얼 시작 팻말(2026-09-15). 내 섬·바다와 같은 모양. 한 번 본 뒤(localStorage tutPlaza)엔 물음표만
     onTour ? React.createElement("button", {
       className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
@@ -10773,9 +10790,9 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
                animation: "seaCover 460ms cubic-bezier(0.55,0,0.85,0.6) 0ms forwards" } }) : null,
     React.createElement("button", { className: "tut-dim",
       onClick: function () { if (api.current.homeSail) api.current.homeSail(); else onBack(null); },
-      style: { position: "absolute", right: 10, top: 10, ...bSoft, padding: "6px 14px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" }
-    }, "내 섬으로"),
-    React.createElement(SndBtn, { small: small, className: "tut-dim" }),
+      style: { position: "absolute", right: 10, top: 10, ...bBack }   // 돌아가는 길(2026-09-15 저녁, bBack)
+    }, "🏝 내 섬으로"),
+    React.createElement(SndBtn, { small: small, className: "tut-dim", top: 52 }),
     // 튜토리얼 시작 팻말(2026-09-15). 내 섬의 것과 같은 모양 — 처음이면 크게(빛 스침), 한 번 본 뒤(localStorage tutSea)엔 물음표만. #dev에서는 HUD 아래
     onTour ? React.createElement("button", {
       className: (tutSeen ? "isle-tour-btn seen" : "isle-tour-btn") + " tut-dim",
@@ -10814,7 +10831,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       todayIsle && !matches.length && !listOpen ? React.createElement("button", {
         "data-tut": "sea-today", onClick: function () { pick(todayIsle); },
         style: { display: "block", margin: "6px auto 0", padding: "6px 14px", borderRadius: 12, border: "1px solid #ffe2a8",
-                 background: "rgba(255,248,230,0.94)", cursor: "pointer", fontSize: 13, color: "#8a5a12", fontFamily: "inherit" }
+                 background: "rgba(255,248,230,0.94)", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#8a5a12", fontFamily: "inherit" }
       }, "오늘은 ", React.createElement("b", null, todayIsle.name), "의 섬에 놀러 가 볼까요?") : null,
       listOpen ? React.createElement("div", { style: { ...panel, marginTop: 6, maxHeight: "46vh", overflowY: "auto" } },
         names.length ? names.map(function (n) {
@@ -10823,15 +10840,15 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
             style: { display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none",
                      borderBottom: "1px solid #eef3f5", background: "transparent", cursor: "pointer", fontSize: 14, fontFamily: "inherit", color: "#28444f" }
           }, n.name);
-        }) : React.createElement("div", { style: { padding: 14, fontSize: 13, color: "#6b8792" } }, loading || "아직 친구 섬이 없어요")) : null),
+        }) : React.createElement("div", { style: { padding: 14, fontSize: 13, fontWeight: 600, color: "#4f6b77" } }, loading || "아직 친구 섬이 없어요")) : null),
     // 조작 안내
     !small ? React.createElement("div", { "data-tut": "sea-hint", className: "tut-dim",
       style: { position: "absolute", left: 10, bottom: 12, padding: "3px 9px", borderRadius: 8,
-               background: "rgba(255,255,255,0.78)", fontSize: 12, color: "#5b7684" }
+               background: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, color: "#2b4650" }   // 굵게·어둡게(2026-09-15 저녁)
     }, touch ? "섬을 누르면 배가 가요 · 끌어서 둘러보기" : "섬을 누르면 배가 가요 · 끌어서 둘러보기 · 휠로 확대") : null,
     loading ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", padding: "6px 14px", borderRadius: 10,
-               background: "rgba(255,255,255,0.86)", fontSize: 13, color: "#5b7684" }
+               background: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 700, color: "#2b4650" }
     }, loading) : null,
     // 고른 섬 배너. 배너가 곧 버튼이다(③-8과 같은 방식).
     sel && !sailing && !arrived ? React.createElement("div", { className: "tut-dim",
@@ -13043,22 +13060,28 @@ function HomeSigns(props) {
   }
   T.x = clampX(T.x, I2, W2);
   // 흔들림·빛 스침은 두 표지판이 주기·시작이 다르다(같이 움직이면 기계 같다)
-  var sign = function (I, W, extra, style) {
+  var sign = function (I, W, extra, style, hung) {   // hung: 판에 매달아 같이 흔들리는 조각(sign-sway 안, 2026-09-15 저녁)
     return React.createElement("button", { ...extra, className: "home-sign", style: { ...style, "--fx": I.fx * 100 + "%", "--mask": "url(" + I.src + ")", width: W } },
       React.createElement("span", { className: "sign-body" }, React.createElement("span", { className: "sign-sway" },
         React.createElement("img", { className: "sign-img", src: I.src, alt: "", width: I.w, height: I.h, draggable: false }),
-        React.createElement("span", { className: "sign-shine", "aria-hidden": true }))),
+        React.createElement("span", { className: "sign-shine", "aria-hidden": true }), hung || null)),
       React.createElement("span", { className: "sign-shadow", style: I === I2 ? { left: "22%", right: "22%" } : null }));
   };
   return React.createElement(React.Fragment, null,
     sign(I1, W1, { onClick: props.onLogin, "aria-label": "로그인" },
       { "--rot": "-2deg", "--sway": "5.6s", "--amp": "1deg", "--shine": "5s", left: L.x, top: L.y, zIndex: 3 }),
     sign(I2, W2, { onClick: props.onTrial, "aria-label": "로그인 없이 체험하기", title: "체험 모드에서는 일기가 저장되지 않습니다" },
-      { "--rot": "5deg", "--sway": "4.3s", "--amp": "1.6deg", "--sway-delay": "-1.7s", "--shine": "6s", "--shine-delay": "-2.6s", left: T.x, top: T.y, zIndex: 4, animationDelay: "0.15s" }),
-    // 체험 판 위 작은 나무 팻말 조각(2026-09-15, A안·문구 확정). 체험으로 들어가면 튜토리얼이 있다는 것을 첫 화면에서 알린다 — 간판 그림은 글자라 못 고치므로 따로 띄운다.
-    // 3D 팻말 밑 [스페이스] 표시·소리 버튼과 같은 WOOD_TAG. 발치(T.x, 기둥 가운데) 위 그림 높이(H2)만큼 올린 자리 = 판 위 모서리. 로그인 간판보다 작고 같은 나무 톤이라 겨루지 않는다. 클릭은 안 받는다
-    React.createElement("span", { "aria-hidden": true, style: { ...WOOD_TAG, position: "absolute", left: T.x, top: T.y - H2 - 14, transform: "translate(-50%, -100%) rotate(-3deg)", zIndex: 4, pointerEvents: "none",   // 14px: 판이 +5° 기울어 오른쪽 귀가 13px쯤 올라오고, 흔들림·hover 커짐이 더 있어도 안 닿게
-      padding: phone ? "3px 9px" : "5px 12px", fontSize: phone ? 12 : 14, fontFamily: HOME_FONT.body, fontWeight: HOME_FONT.bw } }, "✨ 들어가면 안내가 함께해요"));
+      { "--rot": "5deg", "--sway": "4.3s", "--amp": "1.6deg", "--sway-delay": "-1.7s", "--shine": "6s", "--shine-delay": "-2.6s", left: T.x, top: T.y, zIndex: 4, animationDelay: "0.15s" },
+      // 체험 판 위 작은 나무 팻말 조각(2026-09-15, A안). 체험으로 들어가면 튜토리얼이 있다는 것을 첫 화면에서 알린다 — 간판 그림은 글자라 못 고치므로 따로 띄운다.
+      // 같은 날 저녁: 화면 좌표에 따로 띄우던 것을 간판의 sign-sway 안에 넣었다 — 간판이 흔들리고(±1.6°) hover에 커지고 눌리면 내려앉을 때 같이 움직인다(전에는 가만히 있어 따로 놀았다).
+      // 자리는 그림(판) 위 모서리 가운데 14px 위, 판 기울기(+5°)에서 −4°라 거의 수평(+1°) — 판과 나란하지 않아 못으로 박은 다른 조각으로 읽힌다. 위 가운데 어두운 점이 못.
+      // 3D 팻말 밑 [스페이스] 표시·소리 버튼과 같은 WOOD_TAG, 로그인 간판보다 작고 같은 나무 톤이라 겨루지 않는다. 클릭은 안 받는다(button 안이지만 aria-hidden, 접근 이름은 aria-label).
+      // 폭은 판보다 좁아야 한다: 폰(판 150px쯤)은 11px 두 줄("여기에 / 튜토리얼도 있어요!", 낱말 중간에서 안 끊기게 br), 데스크톱은 한 줄, 판이 260px 아래로 줄면 13px. 1440~390 확인 renders 529.
+      React.createElement("span", { "aria-hidden": true, style: { ...WOOD_TAG, position: "absolute", left: "50%", top: -14, transform: "translate(-50%, -100%) rotate(-4deg)", pointerEvents: "none",
+        boxSizing: "border-box", textAlign: "center", lineHeight: 1.25,
+        padding: phone ? "8px 9px 4px" : "9px 12px 5px", fontSize: phone ? 11 : W2 < 260 ? 13 : 14, fontFamily: HOME_FONT.body, fontWeight: HOME_FONT.bw } },
+        React.createElement("span", { style: { position: "absolute", left: "50%", top: 3, width: 6, height: 6, marginLeft: -3, borderRadius: "50%", background: "#6b3a22", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 1px 1px rgba(0,0,0,0.3)" } }),
+        phone ? ["여기에", React.createElement("br", { key: "b" }), "튜토리얼도 있어요!"] : "여기에 튜토리얼도 있어요!")));
 }
 // 소개 섹션 "어떤 마음이든 자란다"(2026-09-13). 배치·움직임은 CSS(.intro …)에, 여기는 구조와 IntersectionObserver뿐.
 // 그림: intro/isle-16.webp(시연 시드 sc=24에 어휘 16가지를 네 영역 4개씩, 2320×1380) + 영역 확대 zoom-ha·la·lv·hv(같은 렌더의 dpr 2에서 잘라냄). 전부 lazy.
@@ -13648,6 +13671,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     if (!r) return;
     var demo = !!(currentUser && currentUser.schoolCode === DEMO_CODE), trial = page === "trial";
     r.textContent = demo ? (currentUser.teacherId ? MEM_NOTES.band : MEM_NOTES.studentBand(currentUser.name)) : MEM_NOTES.trialBand;
+    r.dataset.page = page;   // 자리는 CSS(#demo-ribbon[data-page]) — 일기 화면은 아래(위에 두면 탭 줄·좁은 폭의 버튼 줄에 얹힌다, 2026-09-15 저녁)
     r.hidden = !(demo || trial);
   }, [currentUser, page]);
   const [loginForm, setLF] = useState({
@@ -15244,6 +15268,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   if (page === "studentDiary" && currentUser) return React.createElement("div", {
     style: shell
   }, React.createElement("div", {
+    className: "diary-head",   // 세 칸 격자(2026-09-15 저녁): 제목이 화면 가운데. 배치는 CSS .diary-head
     style: {
       padding: "16px 24px",
       borderBottom: "1px solid #e5e7eb",
@@ -15252,12 +15277,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       WebkitBackdropFilter: "blur(8px)",
       position: "sticky",
       top: 0,
-      zIndex: 40,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      flexWrap: "wrap"
+      zIndex: 40
     }
   }, React.createElement("span", {
     style: {
@@ -15277,16 +15297,20 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       margin: "4px 0 0"
     }
   }, currentUser.schoolName)), React.createElement("div", {
+    className: "diary-btns",
     style: {
       display: "flex",
       gap: 6,
       flexWrap: "wrap",
-      justifyContent: "center"
+      justifyContent: "center",
+      alignItems: "center"
     }
   }, plazaBannerEl({ flexBasis: "100%", justifyContent: "center", marginBottom: 4 }),
   // 허브면 이 버튼은 "돌아가는" 쪽이다(내 섬으로). 3D가 안 뜬 세션에는 버튼 대신 한 줄.
   no3d || !webglOK() ? React.createElement("span", { style: { flexBasis: "100%", fontSize: 12, color: "#7a8f9a", marginBottom: 4 } }, "이 기기에서는 3D 섬을 볼 수 없어 일기 화면으로 왔어요. 일기는 그대로 쓸 수 있어요.")
-       : React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9", marginRight: 6 } }, ISLE_HUB && !isleOff() ? "내 섬으로" : "내 섬 보기"), React.createElement("button", { onClick: function () { openEmotionReport(currentUser.name, myEntries); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "리포트 저장"), React.createElement("button", {
+       : (ISLE_HUB && !isleOff()   // "내 섬으로"는 돌아가는 길이라 나머지 셋(리포트·비밀번호·로그아웃)보다 앞서 보인다(bBack, 2026-09-15 저녁). "내 섬 보기"(3D 안 쓰는 기기)는 그대로 흰 알약
+          ? React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bBack, marginRight: 8 } }, "🏝 내 섬으로")
+          : React.createElement("button", { onClick: function () { setPage("island"); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9", marginRight: 6 } }, "내 섬 보기")), React.createElement("button", { onClick: function () { openEmotionReport(currentUser.name, myEntries); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, color: "#0e7490", border: "1px solid #99d8c9" } }, "리포트 저장"), React.createElement("button", {
     onClick: function () {
       setShowPwChange(!showPwChange);
       setPwF({
