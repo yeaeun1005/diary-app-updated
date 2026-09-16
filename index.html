@@ -693,6 +693,21 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .c-lv { left: 50%; bottom: 5vh; width: 36%; transform: translateX(-50%) rotate(1.5deg); z-index: 4; }
 .c-piece .tag { position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%) rotate(var(--rot, 0deg)); }
 .c-lv .tag { bottom: -16px; }
+.c-ha .tag { left: 30%; }   /* 활기 조각 팻말은 세로 점선 위에 걸려 있어 왼쪽으로 옮긴다(2026-09-16). 점선 자리에 축 이름 "기운"이 온다 */
+/* 축 이름(2026-09-16, 사용자 A안): 세로 점선 "기운"(활기↔슬픔), 가로 점선 "긴장"(떨림↔평온). 이 십자는 Russell 평면을 45도 돌린 것이라 정서가·각성이 아니라
+   Thayer의 에너지·긴장 축으로 읽힌다(정서가·각성은 대각선). 내 섬 나침반 캡션과 같은 말. 점선 색 글자로 선 옆에 — 팻말이면 조각 팻말과 구분이 안 된다.
+   .c-isle 안에 둔다: 세로는 섬 그림 위 가장자리 위·선 오른씽, 가로는 섬 그림 왼쪽 가장자리·선 위쪽(가로 점선은 장면 50%, 섬 중심은 48%라 조금 아래). 세로 화면(≤760)은 점선이 없어 함께 숨긴다 */
+.c-axis { position: absolute; z-index: 4; color: #f0c383; font-family: 'Maplestory', 'Gowun Dodum', sans-serif; font-weight: 700; font-size: 15px; line-height: 1; letter-spacing: 1px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.55), 0 0 10px rgba(0,50,70,0.6); pointer-events: none; white-space: nowrap; }
+.c-axis-v { left: calc(50% + 10px); top: -30px; }
+.c-axis-h { left: -12px; top: calc(50% - 8px); }
+/* 특장점 팻말 셋(2026-09-16, 사용자 ㉠): 나침반의 빈 물 모서리 — 오른쪽 위(어휘)·왼쪽 아래(비폭력대화)·오른쪽 아래(리포트). 제목 팻말과 같은 재질, 두 줄 허용 폭 250px.
+   문구는 후보 ②(2026-09-16 확정). 수치: EMOTIONS_28 30가지 · kw 262개(중복 없음, WORDS.md) */
+.tag-feat { position: absolute; z-index: 4; white-space: normal; word-break: keep-all; width: max-content; max-width: 250px; font-size: 15px; padding: 4px 10px 3px; border-width: 20px 21px 23px 22px; text-align: left; }
+.tag-feat small { font-size: 11px; line-height: 1.35; margin-top: 2px; }
+.tag-f1 { right: 24px; top: 20px; } .tag-f2 { left: 24px; bottom: 20px; } .tag-f3 { right: 24px; bottom: 20px; }
+.tag-feat.rise { transform: translateY(24px) rotate(var(--rot, 0deg)); } .intro.in .tag-feat.rise { transform: rotate(var(--rot, 0deg)); }
+@media (max-width: 1000px) and (orientation: landscape) { .tag-feat { max-width: 210px; } .tag-f2, .tag-f3 { bottom: 130px; } }   /* 800×600: 슬픔 팻말(폭 325px)이 아래 모서리까지 와서 겹친다 → 좁히고 떨림·평온 팻말 아래로 올린다 */
 .c-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .c-lines line { stroke: #f0c383; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 11; vector-effect: non-scaling-stroke; opacity: 0.55; }
 /* 떠오르기: .in이 붙기 전에는 아래 24px에 투명. 순서는 --d(초) */
@@ -705,6 +720,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 @media (min-width: 761px) and (max-width: 1000px) and (orientation: portrait) {
   /* 태블릿 세로: 나침반은 유지하되 폭이 좁으니 비율을 키운다(섬 56%, 옆 24%, 위 30%, 아래 46%) */
   .c-isle { width: 56%; } .c-ha { width: 30%; top: 14vh; } .c-la, .c-hv { width: 24%; } .c-lv { width: 46%; bottom: 14vh; }   /* 위·아래 조각을 섬 쪽으로 당겨 가운데 빈 물을 줄인다 */
+  .tag-feat { max-width: 200px; font-size: 14px; }
 }
 @media (max-width: 760px) {
   /* 세로 화면: 나침반이 풀린다. 제목, 섬(폭 88%), 그 아래 조각 넷을 지그재그(활기 왼쪽·평온 오른쪽·슬픔 왼쪽 크게·떨림 오른쪽)로 40px씩 겹쳐 한 화면에 */
@@ -716,19 +732,20 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
   .c-ha { order: 1; } .c-la { order: 2; } .c-lv { order: 3; margin-top: -6px; } .c-hv { order: 4; }
   .c-ha { align-self: flex-start; margin-top: -6px; transform: rotate(-2deg); } .c-la { align-self: flex-end; transform: rotate(2deg); }
   .c-lv { align-self: flex-start; width: 72%; transform: rotate(-1.5deg); } .c-hv { align-self: flex-end; transform: rotate(2deg); }
-  .c-lines { display: none; }
+  .c-lines, .c-axis { display: none; }
+  .tag-feat { position: static; order: 5; margin: 16px auto 0; max-width: 88%; white-space: normal; }   /* 조각 넷 뒤에 세로로 */
   .tag { font-size: 15px; border-width: 18px 19px 21px 20px; } .tag small { font-size: 11px; }
   .c-piece .tag { bottom: -18px; } .c-lv .tag { bottom: -14px; }
-  .rise, .c-isle.rise, .c-ha.rise, .c-la.rise, .c-hv.rise, .c-lv.rise, .tag-title.rise { transform: translateY(24px); }
+  .rise, .c-isle.rise, .c-ha.rise, .c-la.rise, .c-hv.rise, .c-lv.rise, .tag-title.rise, .tag-feat.rise { transform: translateY(24px); }
   .intro.in .rise { transform: none; } .intro.in .c-ha { transform: rotate(-2deg); } .intro.in .c-la { transform: rotate(2deg); } .intro.in .c-lv { transform: rotate(-1.5deg); } .intro.in .c-hv { transform: rotate(2deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .intro-bg, .bubble { animation: none !important; } .bubble { display: none; }
   .rise, .intro .rise { opacity: 1 !important; transition: none !important; }
   .c-isle.rise { transform: translate(-50%, -50%); } .c-ha.rise { transform: translateX(-50%) rotate(-2deg); } .c-la.rise { transform: translateY(-50%) rotate(2deg); }
-  .c-hv.rise { transform: translateY(-50%) rotate(-2.5deg); } .c-lv.rise { transform: translateX(-50%) rotate(1.5deg); } .tag-title.rise { transform: rotate(var(--rot, 0deg)); }
+  .c-hv.rise { transform: translateY(-50%) rotate(-2.5deg); } .c-lv.rise { transform: translateX(-50%) rotate(1.5deg); } .tag-title.rise, .tag-feat.rise { transform: rotate(var(--rot, 0deg)); }
 }
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .c-isle.rise, .c-piece.rise, .tag-title.rise { transform: none; } .c-ha.rise { transform: rotate(-2deg); } .c-la.rise { transform: rotate(2deg); } .c-lv.rise { transform: rotate(-1.5deg); } .c-hv.rise { transform: rotate(2deg); } }
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .c-isle.rise, .c-piece.rise, .tag-title.rise, .tag-feat.rise { transform: none; } .c-ha.rise { transform: rotate(-2deg); } .c-la.rise { transform: rotate(2deg); } .c-lv.rise { transform: rotate(-1.5deg); } .c-hv.rise { transform: rotate(2deg); } }
 /* 첫 화면 아래 34vh: 모래 바닥이 소개 섹션 맨 위 물색(#1a86ad)으로 녹는다(표지판 뒤, z 2). 끝은 완전 불투명이라 경계에서 위아래 색이 같다.
    처음(12vh, 0.88)은 짧고 덜 덮어 가로선이 보였다(2026-09-13, renders 303) */
 .hero-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 34vh; z-index: 2; pointer-events: none;
@@ -812,7 +829,7 @@ html.tut-on.tut-walk .isle-pad{visibility:visible}   /* 숨긴 상자 안의 대
 .tut-skip:focus-visible,.tut-next:focus-visible{outline:2px solid #ffd77a;outline-offset:2px}
 #demo-ribbon{position:fixed;right:10px;top:96px;z-index:9999;background:#f59e0b;color:#1f2937;font:600 12px/1 'Gowun Dodum',sans-serif;padding:7px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;white-space:nowrap}
 /* 900px 아래서는 띠를 두 줄로 접는다(폭 44vw까지, 2026-09-15 저녁) — 한 줄 띠가 800 폭 일기 화면의 둘째 줄 버튼(로그아웃)에 얹혔다 */
-@media (max-width: 899px){#demo-ribbon{white-space:normal;max-width:44vw;text-align:center;line-height:1.3;padding:5px 12px}}
+@media (max-width: 899px){#demo-ribbon{white-space:normal;max-width:46vw;text-align:center;line-height:1.3;padding:5px 12px}}   /* 46vw(2026-09-16, 전 44vw): 시연 학생 이름이 "탐험이"로 한 글자 늘자 800 폭에서 두 줄이 됐다. 500 아래 규칙과 같은 값 */
 /* 500px 아래(2026-09-15 저녁): 3D 화면은 바다의 친구 찾기 칸(66~104px) 밑(112px)으로. 일기 화면은 위에 두면 버튼 줄에 얹히므로 아래 가운데 한 줄(스크롤되는 기록 위 footer처럼).
    넓은 화면의 일기 화면은 그대로 위 96px — 탭 상자("탐험일지 보기") 위 7px과 겹치지만 탭 글자(131px~)와는 9px 떨어져 가리는 것이 없다 */
 @media (max-width: 500px){#demo-ribbon{top:112px;max-width:46vw}#demo-ribbon[data-page="studentDiary"]{top:auto;bottom:10px;left:10px;right:10px;max-width:none}}
@@ -906,6 +923,9 @@ function josa(name, pair) {   // pair: "이가" | "이는" | "이에게"
 // 나침반 단어. HV는 "분노"가 아니라 "떨림"이다(2026-09-06). 긴장·불안·부끄러움·경악이 다 이 영역인데
 // "분노"로 뜨면 아이가 이상하게 느낀다. 좌표(EMOTIONS_28의 q)는 그대로고 이름만 다르다.
 var Q_NAME = { HA: "활기", LA: "평온", LV: "슬픔", HV: "떨림" };
+// 나침반 두 축 이름(2026-09-16, 사용자 A안). 세로(활기↔슬픔) "기운", 가로(떨림↔평온) "긴장". 히어로 소개 섹션과 내 섬 나침반이 같은 상수를 쓴다.
+// 나침반은 Russell 평면을 45도 돌린 것이라 이 두 선은 정서가·각성이 아니다(그건 대각선). 에너지·긴장(Thayer) 축으로 읽는 것이 그림과 맞는다.
+var AXIS_NAMES = { v: "기운", h: "긴장" };
 const EMOTIONS_28 = [{
   name: "excited",
   label: "신남",
@@ -7162,6 +7182,31 @@ function buildIsland(seedStr, opts) {
   grp.userData.stairs = stairInfo;
   return grp;
 }
+// 나침반 십자와 연 모양(2026-09-16). size: 원 지름(px). words: 영역(q)이 든 마음 말 목록. kite: 연을 그릴 목록(null이면 십자만 — 친구 섬).
+// 꼭짓점 반지름 = R × (0.12 + 0.88 × n/max). R은 이름 넷 안쪽(지름의 0.31). 십자는 옅은 점선. 채움: 꼭짓점마다 QC 색 방사 그라디언트, 연 모양 클립.
+function compassKite(size, words, kite, small) {
+  var c = size / 2, R = size * (small ? 0.24 : 0.31), order = ["HA", "LA", "LV", "HV"];   // 폰 74px에서는 0.31이면 꼭짓점이 이름 글자에 닿는다   // 위·오른쪽·아래·왼쪽(화면 기준, 내 섬 방위)
+  var dir = { HA: [0, -1], LA: [1, 0], LV: [0, 1], HV: [-1, 0] };
+  var n = { HA: 0, LA: 0, LV: 0, HV: 0 };
+  (kite || []).forEach(function (em) { var q = QC[em.q] ? em.q : "LA"; n[q]++; });
+  var mx = Math.max(n.HA, n.LA, n.LV, n.HV);
+  var pts = order.map(function (q) { var r = mx ? R * (0.12 + 0.88 * n[q] / mx) : R * 0.12; return [c + dir[q][0] * r, c + dir[q][1] * r]; });
+  var poly = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+  var uid = "ck" + size + (kite ? "m" : "f");
+  return React.createElement("svg", { width: size, height: size, viewBox: "0 0 " + size + " " + size, style: { position: "absolute", left: 0, top: 0 }, "aria-hidden": true },
+    React.createElement("line", { x1: c, y1: size * 0.17, x2: c, y2: size * 0.83, stroke: "#8fa3ad", strokeWidth: 1, strokeDasharray: "2 3", opacity: 0.8 }),
+    React.createElement("line", { x1: size * 0.17, y1: c, x2: size * 0.83, y2: c, stroke: "#8fa3ad", strokeWidth: 1, strokeDasharray: "2 3", opacity: 0.8 }),
+    kite ? React.createElement("defs", null,
+      React.createElement("clipPath", { id: uid + "clip" }, React.createElement("polygon", { points: poly })),
+      order.map(function (q, i) {
+        return React.createElement("radialGradient", { key: q, id: uid + q, gradientUnits: "userSpaceOnUse", cx: pts[i][0], cy: pts[i][1], r: Math.max(6, Math.hypot(pts[i][0] - c, pts[i][1] - c) * 1.15) },
+          React.createElement("stop", { offset: "0%", stopColor: QC[q], stopOpacity: 0.85 }), React.createElement("stop", { offset: "100%", stopColor: QC[q], stopOpacity: 0 }));
+      })) : null,
+    kite ? React.createElement("g", { clipPath: "url(#" + uid + "clip)" },
+      React.createElement("polygon", { points: poly, fill: "#e6eef1" }),
+      order.map(function (q) { return React.createElement("polygon", { key: q, points: poly, fill: "url(#" + uid + q + ")" }); })) : null,
+    kite ? React.createElement("polygon", { points: poly, fill: "none", stroke: "#3f5560", strokeWidth: 1, strokeOpacity: 0.55, strokeLinejoin: "round" }) : null);
+}
 // 감정 어휘 -> 섬 상태. 종류만 센다. 횟수는 쓰지 않는다(양치기 방지).
 // 누적이다. 한 번 생긴 식생은 사라지지 않는다. DESIGN.md §5.
 function islandState(entries) {
@@ -8142,7 +8187,7 @@ function seedMode() {
   try { return /(?:^|[#&])seed\b/.test(window.location.hash || ""); } catch (e) { return false; }
 }
 var DEMO_CODE = "DEMO01";
-// 체험 간판이 들어가는 시연 학생(2026-09-14, C안). DEMO.md의 학생 A 하준(d07). 비밀번호는 demo/seed-data.js의 D.PW와 같고 이미 공개된 가상 계정이다.
+// 체험 간판이 들어가는 시연 학생(2026-09-14, C안). DEMO.md의 학생 A 탐험이(d07, 2026-09-16 전 이름 하준). 비밀번호는 demo/seed-data.js의 D.PW와 같고 이미 공개된 가상 계정이다.
 // 학생 계정만 연다 — 시연 교사는 DEMO.md의 비밀번호로만 들어간다. 시연 학급이라 쓰기는 세션 메모리에만 남는다(MEM_ONLY).
 var DEMO_TRIAL = { lid: "d07", pw: "1234" };
 // lv층 평지가 가장 좁아지는 각도. ③-5에서 1층만 0.85를 지키고 2층은
@@ -8806,7 +8851,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       window.removeEventListener("orientationchange", onR);
     };
   }, []);
-  const compass = small ? 74 : 104;
+  const compass = small ? 74 : 128;   // 128(2026-09-16, 전 104): 축 캡션과 연 모양이 들어간다. 폰은 그대로
   const fleetN = fleetCount();
   useEffect(function () { if (ffNew && nearPlant && ffNew[nearPlant.key]) setFfNew(null); }, [nearPlant]);   // 새 반딧불 안내는 그 꽃에 가 보면 사라진다
   // 3D가 안 뜨면 허브에 갇힌다 — 일기조차 못 쓴다(§3의 걱정). 바로 일기 화면으로 보낸다.
@@ -9592,11 +9637,18 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
                background: "rgba(255,255,255,0.72)", boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
                fontSize: 11, color: "#3f5560", userSelect: "none" }
     },
+      // 연 모양(2026-09-16, 사용자 1번): 네 방향으로 그 영역의 마음 말 종류 수에 비례한 꼭짓점 → 사각 연. 채움은 꼭짓점마다 QC 색이 가운데로 번지는 방사 그라디언트 넷(연 모양으로 클립).
+      // 정규화는 내 섬에서 가장 많은 영역 기준(그쪽이 원 가득) — 어느 쪽이 무성한지가 질문이라. 0인 방향은 짧은 밑둥(0.12R)만 남아 "없음"이 보이고, 전부 0이면 작은 마름모.
+      // 내 섬만 그린다. 친구 섬은 목록·숫자를 막은 것과 같은 이유(§7 비교 금지)로 이름 넷과 십자만. 글자 색은 QC보다 어두운 기존 톤(흰 바탕 11px에서 QC 원색은 대비가 낮다)
+      compassKite(compass, vocabList, !isFriend && fleetN === 0 ? vocabList : null, small),
       React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 7, textAlign: "center", color: "#c96a1f", fontWeight: 700 } }, "활기"),
       React.createElement("div", { style: { position: "absolute", right: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#3d8b78", fontWeight: 700 } }, "평온"),
       React.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: 7, textAlign: "center", color: "#4a72a0", fontWeight: 700 } }, "슬픔"),
       React.createElement("div", { style: { position: "absolute", left: 7, top: 0, bottom: 0, display: "flex", alignItems: "center", color: "#7d5ba6", fontWeight: 700 } }, "떨림"),
-      React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 7, height: 7, marginLeft: -3.5, marginTop: -3.5, borderRadius: "50%", background: "#9fb0bb" } })),
+      // 축 캡션(2026-09-16, 사용자 ㉠): 세로선 옆 "기운", 가로선 위 "긴장". 히어로와 같은 AXIS_NAMES. 폰(74px)에는 자리가 없어 생략
+      small ? null : React.createElement("div", { style: { position: "absolute", left: "50%", top: 30, marginLeft: 6, fontSize: 9, fontWeight: 700, color: "#5b7684", letterSpacing: 0.5, textShadow: "0 0 3px #fff, 0 0 3px #fff" } }, AXIS_NAMES.v),
+      small ? null : React.createElement("div", { style: { position: "absolute", left: 31, top: "50%", marginTop: -14, fontSize: 9, fontWeight: 700, color: "#5b7684", letterSpacing: 0.5, textShadow: "0 0 3px #fff, 0 0 3px #fff" } }, AXIS_NAMES.h),
+      React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5, borderRadius: "50%", background: "#3f5560" } })),
     React.createElement("div", { className: "tut-dim",
       "data-tut": "vocab",
       style: { position: "absolute", right: 12, bottom: 12, padding: small ? "4px 9px" : "6px 12px",
@@ -9611,27 +9663,47 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
     // 내 섬(2026-09-15 저녁): 칩을 누르면 내가 쓴 마음 말 목록이 영역별로 보이고, 말을 누르면 뜻. 개수는 제목에 두지 않는다 — 목록이 주인공.
     // 친구 섬: 목록 없이 설명만. 종류·수를 한눈에 늘어놓으면 "누가 더 많이"가 된다(DESIGN §7의 비교 금지). 친구 섬의 말은 걸어가 꽃 앞에서 하나씩 본다
     vocabTip && fleetN === 0 ? React.createElement("div", { className: "tut-dim",
-      style: { position: "absolute", right: touch ? 12 + 3 * (small ? 38 : 42) + 8 + 8 : 12, bottom: 52, width: isFriend ? 220 : "min(92vw, 340px)", maxHeight: "min(60vh, 520px)", overflowY: "auto", boxSizing: "border-box",
+      style: { position: "absolute", right: touch ? 12 + 3 * (small ? 38 : 42) + 8 + 8 : 12, bottom: 52, width: isFriend ? 220 : small ? "min(92vw, 340px)" : "min(92vw, 460px)", maxHeight: "min(60vh, 520px)", overflowY: "auto", boxSizing: "border-box",
                padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.96)",
                boxShadow: "0 2px 12px rgba(0,0,0,0.16)", fontSize: 12, fontWeight: 700, color: "#2b4650", lineHeight: 1.6 }
     },
       isFriend ? josa(friend.name, "이가") + " 일기에 쓴 마음 말이에요. 꽃과 나무에 다가가면 하나씩 보여요. 반딧불은 친구들이 '나도 그래' 한 마음이에요."
       : [
-        React.createElement("div", { key: "h", style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#0e7490", marginBottom: 6 } }, "내가 쓴 마음 말"),
-        vocabList.length ? ["HA", "LA", "LV", "HV"].map(function (qk) {
-          var ws = vocabList.filter(function (em) { return (QC[em.q] ? em.q : "LA") === qk; });
-          if (!ws.length) return null;
-          return React.createElement("div", { key: qk, style: { marginBottom: 6 } },
-            React.createElement("div", { style: { fontSize: 11, color: QC[qk], marginBottom: 3 } }, Q_NAME[qk]),
-            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } },
-              ws.map(function (em) {
-                var on = vocabPick && vocabPick.label === em.label;
-                return React.createElement("button", { key: em.label, type: "button",
-                  onClick: function () { setVocabPick(on ? null : { label: em.label, q: qk, m: emoMeaning(em.label) || "" }); },
-                  style: { padding: "3px 9px", borderRadius: 999, fontSize: 12, fontFamily: "inherit", cursor: "pointer", lineHeight: 1.4,
-                           border: on ? "2px solid " + QC[qk] : "1px solid " + QC[qk] + "88", background: QB[qk] || "#f4f8fa", color: "#28444f", fontWeight: on ? 700 : 500 } }, em.label);
-              })));
-        }) : React.createElement("div", { key: "e", style: { fontWeight: 600, color: "#5b7684" } }, "아직 쓴 마음 말이 없어요. 일기를 쓰면 여기에 모여요."),
+        // 나침반 모양 표(2026-09-16, 사용자 ㉠): 3×3 격자의 십자 칸 — 활기 위·떨림 왼쪽·평온 오른쪽·슬픔 아래, 가운데 칸에 제목과 수. 칸 크기가 같아 어느 칸이 붐비는지가 보인다.
+        // 빈 영역은 점선 칸에 "아직 없어요"(표 모양이 늘 보이게). 폰(small)은 자리가 없어 전처럼 세로 목록. 알약은 전과 같다(QB 바탕, 누르면 뜻)
+        small ? React.createElement("div", { key: "h", style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#0e7490", marginBottom: 6 } }, "내가 쓴 마음 말") : null,
+        (function () {
+          var cell = function (qk) {
+            var ws = vocabList.filter(function (em) { return (QC[em.q] ? em.q : "LA") === qk; });
+            var pills = ws.map(function (em) {
+              var on = vocabPick && vocabPick.label === em.label;
+              return React.createElement("button", { key: em.label, type: "button",
+                onClick: function () { setVocabPick(on ? null : { label: em.label, q: qk, m: emoMeaning(em.label) || "" }); },
+                style: { padding: "3px 9px", borderRadius: 999, fontSize: 12, fontFamily: "inherit", cursor: "pointer", lineHeight: 1.4,
+                         border: on ? "2px solid " + QC[qk] : "1px solid " + QC[qk] + "88", background: QB[qk] || "#f4f8fa", color: "#28444f", fontWeight: on ? 700 : 500 } }, em.label);
+            });
+            if (small) {
+              if (!ws.length) return null;
+              return React.createElement("div", { key: qk, style: { marginBottom: 6 } },
+                React.createElement("div", { style: { fontSize: 11, color: QC[qk], marginBottom: 3 } }, Q_NAME[qk]),
+                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, pills));
+            }
+            var area = { HA: "1 / 2", HV: "2 / 1", LA: "2 / 3", LV: "3 / 2" }[qk];
+            return React.createElement("div", { key: qk, "data-q": qk, style: { gridArea: area, minHeight: 64, padding: "6px 7px", borderRadius: 10, boxSizing: "border-box",
+                border: ws.length ? "1px solid " + QC[qk] + "55" : "1px dashed #b9c6cd", background: ws.length ? "rgba(255,255,255,0.6)" : "transparent" } },
+              React.createElement("div", { style: { fontSize: 11, color: QC[qk], marginBottom: 4 } }, Q_NAME[qk]),
+              ws.length ? React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 } }, pills)
+                        : React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#9aa7b0", marginTop: 6 } }, "아직 없어요"));
+          };
+          if (small) return vocabList.length ? ["HA", "LA", "LV", "HV"].map(cell)
+            : React.createElement("div", { key: "e", style: { fontWeight: 600, color: "#5b7684" } }, "아직 쓴 마음 말이 없어요. 일기를 쓰면 여기에 모여요.");
+          return React.createElement("div", { key: "grid", "data-vocab": "grid", style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gridAutoRows: "auto", gap: 6, alignItems: "stretch" } },
+            cell("HA"), cell("HV"),
+            React.createElement("div", { key: "c", style: { gridArea: "2 / 2", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 6 } },
+              React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 15, color: "#0e7490", lineHeight: 1.2 } }, "내가 쓴", React.createElement("br"), "마음 말"),
+              React.createElement("div", { style: { fontSize: 12, color: "#5b7684", marginTop: 4 } }, vocabList.length ? vocabList.length + "가지" : "아직 없어요")),
+            cell("LA"), cell("LV"));
+        })(),
         vocabPick ? React.createElement("div", { key: "p", style: { marginTop: 4, padding: "7px 10px", borderRadius: 10, background: QB[vocabPick.q] || "#f4f8fa", fontWeight: 600, color: "#3a5561" } },
           React.createElement("b", { style: { color: QC[vocabPick.q] || "#0e7490" } }, vocabPick.label), " ", vocabPick.m || "내가 직접 쓴 마음 말이에요") : null,
         React.createElement("div", { key: "l", style: { marginTop: 8, paddingTop: 6, borderTop: "1px solid #e6eef1", fontSize: 11, fontWeight: 600, color: "#5b7684" } },
@@ -13235,7 +13307,12 @@ function IntroSection() {
   var piece = function (cls, src, w, h, alt, rot, tagRot, d, title, sub) {
     return React.createElement("figure", { className: "c-piece " + cls + " rise", style: { "--d": d } },
       React.createElement("img", { src: src, alt: alt, loading: "lazy", width: w, height: h }),
-      React.createElement("figcaption", { className: "tag", style: { "--rot": tagRot } }, title, React.createElement("small", null, sub)));
+      React.createElement("figcaption", { className: "tag", style: { "--rot": tagRot } }, title, sub ? React.createElement("small", null, sub) : null));
+  };
+  // 특장점 팻말(2026-09-16). 문구 후보 ②, 자리 ㉠(빈 물 모서리 셋). 어휘 수는 EMOTIONS_28·kw에서 세어 넣는다 — 사전이 바뀌면 글도 따라간다
+  var nWords = EMOTIONS_28.length, nKw = EMOTIONS_28.reduce(function (s, e) { return s + e.kw.length; }, 0);
+  var feat = function (cls, rot, d, title, sub) {
+    return React.createElement("div", { className: "tag tag-feat " + cls + " rise", style: { "--rot": rot, "--d": d } }, title, React.createElement("small", null, sub));
   };
   return React.createElement("section", { className: "intro", id: "intro", ref: ref },
     React.createElement("div", { className: "intro-bg", "aria-hidden": true }), React.createElement("div", { className: "intro-rays", "aria-hidden": true }),
@@ -13247,10 +13324,16 @@ function IntroSection() {
         React.createElement("line", { x1: 50, y1: 50, x2: 50, y2: 14 }), React.createElement("line", { x1: 50, y1: 50, x2: 86, y2: 50 }),
         React.createElement("line", { x1: 50, y1: 50, x2: 50, y2: 86 }), React.createElement("line", { x1: 50, y1: 50, x2: 14, y2: 50 })),
       React.createElement("figure", { className: "c-isle rise", style: { "--d": "0.1s" } },
-        React.createElement("img", { src: "intro/isle-16.webp", alt: "마음 말 16가지가 네 영역에 고르게 자란 섬", loading: "lazy", width: 2320, height: 1380 })),
-      piece("c-ha", "intro/zoom-ha.webp", 740, 340, "활기 영역: 밝은 꽃과 열매나무", "-2deg", "2deg", "0.25s", "활기", "꽃과 열매나무"),
-      piece("c-la", "intro/zoom-la.webp", 480, 330, "평온 영역: 물웅덩이와 큰 나무", "2deg", "-2deg", "0.35s", "평온", "물웅덩이와 큰 나무"),
-      piece("c-hv", "intro/zoom-hv.webp", 638, 370, "떨림 영역: 물결과 바위", "-2.5deg", "2.5deg", "0.45s", "떨림", "물결과 바위"),
+        React.createElement("img", { src: "intro/isle-16.webp", alt: "마음 말 16가지가 네 영역에 고르게 자란 섬", loading: "lazy", width: 2320, height: 1380 }),
+        // 축 이름(2026-09-16): 영역 이름은 팻말에서 빼고 두 축에 붙인다. 내 섬 나침반의 캡션(AXIS_NAMES)과 같은 말
+        React.createElement("span", { className: "c-axis c-axis-v", "aria-label": "세로축 " + AXIS_NAMES.v }, AXIS_NAMES.v),
+        React.createElement("span", { className: "c-axis c-axis-h", "aria-label": "가로축 " + AXIS_NAMES.h }, AXIS_NAMES.h)),
+      piece("c-ha", "intro/zoom-ha.webp", 740, 340, "활기 영역: 밝은 꽃과 열매나무", "-2deg", "2deg", "0.25s", "꽃과 열매나무", null),
+      piece("c-la", "intro/zoom-la.webp", 480, 330, "평온 영역: 물웅덩이와 큰 나무", "2deg", "-2deg", "0.35s", "물웅덩이와 큰 나무", null),
+      piece("c-hv", "intro/zoom-hv.webp", 638, 370, "떨림 영역: 물결과 바위", "-2.5deg", "2.5deg", "0.45s", "물결과 바위", null),
+      feat("tag-f1", "2deg", "0.6s", "'보람이 있었다'도 '뿌듯'으로", nKw + "가지 표현을 알아보고 " + nWords + "가지 마음 말로 모아요"),
+      feat("tag-f2", "-1.5deg", "0.7s", "관찰 · 느낌 · 바람", "비폭력대화의 틀로 마음을 적고, 그 말로 섬을 꾸며요"),
+      feat("tag-f3", "1.5deg", "0.8s", "한 달의 마음을 한 장으로", "학생 리포트와 교사 요약, 일기 본문 없이"),
       React.createElement("figure", { className: "c-piece c-lv rise", style: { "--d": "0.55s" } },
         React.createElement("img", { src: "intro/zoom-lv.webp", alt: "슬픔 영역: 갈대, 흰 들꽃, 등불", loading: "lazy", width: 976, height: 536 }),
         React.createElement("figcaption", { className: "tag tag-key", style: { "--rot": "-1.5deg" } }, "슬픈 날을 적어도 섬이 나빠지지 않습니다",
@@ -14530,7 +14613,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     return true;
   };
   const studentLogin = () => studentLoginWith(loginForm.schoolCode.trim().toUpperCase(), loginForm.loginId.trim(), loginForm.password.trim());
-  // 시연 학생(DEMO_TRIAL, 하준)으로 들어간다(2026-09-14, C안). 체험 간판과 로그인 창의 "시연 학급으로 들어가기"가 부른다.
+  // 시연 학생(DEMO_TRIAL, 탐험이)으로 들어간다(2026-09-14, C안). 체험 간판과 로그인 창의 "시연 학급으로 들어가기"가 부른다.
   // 못 들어가면(시연 학급이 없거나 DB가 안 닿거나 http라 해시를 못 만들면) onFail — 체험 간판은 예전 체험 모드(일기만)로, 로그인 창은 그 자리의 안내문으로.
   // 두 번 눌러도 한 번만 돈다(demoBusy). 교사 계정은 열지 않는다.
   const demoBusy = useRef(false);
@@ -14891,7 +14974,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }), React.createElement(HomeSigns, {
     // 카드·패널 없이(2026-09-10) 모래 위 나무 표지판이 로그인이다. 동선은 그대로(setAuthOpen / setPage("trial"))
     onLogin: function () { setMsg(""); setAuthOpen(true); },
-    // 체험 간판 = 시연 학생 하준으로 자동 로그인(2026-09-14, C안). 일기만 있던 체험 모드는 못 들어갔을 때의 대비로만 남는다.
+    // 체험 간판 = 시연 학생 탐험이로 자동 로그인(2026-09-14, C안). 일기만 있던 체험 모드는 못 들어갔을 때의 대비로만 남는다.
     onTrial: function () { setMsg(""); setTE([]); demoLogin(function () { setMsg(""); setPage("trial"); }); }
   })), React.createElement("div", {
     // 제목: 왼쪽 위, 크게, 살짝 기울여. 부제는 2026-09-12에 뺐고, 같은 날 글자를 그림(title.webp, 1431×269, 투명 배경)으로 바꿨다.
@@ -14968,7 +15051,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, React.createElement("button", {
     className: "auth-link", onClick: () => { setMsg(""); setAuthView("register"); }
   }, "탐험대를 처음 만드나요? 등록하기 →")), loginForm.role !== "teacher" && React.createElement("div", {
-    // 시연 학급으로 들어가기(2026-09-14, C안). 체험 간판과 같은 길(시연 학생 하준). 계정을 모르는 심사위원이 여기서도 3D에 닿는다. 실패하면 위 안내문(msgBox)에 이유가 뜬다
+    // 시연 학급으로 들어가기(2026-09-14, C안). 체험 간판과 같은 길(시연 학생 탐험이). 계정을 모르는 심사위원이 여기서도 3D에 닿는다. 실패하면 위 안내문(msgBox)에 이유가 뜬다
     style: { marginTop: 14, textAlign: "right" }
   }, React.createElement("button", {
     className: "auth-link", onClick: () => { setMsg(""); demoLogin(null); }
