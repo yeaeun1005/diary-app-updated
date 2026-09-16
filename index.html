@@ -1823,6 +1823,49 @@ var PLAZA_CATS = [
     "오늘 내 기분을 색깔로 말한다면?",
     "\"기분이 좋다\" 말고 다른 말로 표현해본다면?" ] }
 ];
+// 오늘의 질문 자동 목록 30개(2026-09-16 사용자 확정). 학급 데이터를 보고 고르지 않는다 — 순서대로 뽑는다(§9: 앱이 교사 판단을 대신하지 않는다).
+// 초등 5학년이 답할 수 있고, 감정 어휘를 쓰게 이끌며, 가벼운 것(웃음·날씨·급식·주말)과 조금 깊은 것(속상함·화·혼자·걱정)이 세 개에 하나쯤 번갈아 온다.
+// nm: 친구가 등장할 수 있는 질문 — 광장에 "이름은 쓰지 않기" 안내가 함께 뜬다. cat은 PLAZA_CATS의 분류 id(교사가 고쳐 올릴 때 폼의 분류로 쓴다).
+// 순서는 질문 노드의 ai(자동 목록 번호)로 잇는다: 다음 기본값 = (지금까지 올린 질문 중 가장 큰 ai + 1) % 길이. 한 바퀴 돌면 처음으로 돌아가고 화면에 그렇게 알린다.
+// 교사가 문구를 고쳐 올려도 ai는 그대로라 순서가 밀리지 않는다. 직접 쓴 질문(ai 없음)은 순서에 세지 않는다.
+var PLAZA_AUTO_QS = [
+  { t: "오늘 내 마음을 한 단어로 고르면 무엇인가요? 그 말을 고른 이유도 써 봐요.", cat: "words", nm: false },
+  { t: "요즘 나를 가장 많이 웃게 한 건 뭐였나요?", cat: "self", nm: false },
+  { t: "말은 안 했지만 속상했던 적이 있나요? 그때 어떤 마음이었나요?", cat: "other", nm: true },
+  { t: "오늘 하루 중 마음이 가장 편안했던 때는 언제였나요?", cat: "self", nm: false },
+  { t: "오늘 내 기분을 날씨로 말하면 무엇인가요?", cat: "words", nm: false },
+  { t: "화가 났다가 풀린 적이 있나요? 무엇이 마음을 풀어 줬나요?", cat: "self", nm: false },
+  { t: "최근에 \"뿌듯하다\"고 느낀 순간이 있었나요?", cat: "self", nm: false },
+  { t: "친구가 어떤 행동을 했을 때 고마웠나요?", cat: "other", nm: true },
+  { t: "우리 반이 이랬으면 좋겠다고 생각한 게 있나요?", cat: "wish", nm: true },
+  { t: "심심할 때 나는 무엇을 하나요? 그러면 마음이 어떻게 바뀌나요?", cat: "self", nm: false },
+  { t: "요즘 새로 알게 된 마음 말이 있나요? 어떤 뜻인지 내 말로 써 봐요.", cat: "words", nm: false },
+  { t: "혼자 있는 시간이 좋을 때와 싫을 때, 마음이 어떻게 다른가요?", cat: "self", nm: false },
+  { t: "오늘 급식이나 간식 중에 마음까지 좋아지게 한 게 있었나요?", cat: "self", nm: false },
+  { t: "\"긴장된다\"와 \"설렌다\"는 어떻게 다를까요? 내가 겪은 일로 써 봐요.", cat: "words", nm: false },
+  { t: "실수했는데 괜찮았던 적이 있나요? 그때 누가 무슨 말을 해 줬나요?", cat: "other", nm: true },
+  { t: "요즘 기대되는 일이 있나요? 기다리는 마음은 어떤 느낌인가요?", cat: "self", nm: false },
+  { t: "좋아하는 노래나 게임, 책을 할 때 마음은 어떤 색인가요?", cat: "words", nm: false },
+  { t: "요즘 부끄러웠던 순간이 있나요? 지나고 보니 어떤가요?", cat: "self", nm: false },
+  { t: "최근에 \"다행이다\" 하고 마음이 놓였던 일이 있었나요?", cat: "self", nm: false },
+  { t: "요즘 누군가에게 \"고마워\"라고 말하고 싶은 순간이 있었나요?", cat: "other", nm: true },
+  { t: "친구에게 부탁하고 싶은데 말 못 한 게 있나요?", cat: "wish", nm: true },
+  { t: "주말에 마음이 가장 느긋했던 때는 언제였나요?", cat: "self", nm: false },
+  { t: "\"기분이 좋다\" 말고 다른 말로 표현해 본다면?", cat: "words", nm: false },
+  { t: "걱정이 있을 때 나는 어떻게 하나요? 그러면 마음이 조금 나아지나요?", cat: "self", nm: false },
+  { t: "오늘 몸이 피곤했나요, 마음이 피곤했나요? 어떻게 다른가요?", cat: "words", nm: false },
+  { t: "나를 웃게 하는 우리 반 순간을 하나 골라 봐요.", cat: "other", nm: true },
+  { t: "오늘 누군가를 도와준 일이 있나요? 그때 내 마음은요?", cat: "other", nm: true },
+  { t: "요즘 \"지루하다\"고 느낀 때가 있나요? 그때 하고 싶었던 건요?", cat: "words", nm: false },
+  { t: "오늘 내 마음 섬에 새로 심고 싶은 마음 말은 무엇인가요?", cat: "words", nm: false },
+  { t: "이번 주 나에게 해 주고 싶은 말을 한 줄로 써 봐요.", cat: "self", nm: false }
+];
+function plazaAutoNext(qs) {
+  var N = PLAZA_AUTO_QS.length; if (!N) return null;
+  var mx = -1; (qs || []).forEach(function (q) { if (typeof q.ai === "number" && q.ai > mx) mx = q.ai; });
+  var i = (mx + 1) % N;
+  return { i: i, n: N, q: PLAZA_AUTO_QS[i], wrapped: mx >= 0 && i === 0 };
+}
 function plazaCleanText(t) {
   return String(t == null ? "" : t).replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, PLAZA_MAX);
 }
@@ -1836,11 +1879,11 @@ async function plazaCurrent(code) {
   return { id: String(cur), t: q.t || "", cat: q.cat || "", nm: !!q.nm, ts: q.ts || 0 };
 }
 // 질문 올리기(교사). 이전 질문이 열려 있으면 같은 update 안에서 마감한다.
-async function plazaAsk(code, text, cat, nm, prevId) {
+async function plazaAsk(code, text, cat, nm, prevId, ai) {   // ai: 자동 목록 번호(2026-09-16). 직접 쓴 질문은 null
   var t = plazaCleanText(text);
   if (!code || !t) return null;
-  var qid = "q" + nowTs(), o = {};
-  o["q/" + qid] = { t: t, cat: cat || "", nm: !!nm, ts: nowTs(), open: true };
+  var qid = "q" + nowTs() + "_" + Math.random().toString(36).slice(2, 6), o = {};   // 난수 꼬리(2026-09-16): 같은 밀리초에 두 번 누르면 아이디가 겹쳐 앞 질문이 덮였다. 정렬은 ts로 하므로 꼬리는 무해
+  o["q/" + qid] = { t: t, cat: cat || "", nm: !!nm, ts: nowTs(), open: true, ai: typeof ai === "number" ? ai : null };
   o["cur"] = qid;
   if (prevId) { o["q/" + prevId + "/open"] = false; o["q/" + prevId + "/closed"] = nowTs(); }
   await dbRef(plazaKey(code)).update(o);
@@ -1861,7 +1904,7 @@ async function plazaQuestions(code) {
   if (!o) return [];
   return Object.keys(o).map(function (k) {
     var q = o[k] || {};
-    return { id: k, t: q.t || "", cat: q.cat || "", nm: !!q.nm, ts: q.ts || 0, open: !!q.open, closed: q.closed || 0 };
+    return { id: k, t: q.t || "", cat: q.cat || "", nm: !!q.nm, ts: q.ts || 0, open: !!q.open, closed: q.closed || 0, ai: typeof q.ai === "number" ? q.ai : null };
   }).sort(function (a, b) { return b.ts - a.ts; });
 }
 function plazaAnswerShape(sid, e) {
@@ -4623,26 +4666,9 @@ var PHRASES = {
     "": ["요즘 몸이랑 마음이 좀 지쳐 있어?", "뭘 해도 재미없다고 느낄 때 있어?", "요즘 잠은 잘 자?", "쉬는 시간이 충분해?"]
   }
 };
-// ── 특수 상황 — "이 아이의 패턴이 달라졌다" (2026-09-14, PHRASES.md「특수 상황」) ──
-// 「살펴봐 주세요」("힘들어 보인다")와 성격이 다르다. 우울 신호가 없어도 뜰 수 있고, 작성이 끊긴 아이는 애초에 신호가 잡힐
-// 데이터가 없어 살펴봐 주세요에는 뜰 수 없다. 기준은 전부 SHIFT 상수다 — 시연 학급(30명) 실측: 단조 0·끊김 0(데이터에 사례가 없다,
-// 최근 7일 어휘 최소 3·마지막 뒤 수업일 최대 1)·기복 6(사분면만 다르면 11 = 37%라 너무 많아 긍정·부정이 같은 날 갈릴 때만 센다).
-var SHIFT = {
-  prevDays: 14, prevMinVocab: 5,        // ① 이전 14일에 서로 다른 감정 어휘 5개 이상이었는데
-  recentDays: 7, recentMaxVocab: 2,     //    최근 7일에 2개 이하. 이전 어휘가 적던 아이(5 미만)는 제외
-  recentMinEntries: 2,                  //    최근 7일에 2편은 있어야 "단조"다. 0~1편이면 끊김 쪽 문제다
-  gapSchoolDays: 3, gapLookbackDays: 30,   // ② 마지막 작성 뒤 수업일 3일 경과. 30일 안에 쓴 적이 없으면 아예 안 쓰는 아이라 뺀다
-  holidayFrac: 0.1,                     //    주말 제외 + 학급 작성자가 정원의 10% 이하인 평일은 학교 안 간 날(공휴일)로 본다
-  swingDays: 3, swingWindowDays: 7,     // ③ 최근 7일 중, 같은 날 안에 다른 영역 감정이 함께 잡힌 날 3일 이상
-  swingSplit: "valence"                 //    "valence": 긍정(HA·LA)과 부정(HV·LV)이 같은 날 · "quadrant": 사분면만 다르면(즐거움+편안도 셈)
-};
-var SHIFT_LABEL = { mono: "감정 어휘가 단조로워짐", gap: "작성이 끊김", swing: "감정 기복이 큼" };
-// 문구는 PHRASES.md「특수 상황」 그대로. 새로 쓰지 않는다.
-var PHRASES_SHIFT = {
-  mono: ["요즘 마음을 말로 하기가 좀 어려워?", "쓸 말이 잘 안 떠올라?"],
-  gap: ["요즘 일기 쓰기가 부담스러워?", "안 써도 괜찮아. 그냥 요즘 어떻게 지내는지 궁금해서."],
-  swing: ["요즘 마음이 왔다 갔다 하는 것 같아?", "하루 중에 기분이 크게 달라질 때가 있어?"]
-};
+// ── 수업일 판정 ── 2026-09-14 「요즘 달라진 아이」(patternShifts·SHIFT·PHRASES_SHIFT)에서 쓰던 것. 카드와 판정은 2026-09-16 제거(사용자) — 되살리려면 DESIGN §9-④·PHRASES「특수 상황」 참고.
+// 남은 것은 「말 걸어봤어요」의 수업일 셈(talkSchoolDays)이 쓰는 이 함수와 shiftMD뿐이다. 이름은 하네스·check.js가 쓰므로 그대로 둔다.
+var TALK_HOLIDAY_FRAC = 0.1;   // 주말 제외 + 학급 작성자가 정원의 10% 이하인 평일은 학교 안 간 날(공휴일)로 본다(전 SHIFT.holidayFrac)
 // 학급 전체 일기로 "수업일"을 판정하는 함수를 만든다. 주말이 아니고, 그날 쓴 아이가 정원의 holidayFrac보다 많으면 수업일이다.
 // 학급 달력이 앱에 없어서 쓰는 방법이다 — 재량휴업일·공휴일에는 아무도 안 쓴다. 오늘 아침처럼 아직 몇 명뿐이면 오늘도 안 센다(보수적).
 function shiftSchoolDayFn(entriesById, classSize) {
@@ -4651,54 +4677,10 @@ function shiftSchoolDayFn(entriesById, classSize) {
     var seen = {};
     (entriesById[id] || []).forEach(function (e) { if (!e || !e.ts) return; var d = dayStamp(e.ts); if (!seen[d]) { seen[d] = 1; writers[d] = (writers[d] || 0) + 1; } });
   });
-  var holidayMax = Math.max(1, Math.floor(classSize * SHIFT.holidayFrac));
+  var holidayMax = Math.max(1, Math.floor(classSize * TALK_HOLIDAY_FRAC));
   return function (ts) { var w = new Date(ts).getDay(); if (w === 0 || w === 6) return false; return (writers[dayStamp(ts)] || 0) > holidayMax; };
 }
 function shiftMD(ts) { var d = new Date(ts); return (d.getMonth() + 1) + "." + d.getDate(); }
-// students: [{id, name}], entriesById: {id: [entry]}, now: ms. 돌려주는 것: [{ id, name, kinds: [{kind, why}], phrases: {kind: [문구]} }]
-function patternShifts(students, entriesById, now) {
-  var DAY = 86400000, out = [], isSchoolDay = shiftSchoolDayFn(entriesById, students.length);
-  var isPos = function (q) { return q === "HA" || q === "LA"; };
-  students.forEach(function (s) {
-    var es = (entriesById[s.id] || []).filter(function (e) { return e && e.ts; }), kinds = [];
-    // ① 어휘 단조
-    var prev = {}, rec = {}, recN = 0;
-    es.forEach(function (e) {
-      var age = now - e.ts, labs = ((e.analysis && e.analysis.hits) || []).map(function (h) { return h && h.label; }).filter(Boolean);
-      if (age < 0) return;
-      if (age < SHIFT.recentDays * DAY) { recN++; labs.forEach(function (l) { rec[l] = 1; }); }
-      else if (age < (SHIFT.recentDays + SHIFT.prevDays) * DAY) labs.forEach(function (l) { prev[l] = 1; });
-    });
-    var pv = Object.keys(prev).length, rv = Object.keys(rec).length;
-    if (pv >= SHIFT.prevMinVocab && recN >= SHIFT.recentMinEntries && rv <= SHIFT.recentMaxVocab)
-      kinds.push({ kind: "mono", why: "이전 " + SHIFT.prevDays + "일 어휘 " + pv + "가지 → 최근 " + SHIFT.recentDays + "일 " + rv + "가지" + (rv ? "(" + Object.keys(rec).join("·") + ")" : "") + " · 최근 " + recN + "편" });
-    // ② 작성 끊김 — 마지막 작성일 다음 날부터 오늘까지 수업일을 센다
-    var last = 0; es.forEach(function (e) { if (e.ts > last && e.ts <= now) last = e.ts; });
-    if (last && now - last < SHIFT.gapLookbackDays * DAY) {
-      var cnt = 0, days = [], t0 = new Date(last); t0.setHours(12, 0, 0, 0);
-      for (var t = t0.getTime() + DAY; t <= now; t += DAY) if (isSchoolDay(t)) { cnt++; days.push(shiftMD(t)); }
-      if (cnt >= SHIFT.gapSchoolDays) kinds.push({ kind: "gap", why: "마지막 작성 " + shiftMD(last) + " · 그 뒤 수업일 " + cnt + "일(" + days.join("·") + ")" });
-    }
-    // ③ 감정 기복 — 하루 안에서 갈리는 것을 본다
-    var byDay = {};
-    es.forEach(function (e) {
-      if (now - e.ts < 0 || now - e.ts >= SHIFT.swingWindowDays * DAY) return;
-      var d = dayStamp(e.ts); byDay[d] = byDay[d] || { ts: e.ts, q: {} };
-      ((e.analysis && e.analysis.hits) || []).forEach(function (h) { if (h && h.q) byDay[d].q[h.q] = 1; });
-    });
-    var sw = Object.keys(byDay).sort().filter(function (d) {
-      var qs = Object.keys(byDay[d].q);
-      return SHIFT.swingSplit === "valence" ? (qs.some(isPos) && qs.some(function (q) { return !isPos(q); })) : qs.length >= 2;
-    });
-    if (sw.length >= SHIFT.swingDays)
-      kinds.push({ kind: "swing", why: "최근 " + SHIFT.swingWindowDays + "일 중 " + sw.length + "일 · " + sw.map(function (d) { return shiftMD(byDay[d].ts) + " " + Object.keys(byDay[d].q).map(function (q) { return Q_NAME[q] || q; }).join("+"); }).join(" · ") });
-    if (kinds.length) {
-      var ph = {}; kinds.forEach(function (k) { ph[k.kind] = pickN(PHRASES_SHIFT[k.kind], 2); });   // 목록 계산 시 한 번만 섞는다
-      out.push({ id: s.id, name: s.name || s.loginId || "학생", kinds: kinds, phrases: ph });
-    }
-  });
-  return out;
-}
 // 배열에서 n개를 무작위로 고른다. 렌더링마다 바뀌면 안 되므로 목록 계산 시 한 번만 부른다.
 function pickN(arr, n) {
   var a = (arr || []).slice();
@@ -13931,18 +13913,19 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
           isLast && nextBtn ? null : h("button", { className: "tut-skip", onClick: onSkip }, "튜토리얼 끝내기"),
           nextBtn && h("button", { className: "tut-next", onClick: onNext }, isLast ? "다 봤어요" : "다음")))));   // 마지막은 "다 봤어요"(2026-09-15 확정)
 }
-// ── 교사 대시보드 투어(3단계, 2026-09-15, 문구 A안 확정) ──
+// ── 교사 대시보드 투어(2026-09-15, 문구 A안 확정 · 2026-09-16 「요즘 달라진 아이」 단계 제거, 「말 걸어봤어요·다시 볼 때예요」 단계 추가, 두 문구는 ②(짧게)로 확정) ──
 // 대상은 전부 정지한 DOM(data-tut="t-…" 카드). 화면 순서대로 짚고, 없는 카드는 skipMissing으로 건너뛴다. 전부 inert(설명만) — 구멍 안 [보기]가 모달을 열지 않게.
-// 기준 숫자는 코드에서 그대로: 살펴봐 = 최근 7일 중 4일 이상(SAD_EMOS 감정 또는 CESD_KEYWORDS 문구, 우울 선별·분노 제외), 달라진 아이 = SHIFT 셋(DESIGN.md).
+// 기준 숫자는 코드에서 그대로: 살펴봐 = 최근 7일 중 4일 이상(SAD_EMOS 감정 또는 CESD_KEYWORDS 문구, 우울 선별·분노 제외), 다시 볼 때예요 = 말 건 뒤 수업일 TALK_RETURN_DAYS(3).
+// t-talk는 「다시 볼 때예요」 띠(있을 때) 또는 첫 「말 걸어봤어요」 버튼 — 살펴봐 학생이 없으면 둘 다 없어 skipMissing으로 빠진다
 function teacherTourSteps() {
   var S = function (t, title, text, extra) { return Object.assign({ target: t, title: title, text: text, next: "button", inert: true, radius: 18, pad: 6 }, extra || {}); };
   return [
     S("t-consent", "보호자 동의", "만 14세 미만 학생의 정보를 모으려면 보호자 동의가 먼저예요. 양식을 열어 받은 뒤 확인에 표시하면 아래 학생 추가가 열려요."),
     S("t-add", "학생 추가", "학생을 한 명씩 추가하거나, 아래 일괄 등록에서 번호로 한꺼번에 만들 수 있어요. 아이디와 비밀번호를 아이에게 알려 주세요."),
     S("t-watch", "살펴봐 주세요", "최근 7일 중 4일 이상, 일기에 슬픔·외로움·피곤 같은 감정이나 '혼자'·'울적' 같은 말이 잡힌 학생이에요. 우울 선별 척도(CES-D)에서 가져온 기준이라 화난 아이는 여기 뜨지 않아요. 진단이 아니라 살펴볼 신호이고, 판단은 선생님이 해요. 카드에 며칠인지, 자주 나온 감정, 그때의 상황이 함께 있어요."),
-    S("t-shift", "요즘 달라진 아이", "힘들어 보이는 신호와는 별개로, 일기 패턴이 이전과 달라진 학생이에요. 셋 중 하나예요 — 어휘가 단조로워짐(2주 전 5가지 이상이던 감정 말이 최근 7일 2가지 이하), 작성이 끊김(마지막 일기 뒤 수업일 3일), 감정 기복(같은 날 긍정과 부정이 함께 잡힌 날이 7일 중 3일). 우울 신호가 없어도 뜨고, 살펴봐 주세요와 같은 아이가 둘 다 뜰 수 있어요."),
+    S("t-talk", "말 걸어봤어요", "말을 걸어봤으면 [말 걸어봤어요]. 수업일 사흘 뒤 「다시 볼 때예요」로 다시 올라오고, 그 사이 일기가 어떻게 달라졌는지 세 줄로 보여요. 면담 기록은 남지 않아요.", { radius: 12 }),   // 문구 ②(2026-09-16 사용자 확정)
     S("t-emp", "나도 그래", "친구 섬에서 주고받는 공감이에요. 최근 7일에 받지 못한 학생과 보내지 않은 학생을 보여 줘요. 지시가 아니라 정보예요."),
-    S("t-plaza", "광장", "반 전체가 보는 광장이에요. 오늘의 질문을 올리고 마감하며, 아이들의 답변을 여기서 관리해요."),
+    S("t-plaza", "광장", "오늘의 질문은 준비된 목록에서 차례로 나와요. 그대로 올리거나 고쳐 써도 돼요. 아이들의 답은 선생님이 고른 것만 이름 없이 광장에 보여요."),   // 문구 ②(2026-09-16 사용자 확정)
     S("t-roster", "학생 명단", "[항해 일지]를 누르면 그 아이의 일기를 읽을 수 있어요. [오늘 참여 현황]은 오늘 누가 썼는지와 많이 쓴 감정 말이에요.")
   ];
 }
@@ -14326,14 +14309,12 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   const [myStudents, setMS] = useState([]);
   const [watchList, setWatchList] = useState([]);
   const [openPhr, setOpenPhr] = useState({}); // 대화 문구 펼침 상태. 기본은 접힘.
-  const [shiftList, setShiftList] = useState([]);   // 특수 상황(패턴 변화) — 살펴봐 주세요와 별개(2026-09-14)
-  const [openShift, setOpenShift] = useState({});
   // ⑥-2 "나도 그래"를 최근 7일 받지 못한 / 보내지 않은 학생. 소외는 양쪽에서 시작된다.
   // 개수는 교사에게도 보여주지 않는다 — 이름만. §9의 선대로 정보까지만.
   const [empGap, setEmpGap] = useState(null);
   // ⑤ 광장. 질문 올리기·마감, 답변 목록, 상태(비공개/광장/숨김). 새로고침으로만 읽는다.
   const [plz, setPlz] = useState({ qs: [], cur: null, ans: [], hist: {}, loading: false });
-  const [plzForm, setPlzForm] = useState({ cat: "self", text: "", nm: false, open: false });
+  const [plzForm, setPlzForm] = useState({ cat: "self", text: "", nm: false, open: false, ai: null });   // ai: 자동 질문 번호(2026-09-16). 고쳐서 올려도 그대로 두어 순서가 잇는다
   const [plzHist, setPlzHist] = useState(false);
   const plzCode = currentUser && currentUser.teacherId ? currentUser.schoolCode : "";
   const loadPlaza = useCallback(async function () {
@@ -14351,12 +14332,22 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     var t = plzForm.text.trim();
     if (!t) { setMsg("질문을 써 주세요."); return; }
     if (plz.cur && !confirm("지금 올라가 있는 질문을 마감하고 새 질문을 올릴까요?")) return;
-    try { await plazaAsk(plzCode, t, plzForm.cat, plzForm.nm, plz.cur ? plz.cur.id : null); }
+    try { await plazaAsk(plzCode, t, plzForm.cat, plzForm.nm, plz.cur ? plz.cur.id : null, plzForm.ai); }
     catch (e) { console.error("plazaAsk:", e); setMsg("질문을 올리지 못했어요. Firebase 규칙에 plaza 경로가 있는지 확인해 주세요."); return; }
-    setPlzForm({ cat: plzForm.cat, text: "", nm: false, open: false });
+    setPlzForm({ cat: plzForm.cat, text: "", nm: false, open: false, ai: null });
     setMsg("✅ 광장에 질문을 올렸어요.");
     await loadPlaza();
   }
+  // 자동 질문 그대로 올리기(2026-09-16). 미리 채워진 다음 질문을 그대로. 고치려면 plzEditAuto가 폼을 그 글로 연다
+  async function plzAskAuto(auto) {
+    if (!auto) return;
+    if (plz.cur && !confirm("지금 올라가 있는 질문을 마감하고 새 질문을 올릴까요?")) return;
+    try { await plazaAsk(plzCode, auto.q.t, auto.q.cat, auto.q.nm, plz.cur ? plz.cur.id : null, auto.i); }
+    catch (e) { console.error("plazaAsk:", e); setMsg("질문을 올리지 못했어요. Firebase 규칙에 plaza 경로가 있는지 확인해 주세요."); return; }
+    setMsg("✅ 광장에 오늘의 질문을 올렸어요.");
+    await loadPlaza();
+  }
+  function plzEditAuto(auto) { setPlzForm({ cat: auto.q.cat || "self", text: auto.q.t, nm: !!auto.q.nm, open: true, ai: auto.i }); }
   async function plzClose() {
     if (!plz.cur || !confirm("이 질문을 마감할까요? 광장에서 사라지고 여기에는 남아요.")) return;
     try { await plazaClose(plzCode, plz.cur.id); } catch (e) { console.error("plazaClose:", e); return; }
@@ -14398,12 +14389,20 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
           React.createElement("button", { onClick: function () { plzState(a, a.s === 2 ? 0 : 2); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, color: "#9a5b2b", border: "1px solid #f0d7bd" } }, a.s === 2 ? "숨김 풀기" : "숨기기")));
     };
     var cat = PLAZA_CATS.filter(function (c) { return c.id === plzForm.cat; })[0] || PLAZA_CATS[0];
+    var auto = plazaAutoNext(plz.qs), todayPosted = !!(plz.cur && dayStamp(plz.cur.ts) === dayStamp());   // 오늘 이미 올렸으면 자동 블록을 접는다(2026-09-16)
     var nPub = plz.ans.filter(function (a) { return a.s === 1; }).length;
     var closed = plz.qs.filter(function (x) { return !x.open; });
     return React.createElement("div", { key: "plaza", "data-tut": "t-plaza", style: { ...crd, marginBottom: 16 } },
       React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "광장"),
       React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 10, lineHeight: 1.6 } },
-        "오늘의 질문은 필요할 때만 올려요. 아이들은 자유롭게 답하고 마음 말을 골라요. 선생님이 고른 답만 이름 없이 광장 게시판과 카드에 보여요(3개 이상일 때)."),
+        "오늘의 질문이 순서대로 준비되어 있어요. 그대로 올리거나 고쳐서 올려요. 아이들은 자유롭게 답하고 마음 말을 골라요. 선생님이 고른 답만 이름 없이 광장 게시판과 카드에 보여요(3개 이상일 때)."),
+      // 자동 질문 미리 채움(2026-09-16). 오늘 올린 질문이 없을 때(없거나 지난 날 것) 다음 질문을 보이고 [그대로 올리기]·[고쳐서 올리기]. 순서는 ai로 잇고, 한 바퀴 돌면 알린다
+      auto && !todayPosted ? React.createElement("div", { "data-tut": "t-plaza-auto", style: { background: "#fffaf0", border: "1px solid #f1e3c4", borderLeft: "3px solid #e0a23a", borderRadius: 12, padding: "10px 14px 12px", marginBottom: 10 } },
+        React.createElement("div", { style: { fontSize: 12, color: "#9a6b1c", fontWeight: 700 } }, "오늘의 질문 · 준비된 것 ", auto.i + 1, " / ", auto.n, auto.wrapped ? " · 한 바퀴 돌아 처음 질문으로 돌아왔어요" : "", auto.q.nm ? " · '이름은 쓰지 않기' 안내 포함" : ""),
+        React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#0e7490", lineHeight: 1.5, marginTop: 4 } }, auto.q.t),
+        React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 8, flexWrap: "wrap" } },
+          React.createElement("button", { onClick: function () { plzEditAuto(auto); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13 } }, "고쳐서 올리기"),
+          React.createElement("button", { onClick: function () { plzAskAuto(auto); }, style: { ...bSoft, padding: "6px 14px", fontSize: 13, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, plz.cur ? "지금 질문을 마감하고 그대로 올리기" : "그대로 올리기"))) : null,
       plz.cur ? React.createElement("div", { style: { background: "#f4fafb", border: "1px solid #cfe6ec", borderRadius: 12, padding: "10px 14px 12px" } },
         React.createElement("div", { style: { fontSize: 12, color: "#5b9bb5" } }, "지금 올라간 질문 · ", dayStamp(plz.cur.ts), plz.cur.nm ? " · '이름은 쓰지 않기' 안내" : ""),
         React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#0e7490", lineHeight: 1.5, marginTop: 2 } }, plz.cur.t),
@@ -14416,12 +14415,12 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
           : React.createElement("div", { style: { fontSize: 13, color: "#9aa7b0", marginTop: 8 } }, "아직 답한 학생이 없어요."))
       : React.createElement("div", { style: { fontSize: 14, color: "#7d8b95", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, padding: "12px 14px" } }, "지금은 올라간 질문이 없어요. 광장에는 오늘 우리 반이 많이 쓴 마음 말이 보여요."),
       React.createElement("div", { style: { marginTop: 12 } },
-        React.createElement("button", { onClick: function () { setPlzForm({ ...plzForm, open: !plzForm.open }); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" } }, plzForm.open ? "질문 올리기 접기" : "질문 올리기"),
+        React.createElement("button", { onClick: function () { setPlzForm({ ...plzForm, open: !plzForm.open, ai: plzForm.open ? null : plzForm.ai }); }, style: { ...bSoft, padding: "6px 12px", fontSize: 13, background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" } }, plzForm.open ? "질문 올리기 접기" : "직접 써서 올리기"),   // 2026-09-16: 기본은 위 자동 질문, 이건 직접 쓰기
         plzForm.open ? React.createElement("div", { style: { marginTop: 10, border: "1px solid #e3edf1", borderRadius: 12, padding: "10px 14px 12px" } },
           React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
             PLAZA_CATS.map(function (c) { return React.createElement("button", { key: c.id, onClick: function () { setPlzForm({ ...plzForm, cat: c.id, nm: c.nm }); }, style: { ...bSoft, padding: "4px 10px", fontSize: 12, background: c.id === plzForm.cat ? "#0e7490" : "#f1f5f9", color: c.id === plzForm.cat ? "#fff" : "#1e293b" } }, c.name); })),
           React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4, marginTop: 8 } },
-            cat.qs.map(function (t) { return React.createElement("button", { key: t, onClick: function () { setPlzForm({ ...plzForm, text: t, nm: cat.nm }); }, style: { ...bSoft, textAlign: "left", padding: "6px 10px", fontSize: 13, fontWeight: 400, background: plzForm.text === t ? "#e6f4f7" : "#fff" } }, t); })),
+            cat.qs.map(function (t) { return React.createElement("button", { key: t, onClick: function () { setPlzForm({ ...plzForm, text: t, nm: cat.nm, ai: null }); }, style: { ...bSoft, textAlign: "left", padding: "6px 10px", fontSize: 13, fontWeight: 400, background: plzForm.text === t ? "#e6f4f7" : "#fff" } }, t); })),
           React.createElement("textarea", { value: plzForm.text, rows: 2, maxLength: PLAZA_MAX, placeholder: "직접 써도 돼요. 상황을 묻되 사람을 묻지 않아요.",
             onChange: function (e) { setPlzForm({ ...plzForm, text: e.target.value }); },
             style: { width: "100%", boxSizing: "border-box", marginTop: 8, padding: "8px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
@@ -14541,14 +14540,6 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       if (!cancelled) setWatchList(out);
     })();
     return function () { cancelled = true; };
-  }, [diaryById]);
-  // 특수 상황(패턴 변화). 살펴봐 주세요와 따로 돈다 — 그쪽 로직은 건드리지 않는다. 학급 전체 일기를 한 번에 모아 수업일 판정에도 쓴다.
-  useEffect(function () {
-    if (!diaryById) return;
-    if (!myStudents.length) { setShiftList([]); return; }
-    var out = patternShifts(myStudents, diaryById, nowTs());
-    if (devMode()) window.__shift = out;   // 하네스: 판정 근거 확인
-    setShiftList(out);
   }, [diaryById]);
   // 「말 걸어봤어요」(2026-09-15, DESIGN §9-⑤). talkMap: {학생id: 말 건 시각}. 교사 전용 노드에서 읽고, 누르면 낙관적으로 갱신한 뒤 쓴다.
   // 시연 계정은 dbRef 관문이 MEM_OPS에만 쓰므로 그 세션에서만 사라지고 새로고침하면 돌아온다. 저장되는 것은 id와 시각뿐이다
@@ -15817,11 +15808,10 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     readOnly: false,
     userId: currentUser ? currentUser.id : null
   })));
-  // 말 걸어봤어요(2026-09-15): 누른 아이는 두 카드에서 빠진다(표시는 학생당 하나). 「다시 볼 때예요」는 살펴봐 카드 맨 위
+  // 말 걸어봤어요(2026-09-15): 누른 아이는 살펴봐 카드에서 빠진다(표시는 학생당 하나). 「다시 볼 때예요」는 살펴봐 카드 맨 위. 2026-09-16: 「요즘 달라진 아이」 카드가 없어져 여기에만 있다
   var watchShown = watchList.filter(function (w) { return !talkMap[String(w.id)]; });
-  var shiftShown = shiftList.filter(function (w) { return !talkMap[String(w.id)]; });
   var talkBtn = function (id) {
-    return React.createElement("button", { onClick: function () { markTalk(id); }, title: "이 아이에게 말을 걸어봤다고 표시해요. 수업일 사흘 뒤 「다시 볼 때예요」로 올라와요",
+    return React.createElement("button", { "data-tut": "t-talk", onClick: function () { markTalk(id); }, title: "이 아이에게 말을 걸어봤다고 표시해요. 수업일 사흘 뒤 「다시 볼 때예요」로 올라와요",
       style: { ...bSoft, marginLeft: "auto", padding: "4px 11px", fontSize: 12, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "말 걸어봤어요");
   };
   // 「다시 볼 때예요」의 비교 데이터 세 줄(2026-09-15, talkCompare). 라벨은 회색, 값은 본문색. 늘고 줄었음은 글자(TALK_CMP_MARK)로만 — 색으로 판단을 주지 않는다(§9)
@@ -16298,7 +16288,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }
 }, "최근 7일 감정일기에서 마음이 힘들어 보이는 신호가 있는 학생이에요."),
   // 「다시 볼 때예요」(2026-09-15): 말 건 뒤 수업일 사흘이 지난 아이. 호박색 띠. 지난 신호(살펴봐 사유)와 대화 문구는 접어 둔다. 비교 데이터는 다음 차례
-  talkReturns.length ? React.createElement("div", { "data-talk": "returns", style: { marginBottom: 12 } },
+  talkReturns.length ? React.createElement("div", { "data-talk": "returns", "data-tut": "t-talk", style: { marginBottom: 12 } },   // 투어 대상(2026-09-16): 있으면 이 띠, 없으면 첫 「말 걸어봤어요」 버튼(같은 data-tut, DOM 순서상 이 띠가 먼저)
     React.createElement("div", { style: { fontSize: 13, color: "#9a6b1c", fontWeight: 700, marginBottom: 6 } }, "다시 볼 때예요"),
     talkReturns.map(function (r, ri) {
       var k = "r" + r.id;
@@ -16326,33 +16316,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
 }) : talkReturns.length ? null : React.createElement("div", {
   style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
 }, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")),
-  // 특수 상황 카드(2026-09-14) — "요즘 달라진 아이". 살펴봐 주세요 바로 아래. 세로 띠는 한 색으로 고정한다(순번 교대는 심각도로 오독된다).
-  myStudents.length > 0 && React.createElement("div", { "data-tut": "t-shift", style: { ...crd, marginBottom: 16, padding: "18px 20px" } },
-    React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 } },
-      React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97" } }, "요즘 달라진 아이"),
-      React.createElement("div", { style: { fontSize: 14, color: "#9fb0bb" } }, shiftShown.length, "명")),
-    React.createElement("div", { style: { fontSize: 14, color: "#9aa7b0", marginBottom: 12, lineHeight: 1.6 } },
-      "감정일기의 패턴이 이전과 달라진 학생이에요. 힘들어 보이는 신호와는 별개로, 어휘가 단조로워지거나 작성이 끊기거나 하루 안에서 기분이 크게 갈리는 경우예요."),
-    shiftShown.length ? shiftShown.map(function (w, wi) {
-      return React.createElement("div", { key: w.id || wi, "data-talk-id": String(w.id), style: { borderRadius: 12, padding: "13px 15px", marginTop: wi ? 10 : 0, border: "1px solid #e3edf1", borderLeft: "3px solid #7fa8c9", background: "#f7fafc" } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 6, flexWrap: "wrap" } },
-          React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, w.name),
-          w.kinds.map(function (k) { return React.createElement("span", { key: k.kind, style: { fontSize: 13, color: "#3f6f97", background: "#e7f0f7", borderRadius: 7, padding: "2px 9px" } }, SHIFT_LABEL[k.kind]); }),
-          talkBtn(w.id)),
-        React.createElement("div", { style: { fontSize: 13, color: "#54626c", lineHeight: 1.9 } },
-          w.kinds.map(function (k) { return React.createElement("div", { key: k.kind }, w.kinds.length > 1 ? React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, SHIFT_LABEL[k.kind]) : null, k.why); })),
-        React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
-          onClick: function () { setOpenShift(function (o) { return Object.assign({}, o, { [wi]: !o[wi] }); }); },
-          style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
-        }, openShift[wi] ? "대화 문구 접기" : "대화 문구 보기")),
-        openShift[wi] ? React.createElement("div", { style: { marginTop: 8, padding: "11px 13px", background: "#fff", border: "1px solid #e3edf1", borderRadius: 10 } },
-          w.kinds.map(function (k, ki) { return React.createElement("div", { key: k.kind, style: { marginTop: ki ? 8 : 0 } },
-            React.createElement("div", { style: { fontSize: 12, color: "#93a3ac", marginBottom: 6 } }, "이렇게 말을 걸어볼 수 있어요 · " + SHIFT_LABEL[k.kind]),
-            (w.phrases[k.kind] || []).map(function (ph, pi) { return React.createElement("div", { key: pi, style: { fontSize: 14, color: "#2b3a42", lineHeight: 1.9 } }, "· " + ph); })); }),
-          React.createElement("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f4f6", fontSize: 12, color: "#93a3ac", lineHeight: 1.7 } },
-            "이 문구는 참고용 예시입니다. 아이의 상황을 가장 잘 아는 것은 선생님입니다.")) : null);
-    }) : React.createElement("div", { style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 } },
-      "최근 패턴이 달라진 학생이 없어요.")),
+  // 「요즘 달라진 아이」 카드(2026-09-14)는 2026-09-16 제거 — 판정 코드 없음(DESIGN §9-④). 「말 걸어봤어요」는 살펴봐 카드에만 남는다
   // ⑥-2 나도 그래 — 받지 못한 / 보내지 않은 학생. 지시가 아니라 정보다(§9).
   empGap ? React.createElement("div", { "data-tut": "t-emp", style: { ...crd, marginBottom: 16 } },
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "나도 그래"),

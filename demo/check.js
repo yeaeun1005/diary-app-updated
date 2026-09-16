@@ -21,7 +21,7 @@ function loadApp() {
     slice(lines, /^var SAD_EMOS = /, /^var CREATURES = /),
     slice(lines, /^var CAUSAL_ENDINGS = /, /^var ISLE = \{/),
     slice(lines, /^var TALK_RETURN_DAYS = /, /^async function credSetStudent/),   // 「말 걸어봤어요」 비교·수업일 셈(2026-09-15)
-    "__out = { talkCompare: talkCompare, talkSchoolDays: talkSchoolDays, shiftSchoolDayFn: shiftSchoolDayFn, TALK_RETURN_DAYS: TALK_RETURN_DAYS, talkMDW: talkMDW, patternShifts: patternShifts, SHIFT: SHIFT, analyzeEntry: analyzeEntry, EMOTIONS_28: EMOTIONS_28, SAD_EMOS: SAD_EMOS, CESD_KEYWORDS: CESD_KEYWORDS, labelKey: labelKey, anonKey: anonKey, entryKey: entryKey, dayStamp: dayStamp, fmtDate: fmtDate, hashSeed: hashSeed, mulberry32: mulberry32, plazaNameHit: plazaNameHit, extractSituations: extractSituations, QC: QC };"
+    "__out = { talkCompare: talkCompare, talkSchoolDays: talkSchoolDays, shiftSchoolDayFn: shiftSchoolDayFn, TALK_RETURN_DAYS: TALK_RETURN_DAYS, talkMDW: talkMDW, analyzeEntry: analyzeEntry, EMOTIONS_28: EMOTIONS_28, SAD_EMOS: SAD_EMOS, CESD_KEYWORDS: CESD_KEYWORDS, labelKey: labelKey, anonKey: anonKey, entryKey: entryKey, dayStamp: dayStamp, fmtDate: fmtDate, hashSeed: hashSeed, mulberry32: mulberry32, plazaNameHit: plazaNameHit, extractSituations: extractSituations, QC: QC };"
   ].join("\n");
   var ctx = { firebase: { database: function () { return { ref: function () { throw new Error("no-fb"); } }; } }, console: console, setTimeout: setTimeout, Promise: Promise, Date: Date, Math: Math, JSON: JSON, String: String, Number: Number, Object: Object, Array: Array, Set: Set, Map: Map, RegExp: RegExp, Error: Error, parseInt: parseInt, parseFloat: parseFloat, isNaN: isNaN, encodeURIComponent: encodeURIComponent, TextEncoder: TextEncoder, __out: null };
   vm.createContext(ctx);
@@ -96,7 +96,7 @@ function simulateWatch(gen, now) {
 function median(a) { a = a.slice().sort(function (x, y) { return x - y; }); var n = a.length; return n ? (n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2) : 0; }
 
 var base = process.argv[2] ? new Date(process.argv[2] + "T00:00:00") : new Date();
-var report = [], swingLog = [];
+var report = [];
 for (var dd = 0; dd < 7; dd++) {
   ["bright", "heavy"].forEach(function (mood) {
     var D = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dd);
@@ -124,16 +124,8 @@ for (var dd = 0; dd < 7; dd++) {
     if (f1.sort().join() !== exp.slice().sort().join()) fail(tag + " 살펴봐주세요(D 18시) " + f1.map(function (id) { return names[id] + "=" + w1[id]; }).join(",") + " ≠ 기대 " + exp.map(function (id) { return names[id]; }).join(","));
     if (f2.some(function (id) { return exp.indexOf(id) < 0; })) fail(tag + " 살펴봐주세요(D+1 09시) 뜻밖의 학생: " + f2.map(function (id) { return names[id]; }).join(","));
     if (f2.indexOf(String(g.expect.flagged[0])) < 0) fail(tag + " D+1에 뚜렷한 아이가 빠진다");
-    // 요즘 달라진 아이(2026-09-14): index.html의 patternShifts 그대로. ①은 31만, ②는 32만, ③은 3~8명. 살펴봐주세요와 겹치지 않는다
-    var sh = app.patternShifts(g.students, g.entries, D.getTime() + 18 * 3600000);
-    var of = function (k) { return sh.filter(function (w) { return w.kinds.some(function (x) { return x.kind === k; }); }).map(function (w) { return String(w.id); }); };
-    if (of("mono").join() !== String(g.expect.shift.mono)) fail(tag + " 어휘 단조 " + of("mono").map(function (id) { return names[id]; }).join(",") + " ≠ " + names[g.expect.shift.mono]);
-    if (of("gap").join() !== String(g.expect.shift.gap)) fail(tag + " 작성 끊김 " + of("gap").map(function (id) { return names[id]; }).join(",") + " ≠ " + names[g.expect.shift.gap]);
-    swingLog.push(tag + "=" + of("swing").length);   // ③ 기복은 심은 아이 하나 + 자연 발생(기준일에 따라 0~6명)
-    if (of("swing").indexOf(String(g.expect.shift.swing)) < 0) fail(tag + " 기복에 심은 아이(" + names[g.expect.shift.swing] + ")가 없다");
-    if (of("swing").length > 8) fail(tag + " 기복 " + of("swing").length + "명 (8 이하 기대)");
+    // 「요즘 달라진 아이」 판정 검사(2026-09-14)는 2026-09-16 제거 — 앱에 patternShifts가 없다. 생성기의 사례(10·12·16번 shift)는 그대로 두고, 아래 겹침 검사만 expect.shift로 계속 한다
     if (g.students.length !== 25) fail(tag + " 학생 수 " + g.students.length + " ≠ 25");
-    if (of("mono").concat(of("gap")).some(function (id) { return exp.indexOf(id) >= 0; })) fail(tag + " 달라진 아이가 살펴봐주세요와 겹친다");
     // 「말 걸어봤어요」 사례(2026-09-15): 둘 다 수업일 딱 3일 전 → 「다시 볼 때예요」. 소율은 주요 감정이 줄고 새 긍정 감정이 있고, 건우는 늘거나 그대로. 살펴봐·심은 달라진 아이·A·B와 안 겹친다
     var tIds = Object.keys(g.talk), isSD = app.shiftSchoolDayFn(g.entries, g.students.length), nowT = D.getTime() + 18 * 3600000;
     if (tIds.length !== 2) fail(tag + " 말 걸어봤어요 사례 수 " + tIds.length);
@@ -194,7 +186,6 @@ for (var dd = 0; dd < 7; dd++) {
           report.push("  " + names[id] + " 근거: " + ex.map(function (e) { return e.date + " " + e.analysis.hits.map(function (h) { return h.label; }).join("·") + (cesd(e.text).length ? " '" + cesd(e.text)[0] + "'" : ""); }).join(" | "));
           report.push("    상황: " + JSON.stringify(app.extractSituations(ex.map(function (e) { return e.text; })).slice(0, 3)));
         });
-        report.push("요즘 달라진 아이: " + sh.map(function (w) { return names[w.id] + " [" + w.kinds.map(function (k) { return k.kind + " · " + k.why; }).join(" | ") + "]"; }).join("\n  "));
         report.push("어휘/일기 수: " + g.students.map(function (s) { return s.name + " " + Object.keys(g.isle[s.id].v).length + "/" + g.entries[s.id].length; }).join(", "));
         var A = g.expect.A;
         report.push("A(" + names[A] + ") 최근 일기 셋:\n  " + g.entries[A].slice(-3).map(function (e) { return e.date + " " + e.text; }).join("\n  "));
@@ -206,7 +197,6 @@ for (var dd = 0; dd < 7; dd++) {
   });
 }
 console.log(report.join("\n"));
-console.log("\n기복(③) 인원, 기준일/기분별: " + swingLog.join("  "));
 if (mindCesd.length) console.log("\n(참고) 선별 키워드가 든 마음 문장 — 슬픔 계열이라 의도된 것:\n  " + mindCesd.join("\n  "));
 if (fails.length) { console.log("\n실패 " + fails.length + "건:"); fails.slice(0, 400).forEach(function (f) { console.log(" - " + f); });  process.exit(1); }
 console.log("\n모두 통과.");
