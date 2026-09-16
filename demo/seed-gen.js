@@ -246,7 +246,7 @@
       var k = pick(rng, keys), date = app.dayStamp(day.date.getTime() + 12 * 3600000);
       var ts = stampFor(rng, day);
       out[sid(to)] = out[sid(to)] || {};
-      out[sid(to)][date + "_" + sid(from)] = { n: byI[from].st.name, q: isleV[to][k].q, l: k, ts: ts };
+      out[sid(to)][date + "_" + sid(from) + "_" + k] = { n: byI[from].st.name, q: isleV[to][k].q, l: k, ts: ts };   // 키 <날짜>_<보낸사람>_<어휘키>(2026-09-16, 앱 empSend와 같다)
       return true;
     }
     var week = days.filter(function (d) { return d.off <= 6; });

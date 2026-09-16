@@ -696,7 +696,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .c-ha .tag { left: 30%; }   /* 활기 조각 팻말은 세로 점선 위에 걸려 있어 왼쪽으로 옮긴다(2026-09-16). 점선 자리에 축 이름 "기운"이 온다 */
 /* 축 이름(2026-09-16, 사용자 A안): 세로 점선 "기운"(활기↔슬픔), 가로 점선 "긴장"(떨림↔평온). 이 십자는 Russell 평면을 45도 돌린 것이라 정서가·각성이 아니라
    Thayer의 에너지·긴장 축으로 읽힌다(정서가·각성은 대각선). 내 섬 나침반 캡션과 같은 말. 점선 색 글자로 선 옆에 — 팻말이면 조각 팻말과 구분이 안 된다.
-   .c-isle 안에 둔다: 세로는 섬 그림 위 가장자리 위·선 오른씽, 가로는 섬 그림 왼쪽 가장자리·선 위쪽(가로 점선은 장면 50%, 섬 중심은 48%라 조금 아래). 세로 화면(≤760)은 점선이 없어 함께 숨긴다 */
+   .c-isle 안에 둔다: 세로는 섬 그림 위 가장자리 위·선 오른쪽, 가로는 섬 그림 왼쪽 가장자리·선 위쪽(가로 점선은 장면 50%, 섬 중심은 48%라 조금 아래). 세로 화면(≤760)은 점선이 없어 함께 숨긴다 */
 .c-axis { position: absolute; z-index: 4; color: #f0c383; font-family: 'Maplestory', 'Gowun Dodum', sans-serif; font-weight: 700; font-size: 15px; line-height: 1; letter-spacing: 1px;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55), 0 0 10px rgba(0,50,70,0.6); pointer-events: none; white-space: nowrap; }
 .c-axis-v { left: calc(50% + 10px); top: -30px; }
@@ -1744,16 +1744,16 @@ async function dayTone(code) {
   var t = 0.5 + med * 0.35;
   return { tone: Math.max(0.15, Math.min(0.85, t)), n: n };
 }
-// "나도 그래". 키가 <날짜>_<보낸사람>이라 같은 날 같은 사람에게는
-// 다시 눌러도 늘지 않는다. 하루 한 번 제한이 데이터 차원에서 강제된다.
+// "나도 그래". 키는 <날짜>_<보낸사람>_<어휘키>(2026-09-16). 같은 날 같은 친구의 같은 마음 말에 다시 눌러도 같은 키를 덮어 늘지 않고,
+// 다른 마음 말이면 다른 키라 하루에 여러 번 보낼 수 있다("친구마다 하루 한 번"이던 <날짜>_<보낸사람> 키는 2026-09-16 전 데이터에 남아 있다 — 읽기는 둘 다 받는다).
 // 개수를 세는 필드는 만들지 않는다(DESIGN.md §7).
 // l = 공감한 어휘의 키(labelKey). ⑥-2에서 어휘 단위로 공감한다.
-// 읽지 않고 쓴다. 키가 <날짜>_<보낸사람>이라 두 아이가 같은 순간 같은 친구에게
-// 보내도 서로 다른 키라 둘 다 남고, 같은 아이가 두 번 누르면 같은 키를 덮는다.
+// 읽지 않고 쓴다. 두 아이가 같은 순간 같은 친구에게 보내도 서로 다른 키라 둘 다 남고, 같은 아이가 같은 말에 두 번 누르면 같은 키를 덮는다.
+// 어휘 키(labelKey)는 Firebase 금지문자가 없고 '_'가 들어갈 수 있어, 읽을 때는 앞 두 조각(날짜·보낸사람)만 키에서 떼고 어휘는 값의 l을 쓴다.
 async function empSend(fromStu, toId, q, l) {
   if (!fromStu || !fromStu.id || !toId || String(fromStu.id) === String(toId)) return false;
   var o = {};
-  o[dayStamp() + "_" + fromStu.id] = { n: fromStu.name || "", q: q || "LA", l: l || "", ts: nowTs() };
+  o[dayStamp() + "_" + fromStu.id + "_" + (l || "~e")] = { n: fromStu.name || "", q: q || "LA", l: l || "", ts: nowTs() };
   await dbRef(empKey(toId)).update(o);
   return true;
 }
@@ -1762,9 +1762,9 @@ async function empLoad(id) {
   var o = await sGet(empKey(id));
   if (!o) return [];
   return Object.keys(o).map(function (k) {
-    var e = o[k] || {}, us = k.indexOf("_");
+    var e = o[k] || {}, parts = k.split("_");   // <날짜>_<보낸사람>[_<어휘키>] — 옛 키(두 조각)도 그대로 읽힌다(2026-09-16)
     return { key: k, name: e.n || "", q: e.q || "LA", l: e.l || "", ts: e.ts || 0,
-             from: k.slice(us + 1), date: k.slice(0, us) };
+             from: parts[1] || "", date: parts[0] || "" };
   }).sort(function (x, y) { return x.ts - y.ts; });
 }
 // 어휘 가리기. 친구에게만 안 보인다. 내 노드의 자식 하나만 update하므로
@@ -6035,6 +6035,16 @@ var TIER_Y = [0.34, 0.90, 1.46];
 // 불분명하다(DESIGN.md §4, 2026-09-05 수정).
 // 지면 높이는 profileAt(r, th) 하나가 정한다. 메시도 식생도 계단도 걷기도
 // 전부 이 함수를 부르므로, 보이는 지면과 판정이 어긋날 수 없다.
+// 원 위의 각도 목록에서 가장 넓은 빈 구간의 한가운데(2026-09-16). 계단 C·D 자리. 난수를 안 쓰므로 시드가 같으면 늘 같다.
+function gapMidTh(list) {
+  var TAU = Math.PI * 2, a = list.map(function (t) { return ((t % TAU) + TAU) % TAU; }).sort(function (x, y) { return x - y; });
+  var best = -1, mid = 0;
+  for (var i = 0; i < a.length; i++) {
+    var nx = i + 1 < a.length ? a[i + 1] : a[0] + TAU, g = nx - a[i];
+    if (g > best) { best = g; mid = a[i] + g / 2; }
+  }
+  return mid % TAU;
+}
 function buildIsland(seedStr, opts) {
   opts = opts || {};
   var detail = opts.detail == null ? 1 : opts.detail;
@@ -6077,6 +6087,12 @@ function buildIsland(seedStr, opts) {
   var bridgeTh = (stairA + stairB) / 2 + Math.PI + (rnd() - 0.5) * 0.4;
   var diveTh = dockTh + Math.PI + (rnd() - 0.5) * 0.9;
   var plazaTh = stairB + Math.PI + (rnd() - 0.5) * 0.8;
+  // 계단 C(1→2)·D(2→3) (2026-09-16). 계단 둘만으로는 1↔2층이 A 하나, 2↔3층이 B 하나라(다리는 1↔3) 내려올 때 되짚어야 했다.
+  // 각도는 난수를 더 뽑지 않는다 — 뒤 난수열이 밀려 섬 모양·소품이 다 바뀐다. 이미 정해진 것들 사이 가장 넓은 빈 각도의 한가운데(gapMidTh).
+  // C는 1·2층에 있는 것(부두·계단 A·계단 B 발치·다리·잠수 지점)을, D는 2·3층에 있는 것(계단 B·다리·광장 표지·계단 A 상단·계단 C 상단)을 피한다.
+  // 다섯 개 사이 최대 빈 각도는 1.26rad 이상이라 이웃과 0.63rad(반지름 4에서 2.5) 이상 떨어진다. 발치·상단 여유 구역(keepOuts 1.2)은 기존 계단과 같은 코드가 넣어 식생·소품이 피한다.
+  var stairC = gapMidTh([dockTh, stairA, stairB, bridgeTh, diveTh]);
+  var stairD = gapMidTh([stairB, bridgeTh, plazaTh, stairA, stairC]);
 
   // 해안선: 낮은 주파수 셋을 겹쳐 자연스러운 굴곡을 만든다. 정사각형이 아니다.
   function coast(th) { return R0 * (1 + a1 * Math.sin(3 * th + p1) + a2 * Math.sin(5 * th + p2) + a3 * Math.sin(7 * th + p3)); }
@@ -6326,7 +6342,9 @@ function buildIsland(seedStr, opts) {
     // outLim은 그 계단이 딛고 선 아래층 평지의 바깥 끝이다.
     // 계단 발치가 여기를 넘으면 아래층 밖 허공을 딛게 된다.
     [{ th: stairA, ef: E2f, lo: TY[0], hi: TY[1], outLim: function (t) { return E1f(t); } },
-     { th: stairB, ef: E3f, lo: TY[1], hi: TY[2], outLim: function (t) { return E2f(t) - B; } }].forEach(function (fl) {
+     { th: stairB, ef: E3f, lo: TY[1], hi: TY[2], outLim: function (t) { return E2f(t) - B; } },
+     { th: stairC, ef: E2f, lo: TY[0], hi: TY[1], outLim: function (t) { return E1f(t); } },      // 2026-09-16 추가. 같은 인스턴스 메시라 드로우콜은 그대로
+     { th: stairD, ef: E3f, lo: TY[1], hi: TY[2], outLim: function (t) { return E2f(t) - B; } }].forEach(function (fl) {
       var Ek = fl.ef(fl.th);
       var rIn = Ek - B - 0.06;            // 위층 평지에 살짝 물린다
       // 디딤면 0.16 × 5단이 기본이되, 아래층 평지가 좁으면 그만큼 가파르게 줄인다.
@@ -7180,6 +7198,7 @@ function buildIsland(seedStr, opts) {
   grp.userData.detail = detail;   // 식생 캐시 키(vegCached, 2026-09-15)
   grp.userData.tierY = TY;
   grp.userData.stairs = stairInfo;
+  grp.userData.stairTh = { A: stairA, B: stairB, C: stairC, D: stairD, bridge: bridgeTh };   // 하네스·검사용(2026-09-16)
   return grp;
 }
 // 나침반 십자와 연 모양(2026-09-16). size: 원 지름(px). words: 영역(q)이 든 마음 말 목록. kite: 연을 그릴 목록(null이면 십자만 — 친구 섬).
@@ -8102,8 +8121,8 @@ function buildCharacter() {
   // 리깅된 모델을 들여오면 §4의 라이선스·톤 통일 문제가 생긴다.
   // 복제본에도 같은 이름이 남으므로 이름으로 찾아 함께 움직인다.
   grp.userData.step = function (t, moving, dir) {
-    var sw = moving ? Math.sin(t * 8.5) : 0;
-    var bob = moving ? Math.abs(Math.sin(t * 8.5)) * 0.03 : 0;
+    var sw = moving ? Math.sin(t * WALK_CADENCE) : 0;    // 케이던스는 걷기 속도에 비례(WALK_CADENCE, 2026-09-16)
+    var bob = moving ? Math.abs(Math.sin(t * WALK_CADENCE)) * 0.03 : 0;
     [body, sil].forEach(function (root) {
       var lL = root.getObjectByName("hipL"), lR = root.getObjectByName("hipR");
       var aL = root.getObjectByName("armL"), aR = root.getObjectByName("armR");
@@ -8131,8 +8150,12 @@ function tierSpot(isle, th, lv) {
 // 초당. 섬 크기와 무관하게 고정한다 (2026-09-05 결정).
 // 반지름에 맞춰 올리면 가로지르는 시간이 4초로 유지되지만, 그러면 섬이
 // 커진 것이 걸어보아도 느껴지지 않는다. 저학년 조작에도 느린 쪽이 맞다.
-// 반지름 6.0에서 1층을 가로지르는 데 약 5.8초 걸린다.
-var WALK_SPEED = 1.7;
+// 반지름 6.0에서 1층을 가로지르는 데 1.7이면 약 5.8초, 2.6이면 약 3.8초.
+// 2026-09-16: 1.7 → 2.6(달리기). 섬을 가로지르는 데 오래 걸린다(사용자). 발걸음 음원과 팔다리 스윙은 1.7에 맞춰 둔 것이라 아래 비율로 함께 빨라진다 — 그대로 두면 미끄러져 보인다.
+var WALK_SPEED = 2.6;
+var WALK_SPEED_BASE = 1.7;                                  // 음원(steps.mp3)·스윙(8.5 rad/s)을 맞춰 둔 기준 속도
+var WALK_CADENCE = 8.5 * WALK_SPEED / WALK_SPEED_BASE;      // 팔다리 스윙 각속도(rad/s). 속도에 비례하므로 한 걸음에 나가는 거리는 전과 같다
+var WALK_STEPS_RATE = WALK_SPEED / WALK_SPEED_BASE;         // 발걸음 음원 재생 속도(음높이는 유지)
 // 벽(기울기 11)과 걸을 수 있는 곳(계단 0.88, 해변 최대 1.2) 사이는 넓게 벌어져 있다.
 // 여유를 크게 두어야 좁은 목에서 캐릭터가 끼지 않는다.
 var WALK_SLOPE_MAX = 2.0;
@@ -8729,9 +8752,11 @@ var SND = {
     SND.leaveTm = setTimeout(function () { SND.leaveTm = 0; SND.stopLoop(); SND.loopName = null; }, 300);
   },
   // 누르는 동안 나는 소리(발걸음). 걷기 시작하면 루프로 틀고 멈추면 끈다 — 발과 소리를 맞추지 않는다.
+  // 발걸음은 걷기 속도 비율(WALK_STEPS_RATE, 2026-09-16)로 빨리 돌린다. preservesPitch로 음높이는 그대로 — 1.5배 높아지면 잔걸음이 아니라 딴 소리가 된다
   hold: function (name) {
     if (!SND.on()) return;
     try { var a = SND.el(name); if (!a) return; if (SND.holdEl && SND.holdEl !== a) SND.holdEl.pause(); SND.holdEl = a;
+          if (name === "steps") { a.playbackRate = WALK_STEPS_RATE; try { a.preservesPitch = true; } catch (x) {} }
           if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
   },
   release: function () { if (SND.holdEl) { try { SND.holdEl.pause(); SND.holdEl.currentTime = 0; } catch (e) {} } SND.holdEl = null; },
@@ -8823,7 +8848,6 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
   const [vocabList, setVocabList] = useState([]);     // 내 마음 말 목록(2026-09-15 저녁). 칩을 누르면 영역별로 보인다. 친구 섬은 목록을 안 만든다(비교가 되므로)
   const [vocabPick, setVocabPick] = useState(null);   // 목록에서 고른 말 → 뜻
   const [nearPlant, setNearPlant] = useState(null);   // 다가간 어휘 식생
-  const [sentTo, setSentTo] = useState(null);         // 오늘 이 친구에게 보낸 공감 {label}
   const [toast, setToast] = useState("");
   const [reveal, setReveal] = useState(!!arrive);     // 배로 도착: 덮개가 걷힌다
   const goRef = useRef(null);
@@ -9123,12 +9147,12 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         if (tutCbRef.current) tutCbRef.current("plant", bp ? bp.key : null);   // 친구 섬 투어: 식생 앞 도착·이탈 신호(2026-09-15 저녁)
       }
     }
-    var nearPlantRef = null, plantsRef = plants || [], sentToday = false, hiddenLocal = {};
+    var nearPlantRef = null, plantsRef = plants || [], sentLabels = {}, hiddenLocal = {};   // sentLabels: 오늘 이 친구의 이 마음 말(키)에 이미 보냈다(2026-09-16, 전에는 친구마다 하루 한 번 sentToday)
     var namesToday = {}, ffGrp = null, empList = [], ffRes = ffResources(), flights = [];   // flights: 날아가는 반딧불(나도 그래 연출, 2026-09-15 밤)
     if (theIsle) plants.forEach(function (p) { if (hiddenSet[p.label]) hiddenLocal[p.label] = 1; });
     function plantInfo(p) {
       return { label: p.label, q: p.q, key: p.key, x: p.x, meaning: emoMeaning(p.label),
-               mine: !!myLabels[p.label], can: !!myQuads[p.q], hidden: !!hiddenLocal[p.label],
+               mine: !!myLabels[p.label], can: !!myQuads[p.q], hidden: !!hiddenLocal[p.label], sent: !!sentLabels[p.key],
                names: namesToday[p.key] || [] };
     }
     var ffSeen = Infinity;   // 이 시각 뒤에 온 반딧불이 "새 것"(헤일로 크게). 친구 섬은 Infinity라 새 것이 없다. 내 섬은 아래 empLoad에서 localStorage(ffSeen:<id>)로 정한다
@@ -9173,7 +9197,7 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         if (disposed) return;
         empList = list;
         list.forEach(function (e) {
-          if (friend) { if (me && String(e.from) === String(me.id) && e.date === today) { sentToday = true; setSentTo({ label: labelUnkey(e.l) }); } }
+          if (friend) { if (me && String(e.from) === String(me.id) && e.date === today && e.l) sentLabels[e.l] = 1; }
           else if (e.date === today && e.name) { (namesToday[e.l] = namesToday[e.l] || []).push(e.name); }
         });
         if (!friend) {
@@ -9224,9 +9248,9 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
       var p = nearPlantRef;
       if (!p || going || docking) return;
       if (friend) {
-        if (!me || sentToday || !myQuads[p.q]) return;
-        sentToday = true;
-        setSentTo({ label: p.label });
+        if (!me || sentLabels[p.key] || !myQuads[p.q]) return;   // 같은 마음 말에 두 번은 막는다. 다른 말이면 하루에 여러 번(2026-09-16)
+        sentLabels[p.key] = 1;
+        setNearPlant(plantInfo(p));
         // 반딧불을 바로 하나 띄운다. 저장이 돌아오길 기다리게 하지 않는다. 2026-09-15 밤: 내 캐릭터에서 날아가 앉는 연출(0.8초) 뒤에 목록에 더한다. 움직임 줄이기면 바로
         var rec = { ts: nowTs(), l: p.key, from: String(me.id), date: dayStamp(), name: me.name || "" };
         var land = function () { empList = empList.concat([rec]); refreshFireflies(); };
@@ -9573,9 +9597,9 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
         !isFriend && nearPlant.names.length ? React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#b45309", marginTop: 3 } },
           "오늘 " + nearPlant.names.slice(0, -1).concat([josa(nearPlant.names[nearPlant.names.length - 1], "이가")]).join(", ") + " 나도 그래 했어요") : null),
       // 보낸 뒤: 어떤 말에 보냈는지 드러낸다(2026-09-15 저녁). 전에는 그 섬의 모든 식생에서 "오늘은 이미 ○○에게 했어요"라 전부 한 것처럼 보였다
-      isFriend ? (sentTo ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#4f6b77", whiteSpace: "nowrap" } },
-          sentTo.label === nearPlant.label ? ["오늘 이 마음에", React.createElement("br", { key: "b" }), "나도 그래 했어요"]
-            : ["오늘은 " + friend.name + "에게", React.createElement("br", { key: "b" }), "'" + sentTo.label + "'으로 이미 했어요"])
+      // 2026-09-16: 같은 마음 말에만 막는다("이 마음에는 이미 했어요"). 다른 말은 버튼이 그대로 — 친구마다 하루 한 번이던 문구는 뺐다
+      isFriend ? (nearPlant.sent ? React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#4f6b77", whiteSpace: "nowrap" } },
+          "이 마음에는", React.createElement("br", { key: "b" }), "이미 했어요")
         : nearPlant.can ? React.createElement("button", {
             onClick: function () { if (actRef.current) actRef.current(); },
             style: { ...bPri, padding: "8px 14px", fontSize: 14, whiteSpace: "nowrap", flexShrink: 0 }
@@ -9718,14 +9742,21 @@ function IslandView({ entries, state, seed, seaTone, onBack, onGo, onHome, frien
        "반딧불이 왔어요. 빛나는 꽃에 가 보세요") : null,
     // 터치 기기 방향 패드(2026-09-15 저녁). 오른쪽 아래, 어휘 수 칩 위. 누르고 있는 동안 걷는다 — 방향키와 같은 keys에 놓는다. 마우스·키보드 기기에는 없다(coarsePointer)
     // body에 직접 그린다(portal): 섬 화면 틀이 position:fixed라 z-index가 그 안에 갇혀 투어 막(90~92, 최상위) 아래로 깔렸다. 막 위에 있어야 걷기 단계에서 누른다
-    touch ? ReactDOM.createPortal(React.createElement("div", { className: "isle-pad", "aria-label": "걷기 방향 패드", style: { position: "fixed", right: 12, bottom: 52, "--pad": (small ? 38 : 42) + "px" } },
-      [["up", "▲", 2], ["left", "◀", 4], ["right", "▶", 6], ["down", "▼", 8]].map(function (b) {
-        var on = function (e) { if (padRef.current) padRef.current(b[0], true); e.currentTarget.classList.add("on"); try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); };
-        var off = function (e) { if (padRef.current) padRef.current(b[0], false); e.currentTarget.classList.remove("on"); };
-        return React.createElement("button", { key: b[0], type: "button", "aria-label": { up: "위로", left: "왼쪽으로", right: "오른쪽으로", down: "아래로" }[b[0]],
-          style: { gridArea: Math.ceil(b[2] / 3) + " / " + ((b[2] - 1) % 3 + 1) },
-          onPointerDown: on, onPointerUp: off, onPointerCancel: off, onLostPointerCapture: off, onContextMenu: function (e) { e.preventDefault(); } }, b[1]);
-      })), document.body) : null);
+    touch ? React.createElement(WalkPad, { padRef: padRef, small: small, right: 12, bottom: 52 }) : null);   // 2026-09-16: 광장과 같은 컴포넌트(WalkPad)
+}
+// 터치 방향 패드(2026-09-15 저녁 내 섬에 만든 것을 2026-09-16 컴포넌트로 뺐다 — 광장도 쓴다). 누르고 있는 동안 걷는다: padRef.current(dir, on)이 그 화면의 keys를 만진다.
+// body에 직접 그린다(portal): 3D 화면 틀이 position:fixed라 z-index가 그 안에 갇혀 투어 막(90~92) 아래로 깔렸다. 자리는 화면이 준다(right/bottom/top/left)
+function WalkPad(props) {
+  var padRef = props.padRef, st = { position: "fixed", "--pad": (props.small ? 38 : 42) + "px" };
+  ["right", "bottom", "top", "left"].forEach(function (k) { if (props[k] != null) st[k] = props[k]; });
+  return ReactDOM.createPortal(React.createElement("div", { className: "isle-pad", "aria-label": "걷기 방향 패드", style: st },
+    [["up", "▲", 2], ["left", "◀", 4], ["right", "▶", 6], ["down", "▼", 8]].map(function (b) {
+      var on = function (e) { if (padRef.current) padRef.current(b[0], true); e.currentTarget.classList.add("on"); try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); };
+      var off = function (e) { if (padRef.current) padRef.current(b[0], false); e.currentTarget.classList.remove("on"); };
+      return React.createElement("button", { key: b[0], type: "button", "aria-label": { up: "위로", left: "왼쪽으로", right: "오른쪽으로", down: "아래로" }[b[0]],
+        style: { gridArea: Math.ceil(b[2] / 3) + " / " + ((b[2] - 1) % 3 + 1) },
+        onPointerDown: on, onPointerUp: off, onPointerCancel: off, onLostPointerCapture: off, onContextMenu: function (e) { e.preventDefault(); } }, b[1]);
+    })), document.body);
 }
 // ⑥-1 바다 화면. 내 섬이 가운데, 친구 섬이 고리로 둘러싼다.
 //  · 바다 색 = 학급 온도계(dayTone). 색상은 그대로, 밝기·채도만(DESIGN.md §6)
@@ -9965,11 +9996,13 @@ function plazaSeats() {
 }
 // 오늘 답을 쓴 아이 수만큼 캐릭터를 세운다. 실시간이 아니라 숫자다. 누가 누군지는 안 보인다.
 // 익명 키로 옷 색과 키를 조금씩 달리해 복제 느낌을 줄인다. 내 것만 카메라 쪽 자리에 선다.
-function buildPlazaFigures(keys, myKey) {
+// skipMine(2026-09-16): 내 키를 빼고 그리지 않는다 — 광장에서 걷는 내 캐릭터(PlazaView의 walker)가 0번 자리에 따로 선다. 나머지는 1번 자리부터
+function buildPlazaFigures(keys, myKey, skipMine) {
   var grp = new THREE.Group();
   var seats = plazaSeats(), ks = (keys || []).slice().sort();
   var mine = !!myKey && ks.indexOf(myKey) >= 0;
-  if (mine) { ks.splice(ks.indexOf(myKey), 1); ks.unshift(myKey); }
+  if (mine && skipMine) { ks.splice(ks.indexOf(myKey), 1); mine = false; }
+  else if (mine) { ks.splice(ks.indexOf(myKey), 1); ks.unshift(myKey); }
   // 0번(카메라 쪽)은 내 자리다. 아직 안 썼으면 비워 둔다 — 쓰면 거기 선다.
   ks.forEach(function (k, i) {
     var st = seats[mine ? i : i + 1];
@@ -10005,7 +10038,18 @@ function buildPlazaTag(text) {
   m.renderOrder = 20;   // 물·식생·아이들 다음에
   return m;
 }
-// 광장 화면. 카메라 고정, 걷기 없음. 질문·답·어휘는 화면 위 카드다.
+// 광장 걷기 판정(2026-09-16). 바닥은 세 단(R0·R1·R2, Y0·Y1·Y2)의 계단 마당 — 단 사이 0.32는 한 걸음에 오르는 턱으로 본다(내 섬의 WALK_STEP_UP과 같은 뜻).
+// 나갈 수 없는 곳: 나무 테두리 밖(R2 − 0.26), 모닥불(0.95), 화분(0.42), 깃발 기둥(0.28). 다른 아이들(답을 쓴 수만큼 선 캐릭터)은 지나간다 — 막으면 좁은 마당에서 낀다.
+var PLZ_WALK = { rMax: PLZ.R2 - 0.26, pit: 0.95, box: 0.42, pole: 0.28 };
+function plazaY(r) { return r < PLZ.R0 ? PLZ.Y0 : r < PLZ.R1 ? PLZ.Y1 : PLZ.Y2; }
+function plazaWalkable(x, z, blocks) {
+  var r = Math.hypot(x, z);
+  if (r > PLZ_WALK.rMax || r < PLZ_WALK.pit) return false;
+  for (var i = 0; i < blocks.length; i++) if (Math.hypot(x - blocks[i].x, z - blocks[i].z) < blocks[i].r) return false;
+  return true;
+}
+// 광장 화면. 카메라 고정(광장 전체가 한 화면에 들어오므로 따라갈 필요가 없다 — 2026-09-16 걷기를 넣으면서도 그대로). 질문·답·어휘는 화면 위 카드다.
+// 걷기(2026-09-16): 내 섬과 같은 방향키·WASD·터치 패드(WalkPad). 카드의 글 입력란에 있을 때는 키를 먹지 않는다.
 // me = 지금 학생, myState = 내 어휘(칩 순서), backLabel/onBack = 돌아갈 곳, onSeen = 질문을 본 것을 알린다.
 function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tutOn }) {
   const hostRef = useRef(null);
@@ -10029,6 +10073,8 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   const [figKeys, setFigKeys] = useState([]);    // 오늘 답을 쓴 아이들의 익명 키. 그 수만큼 캐릭터
   const [nameBlock, setNameBlock] = useState(0); // 이름으로 막힌 횟수. 두 번째는 저장하되 숨김
   const figRef = useRef(null);
+  const padRef = useRef(null);                   // 터치 방향 패드 → keys(2026-09-16)
+  const touch = coarsePointer();
   const [small, setSmall] = useState(function () {
     try { return window.innerWidth < 560; } catch (e) { return false; }
   });
@@ -10107,17 +10153,62 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     var figGrp = null;
     figRef.current = function (keys) {
       if (figGrp) { scene.remove(figGrp); figGrp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.dispose(); }); }); }
-      figGrp = buildPlazaFigures(keys, myKey);
+      figGrp = buildPlazaFigures(keys, myKey, true);   // 내 것은 아래 walker가 대신 선다(2026-09-16)
       scene.add(figGrp);
     };
     figRef.current(figKeys);
+    // 걷는 내 캐릭터(2026-09-16). 내 섬과 같은 buildCharacter. 답을 썼는지와 무관하게 늘 서 있고 0번 자리(카메라 쪽)에서 시작한다. 역삼각형 표식은 여기에
+    var walker = buildCharacter(), seat0 = plazaSeats()[0];
+    if (walker.userData.silhouette) walker.userData.silhouette.visible = false;   // 광장에는 가릴 것이 없다(buildPlazaFigures와 같은 이유)
+    walker.traverse(function (o) { if (o.isMesh) o.renderOrder = 0; });
+    walker.position.set(Math.cos(seat0.a) * seat0.r, seat0.y, Math.sin(seat0.a) * seat0.r);
+    attachMineMarker(walker);
+    var faceDir = Math.atan2(-walker.position.x, -walker.position.z);   // 불을 본다
+    if (walker.userData.step) walker.userData.step(0, false, faceDir);
+    scene.add(walker);
+    var blocks = pw.boxes.map(function (b) { return { x: b.x, z: b.z, r: PLZ_WALK.box }; });
+    Object.keys(PLZ_QA).forEach(function (qk) { blocks.push({ x: Math.cos(PLZ_QA[qk]) * PLZ.RPOST, z: Math.sin(PLZ_QA[qk]) * PLZ.RPOST, r: PLZ_WALK.pole }); });
+    var UP = new THREE.Vector3(0, 1, 0);
+    var scrF = new THREE.Vector3(-cam.position.x, 0, -cam.position.z).normalize();   // 화면 위쪽(내 섬과 같은 화면 기준 이동)
+    var scrR = new THREE.Vector3().crossVectors(scrF, UP).normalize();
+    var KEYMAP = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down", ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right" };
+    var keys = {}, walkT = 0, wasMoving = false, mv = new THREE.Vector3();
+    padRef.current = function (dk, on) { keys[dk] = on ? 1 : 0; };
+    function walk(dt) {
+      var mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), mz = (keys.up ? 1 : 0) - (keys.down ? 1 : 0), moving = !!(mx || mz), p = walker.position;
+      if (moving) {
+        mv.set(0, 0, 0).addScaledVector(scrR, mx).addScaledVector(scrF, mz).normalize().multiplyScalar(WALK_SPEED * dt);
+        if (plazaWalkable(p.x + mv.x, p.z + mv.z, blocks)) { p.x += mv.x; p.z += mv.z; }
+        else if (plazaWalkable(p.x + mv.x, p.z, blocks)) p.x += mv.x;      // 벽·화분에 닿으면 미끄러진다
+        else if (plazaWalkable(p.x, p.z + mv.z, blocks)) p.z += mv.z;
+        p.y = plazaY(Math.hypot(p.x, p.z));
+        faceDir = Math.atan2(mv.x, mv.z); walkT += dt;
+      }
+      if (moving !== wasMoving) { wasMoving = moving; if (moving) SND.hold("steps"); else SND.release(); }
+      if (walker.userData.step) walker.userData.step(walkT, moving, faceDir);
+    }
+    function isTyping(e) { var t = e.target; return !!(t && (/^(TEXTAREA|INPUT|SELECT)$/.test(t.tagName) || t.isContentEditable)); }
+    function onKeyDown(e) { if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e)) return; if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = 1; e.preventDefault(); } }
+    function onKeyUp(e) { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = 0; }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    var frames = 0, lastF = performance.now(), fpsNow = 0;
+    if (devMode()) window.__plaza = {   // #dev: 하네스에서 걷기·비용 확인
+      pos: function () { return [+walker.position.x.toFixed(2), +walker.position.y.toFixed(2), +walker.position.z.toFixed(2)]; },
+      keys: function () { return JSON.stringify(keys); },
+      info: function () { var ri = renderer.info.render, wm = 0; walker.traverse(function (o) { if (o.isMesh) wm++; }); return { fps: fpsNow, calls: ri.calls, tris: ri.triangles, walkerMeshes: wm }; },
+      walkable: function (x, z) { return plazaWalkable(x, z, blocks); }
+    };
     addIsleLights(scene, 7 * ISLE_K, 42 * ISLE_K);
-    var t00 = performance.now();
+    var t00 = performance.now(), tPrev = t00;
     function tick(t0) {
       if (disposed) return;
       raf = requestAnimationFrame(tick);
       var f = isle.userData.flame, f2 = isle.userData.flame2, u = (t0 - t00) / 1000;
-      if (figGrp && figGrp.userData.mine) figGrp.userData.mine.userData.markerTick(u, cam);
+      var dt = Math.min(0.05, Math.max(0, (t0 - tPrev) / 1000)); tPrev = t0;
+      walk(dt);
+      frames++; if (t0 - lastF >= 500) { fpsNow = Math.round(frames * 1000 / (t0 - lastF)); frames = 0; lastF = t0; }
+      if (walker.userData.markerTick) walker.userData.markerTick(u, cam);
       if (f) { f.scale.y = 1 + 0.12 * Math.sin(u * 9.1) + 0.06 * Math.sin(u * 23.7); f.rotation.y = u * 0.8; }
       if (f2) { f2.scale.y = 1 + 0.18 * Math.sin(u * 12.3 + 1); f2.position.y = 0.26 + 0.02 * Math.sin(u * 7.7); }
       renderer.render(scene, cam);
@@ -10138,10 +10229,13 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(onResize); ro.observe(host); }
     return function () {
       disposed = true;
-      figRef.current = null;
+      figRef.current = null; padRef.current = null;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      if (devMode() && window.__plaza) delete window.__plaza;
       if (ro) ro.disconnect();
       scene.traverse(function (o) {
         if (o.geometry) o.geometry.dispose();
@@ -10317,6 +10411,8 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
   // 560px 아래는 전처럼 아래 카드. 제목 띠(.plz-title)와 시연 띠(#demo-ribbon[data-page=plaza])의 자리는 CSS에서 같은 변수로 맞춘다.
   var edge = small ? 10 : "calc(var(--plz-w) + 10px)";
   return React.createElement("div", { style: { position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#dfeef2" } },
+    // 터치 방향 패드(2026-09-16). 3D 영역의 오른쪽 아래(패널 왼쪽). 560px 아래는 카드가 아래를 차지하므로 오른쪽 위(뒤로 버튼 밑)
+    touch && !loading && !err ? React.createElement(WalkPad, { padRef: padRef, small: small, right: small ? 12 : "calc(var(--plz-w) + 12px)", bottom: small ? null : 52, top: small ? 100 : null }) : null,
     React.createElement("div", { ref: hostRef, style: small ? { position: "absolute", inset: 0 } : { position: "absolute", left: 0, top: 0, bottom: 0, right: "var(--plz-w)" } }),
     React.createElement("style", null, "@keyframes isleReveal{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 100% 0 0)}}"),
     reveal ? React.createElement("div", {
@@ -10762,10 +10858,15 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
     api.current.sail = function (id) { sailTo(findIsle(id)); };
     api.current.home = function () { if (sail) return; goal.set(0, 0, 0); follow = false; };
     api.current.zoom = function (v) { dGoal = clampD(v); };
+    if (devMode()) api.current.isleIds = function () { return isles.map(function (e) { return String(e.id); }); };   // #dev(2026-09-16) 하네스 확인용
+    if (devMode()) api.current.screenOf = function (id) {   // #dev(2026-09-16): 그 섬의 화면 좌표 — 하네스가 더블클릭을 흉내 낼 때
+      var e = findIsle(id); if (!e) return null; var v = new THREE.Vector3(e.x, 0, e.z).project(cam), rc = renderer.domElement.getBoundingClientRect();
+      return [rc.left + (v.x + 1) / 2 * rc.width, rc.top + (1 - v.y) / 2 * rc.height]; };
     if (devMode()) window.__sea = api.current;   // #dev: 콘솔·하네스에서 조작
 
     // 포인터: 끌면 둘러보고, 탭하면 그 섬으로 간다. 두 손가락은 확대·축소.
-    var follow = true, pts = {}, drag = null, pinch = null;
+    var follow = true, pts = {}, drag = null, pinch = null, lastTap = null;   // lastTap: 더블클릭 판정(2026-09-16) { id, t }
+    var SEA_DBL_MS = 400;   // 같은 섬을 이 안에 두 번 누르면 카드 없이 바로 출발
     var ray = new THREE.Raycaster(), plane = new THREE.Plane(UP, 0), hitP = new THREE.Vector3();
     function toWorld(px, py) {
       var rc = renderer.domElement.getBoundingClientRect();
@@ -10824,7 +10925,12 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
       });
       if (best) {
         // DESIGN.md §7 — 친구 섬을 탭하면 배가 항해한다 → 2026-09-15 저녁부터는 탭하면 카메라가 가고 카드가 뜬다. 잘못 눌러도 안 떠난다. 항해는 카드의 [배 타고 가기]
-        focusIsle(best);
+        // 2026-09-16: 같은 섬을 SEA_DBL_MS 안에 두 번 누르면(더블클릭·더블탭) 카드 없이 바로 출발. 한 번은 전처럼 카드
+        var tNow = performance.now();
+        if (lastTap && lastTap.id === best.id && tNow - lastTap.t < SEA_DBL_MS) {
+          lastTap = null;
+          if (best.home) { if (api.current.homeSail) api.current.homeSail(); } else sailTo(best);
+        } else { lastTap = { id: best.id, t: tNow }; focusIsle(best); }
       } else if (Math.hypot(p.x, p.z) < 9.5) {
         goal.set(0, 0, 0); follow = false; setSel(null);
       }
@@ -11067,7 +11173,7 @@ function SeaView({ me, entries, arrive, onBack, onGo, onTour, tutOn }) {
     !small ? React.createElement("div", { "data-tut": "sea-hint", className: "tut-dim",
       style: { position: "absolute", left: 10, bottom: 12, padding: "3px 9px", borderRadius: 8,
                background: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, color: "#2b4650" }   // 굵게·어둡게(2026-09-15 저녁)
-    }, touch ? "섬을 누르면 가까이 보여요 · [배 타고 가기]로 출발 · 끌어서 둘러보기" : "섬을 누르면 가까이 보여요 · [배 타고 가기]로 출발 · 끌어서 둘러보기 · 휠로 확대") : null,   // 2026-09-15 저녁: 탭은 고르기, 출발은 카드
+    }, touch ? "섬을 누르면 가까이 보여요 · 두 번 누르면 바로 출발 · 끌어서 둘러보기" : "섬을 누르면 가까이 보여요 · 두 번 누르면 바로 출발 · 끌어서 둘러보기 · 휠로 확대") : null,   // 2026-09-15 저녁: 탭은 고르기, 출발은 카드 · 2026-09-16: 두 번 누르면 바로
     loading ? React.createElement("div", { className: "tut-dim",
       style: { position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", padding: "6px 14px", borderRadius: 10,
                background: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 700, color: "#2b4650" }
@@ -13816,7 +13922,7 @@ function seaTourSteps() {
   var touch = coarsePointer();
   return [
     { target: "sea-hint", free: true, title: "둘러보기", place: "top",
-      text: touch ? "섬을 누르면 가까이 보이고, [배 타고 가기]를 누르면 배가 떠나요. 끌어서 둘러보고, 두 손가락으로 확대해요. **지금 한번 끌어 보세요.**" : "섬을 누르면 가까이 보이고, [배 타고 가기]를 누르면 배가 떠나요. 끌어서 둘러보고, 휠로 확대해요. **지금 한번 끌어 보세요.**" },   // 2026-09-15 저녁: 탭은 고르기
+      text: touch ? "섬을 한 번 누르면 가까이 보이고, 두 번 누르면 바로 배가 떠나요. 카드의 [배 타고 가기]로도 갈 수 있어요. 끌어서 둘러보고, 두 손가락으로 확대해요. **지금 한번 끌어 보세요.**" : "섬을 한 번 누르면 가까이 보이고, 두 번 누르면(더블클릭) 바로 배가 떠나요. 카드의 [배 타고 가기]로도 갈 수 있어요. 끌어서 둘러보고, 휠로 확대해요. **지금 한번 끌어 보세요.**" },   // 2026-09-15 저녁: 탭은 고르기 · 2026-09-16: 두 번 누르면 바로
     { target: null, free: true, title: "바다 색", text: "바다 색은 오늘 우리 반의 기분이에요. 밝은 일기가 많은 날은 맑고, 무거운 날은 어두워져요." },
     { target: "sea-today", free: true, title: "오늘의 섬", text: "오늘의 섬이에요. 눌러도 되고 안 눌러도 돼요. 날마다 다른 친구 섬을 권해요." },
     { target: "sea-isle", free: true, title: "친구 섬", pad: 0, radius: 40, text: "친구 섬에 내리면 꽃과 나무를 구경할 수 있어요. 같은 마음을 써 본 적 있으면 '나도 그래'를 보낼 수 있어요." }
@@ -13877,7 +13983,7 @@ function friendTourSteps(sig, name) {
       text: name + "의 섬이에요. 꽃과 나무는 " + josa(name, "이가") + " 일기에 쓴 마음 말이에요. " + (touch ? "**오른쪽 아래 방향 패드로 가까운 꽃이나 나무까지 걸어가 보세요.**" : "**방향키로 가까운 꽃이나 나무까지 걸어가 보세요.**"),
       keys: ISLE_WALK_KEYS, next: function () { return !!sig.plant; } },
     { target: "plant-banner", title: "나도 그래", pad: 6,
-      text: "같은 쪽 마음을 써 본 적이 있으면 [나도 그래]를 보낼 수 있어요. 친구 섬에 반딧불이 하나 켜져요. 친구마다 하루 한 번이에요.", next: "button" }
+      text: "같은 쪽 마음을 써 본 적이 있으면 [나도 그래]를 보낼 수 있어요. 친구 섬에 반딧불이 하나 켜져요. 같은 마음에는 하루 한 번이에요.", next: "button" }
   ];
 }
 function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로 투어를 켠다, tutOn이면 투어 중(2026-09-15)
