@@ -1,0 +1,8 @@
+/* Keep the existing demo boundary visible in the new HUD without a second overlapping ribbon. */
+body:has(.v2-world) #demo-ribbon{display:none}
+.v2-local{max-width:480px;line-height:1.5}
+.v2-load-error{position:fixed;z-index:120;top:115px;left:50%;transform:translateX(-50%);padding:15px 20px;border-radius:14px;background:#fff6dd;color:#37544b;font:13px Maplestory,sans-serif;box-shadow:0 5px 24px #254e4530}
+.v2-load-error button{margin-left:10px;border:1px solid #bccbb6;border-radius:8px;padding:8px;background:#fffdf2;color:#365d50;font:inherit;cursor:pointer}
+.v2-auth-board select{width:100%;padding:8px;margin-bottom:12px;border:1px solid #b7c6b0;border-radius:8px;background:#f4f3e4;font:12px Maplestory,sans-serif;color:#305348}
+@media(max-width:700px){.v2-local{max-width:calc(100vw - 45px);font-size:8px}.v2-load-error{top:230px;width:calc(100vw - 65px);line-height:1.7}.v2-load-error button{margin:8px 8px 0 0}}
+.v2-edit-notice{padding:12px 16px;border-radius:12px;background:#e4f3e6;color:#255647;font-weight:700}

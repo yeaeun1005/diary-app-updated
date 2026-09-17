@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<meta name="island-world-release" content="502991c9f22e">
+<link rel="stylesheet" href="island-v2/502991c9f22e/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -11267,6 +11269,8 @@ function DiaryView({
   const [hovIdx, setHovIdx] = useState(null);
   const [lastR, setLastR] = useState(null);
   const [showEmoFix, setShowEmoFix] = useState(false);
+  const [editNotice, setEditNotice] = useState("");
+  useEffect(function(){if(!editNotice)return;var timer=setTimeout(function(){setEditNotice("");},5000);return function(){clearTimeout(timer);};},[editNotice]);
   const [fixedEmos, setFixedEmos] = useState([]);
   const [fixCustomOn, setFixCustomOn] = useState(false);
   const [fixCustom, setFixCustom] = useState("");
@@ -11639,7 +11643,7 @@ function DiaryView({
     icon: "💕"
   }];
   var QUICK_SITS = ["친구", "학교", "가족", "시험", "놀이", "혼남", "칭찬", "다툼", "발표", "운동"];
-  const renderInput = () => React.createElement("div", null, React.createElement("div", {
+  const renderInput = () => React.createElement("div", null, editNotice && React.createElement("p", {role:"status",className:"v2-edit-notice"}, editNotice), React.createElement("div", {
     style: {
       opacity: privacy,
       transition: "opacity 0.2s"
@@ -12238,7 +12242,7 @@ function DiaryView({
       setFixCustom("");
       setFixCustomVal("neu");
       setFixCustomEng("mid");
-      setMsg("✅ 감정이 수정되었습니다.");
+      setEditNotice("✅ 감정이 수정되었습니다.");
     },
     style: {
       ...bPri,
@@ -14646,7 +14650,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       onClick: function () { setPlazaBack("island"); setPage("plaza"); },
       style: { ...bSoft, display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 14px", fontSize: 13,
                color: "#0e7490", background: "#e6f4f7", border: "1px solid #99d8c9", pointerEvents: "auto", ...(extra || {}) }
-    }, "📣 광장에 오늘의 질문이 올라왔어요", React.createElement("span", { style: { fontSize: 12, color: "#5b9bb5" } }, "광장으로 →"));
+    }, "📣 우리 반 게시판에 오늘의 질문이 올라왔어요", React.createElement("span", { style: { fontSize: 12, color: "#5b9bb5" } }, "게시판으로 →"));
   }
   const [trialEntries, setTE] = useState([]);
   const [trialId] = useState("trial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8));
@@ -15142,53 +15146,17 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // 첫 화면 (2026-09-09 개편). 일러스트가 화면을 꽉 채우고 그 위에 반투명 카드 하나. 스크롤 없음.
   // 로그인·체험하기 동선은 그대로다(setAuthOpen / setPage("trial")). #seed면 패널이 무대 아래에 붙어 스크롤된다.
   // 첫 화면은 100vh 한 장면(home-hero), 그 아래 소개 섹션이 이어진다(2026-09-10). 전에는 fixed라 스크롤이 없었다.
-  if (page === "home") return React.createElement("div", {
-    style: { ...shell, background: "#0f3a4c" }
-  }, React.createElement("div", {
-    className: "home-hero"
-  }, React.createElement(BannerScene, null, React.createElement(HeroWords, null), React.createElement("div", { className: "hero-fade", "aria-hidden": true }), React.createElement("div", {
-    // 비네팅. 가운데는 그대로 두고 가장자리로 갈수록 어두워져 화면 밖으로 이어지는 느낌을 만든다
-    style: { position: "absolute", inset: 0, pointerEvents: "none",
-      background: "radial-gradient(ellipse 72% 62% at 50% 46%, rgba(3,16,32,0) 0%, rgba(3,16,32,0.22) 55%, rgba(3,16,32,0.68) 100%)" }
-  }), React.createElement(HomeSigns, {
-    // 카드·패널 없이(2026-09-10) 모래 위 나무 표지판이 로그인이다. 동선은 그대로(setAuthOpen / setPage("trial"))
-    onLogin: function () { setMsg(""); setLF(judgeForm(judge, loginForm.role)); setAuthOpen(true); },   // 심사용이 켜져 있으면 시연 계정을 채운 채 연다(2026-09-17)
-    // 체험 간판 = 시연 학생 탐험이로 자동 로그인(2026-09-14, C안). 일기만 있던 체험 모드는 못 들어갔을 때의 대비로만 남는다.
-    onTrial: function () { setMsg(""); setTE([]); demoLogin(function () { setMsg(""); setPage("trial"); }); }
-  })), React.createElement("div", {
-    // 제목: 왼쪽 위, 크게, 살짝 기울여. 부제는 2026-09-12에 뺐고, 같은 날 글자를 그림(title.webp, 1431×269, 투명 배경)으로 바꿨다.
-    // 폭은 글자였을 때(1440에서 570px)보다 25% 크게 clamp(320px, 52vw, 750px) — 넓은 화면에서 왼쪽 구석에 작게 있던 것을 키움(2026-09-12). 높이는 그림 비율(5.3:1)
-    style: { position: "absolute", left: "clamp(18px, 5vw, 76px)", top: "clamp(16px, 5vh, 54px)", pointerEvents: "none",
-      transform: "rotate(-2deg)", transformOrigin: "0 0" }
-  }, React.createElement("h1", { className: "home-title", style: { margin: 0, width: "clamp(320px, 52vw, 750px)", maxWidth: "88vw" } },
-    React.createElement("img", { src: "title.webp", alt: "마음 바다 탐험대", width: 1431, height: 269, draggable: false,
-      style: { display: "block", width: "100%", height: "auto" } }))),
-  // 소리 버튼(2026-09-14). 3D 화면의 것과 같은 컴포넌트·같은 저장값(localStorage snd)이라 어느 쪽에서 끄든 다른 쪽도 꺼져 있다.
-  // 접속 직후라 자동 재생이 막혀 있고, 이 클릭이 첫 상호작용이다.
-  React.createElement(SndBtn, { top: 14, wood: true }), React.createElement("div", {
-    style: { position: "absolute", right: 14, bottom: "max(10px, env(safe-area-inset-bottom))", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.72)", pointerEvents: "none", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }
-  }, React.createElement("button", {
-    onClick: function () { setPage("privacy"); },
-    style: { pointerEvents: "auto", background: "none", border: "none", color: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, textShadow: "inherit" }
-  }, "개인정보 처리방침"), " · ", React.createElement("button", {
-    onClick: function () { setPage("credits"); },   // 출처와 저작권(2026-09-17). 개인정보 처리방침과 같은 구조의 페이지
-    style: { pointerEvents: "auto", background: "none", border: "none", color: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, textShadow: "inherit" }
-  }, "출처와 저작권"), " · © 2026 마음 바다 탐험대"), React.createElement("div", { className: "scroll-cue-wrap" }, React.createElement("button", {
-    // 아래로 내려갈 수 있다는 표시. 4초에 한 번 8px 오르내린다. prefers-reduced-motion이면 멈춘다
-    className: "scroll-cue", "aria-label": "아래로 내려가기",
-    onClick: function () {
-      var el = document.getElementById("intro-grow");
-      if (el) el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-    }
-  }, React.createElement("svg", { width: 34, height: 34, viewBox: "0 0 34 34", "aria-hidden": true, style: { display: "block", filter: "drop-shadow(0 2px 0 #443124)" } },
-    React.createElement("path", { d: "M8 12 L17 21 L26 12", fill: "none", stroke: "#f0c383", strokeWidth: 4, strokeLinecap: "round", strokeLinejoin: "round" }))))),
-  React.createElement(IntroSection, null), authOpen && React.createElement("div", {
+  if (page === "home") return React.createElement(React.Fragment, null,
+    React.createElement(V2Landing, {authOpen:authOpen,
+      onLogin:function(){setMsg("");setLF(judgeForm(judge,loginForm.role));setAuthOpen(true);},
+      onTrial:function(){setMsg("");setTE([]);return demoLogin(function(){setMsg("");setPage("trial");});},
+      onPrivacy:function(){setPage("privacy");},onCredits:function(){setPage("credits");}}), authOpen && React.createElement("div", {
     onClick: () => setAuthOpen(false), className: "auth-wrap",
     style: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(8,17,30,0.45)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
       display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "7vh 16px 40px", overflowY: "auto" }
   }, React.createElement("div", {
     onClick: e => e.stopPropagation(),
-    className: "auth-board",
+    className: "auth-board v2-auth-board", role:"dialog", "aria-modal":true, "aria-label":"로그인",
     // 판 폭 470(전 420): 그림 틀이 폭의 30%를 차지해 내용 폭을 지키려고 넓혔다. 안쪽 여백은 border(틀)가 대신하므로 padding은 조금만
     style: { width: "100%", maxWidth: 470, boxSizing: "border-box", padding: "4px 6px 8px", fontFamily: HOME_FONT.body, fontWeight: HOME_FONT.bw }
   }, React.createElement("div", {
@@ -15216,24 +15184,24 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     onChange: e => { var on = e.target.checked; setMsg(""); setJudge(on); setLF(judgeForm(on, loginForm.role)); }
   }), React.createElement("span", { style: { fontWeight: HOME_FONT.bw } }, "심사용"), React.createElement("span", {
     style: { fontWeight: HOME_FONT.rw, opacity: 0.85 }
-  }, judge ? " · 시연 학급 계정이 채워져 있어요" : " · 직접 입력해요")), msgBox, loginForm.role !== "teacher" && React.createElement("input", {
+  }, judge ? " · 시연 학급 계정이 채워져 있어요" : " · 직접 입력해요")), msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-school"}, "학교 코드"), loginForm.role !== "teacher" && React.createElement("input", {id:"v2-school",
     className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role),
     value: loginForm.schoolCode,
     onChange: e => setLF({ ...loginForm, schoolCode: e.target.value.toUpperCase() }),
-    placeholder: "학교 코드 (예: SCH3A7B2C)",
+    placeholder: "학교 코드", "aria-label":"학교 코드",
     style: { marginBottom: 10, letterSpacing: 1 }
-  }), React.createElement("input", {
+  }), React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-loginId"}, "아이디"), React.createElement("input", {id:"v2-loginId",
     className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role),
     value: loginForm.loginId,
     onChange: e => setLF({ ...loginForm, loginId: e.target.value }),
-    placeholder: "아이디",
+    placeholder: "아이디", "aria-label":"아이디",
     style: { marginBottom: 10 }
-  }), React.createElement("input", {
+  }), React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-password"}, "비밀번호"), React.createElement("input", {id:"v2-password",
     className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role),
     value: loginForm.password,
     onChange: e => setLF({ ...loginForm, password: e.target.value }),
     onKeyDown: e => { if (e.key === "Enter") handleLogin(); },
-    placeholder: "비밀번호",
+    placeholder: "비밀번호", "aria-label":"비밀번호",
     type: "password",
     style: { marginBottom: 16 }
   }), React.createElement("button", {
@@ -15280,7 +15248,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     className: "auth-btn", onClick: createSchool, style: { fontSize: 20 * HOME_FONT.kb, fontWeight: HOME_FONT.bw }
   }, "탐험대 생성하기"), React.createElement("p", {
     style: { fontSize: 13 * HOME_FONT.kb, fontWeight: HOME_FONT.rw, margin: "14px 0 0", opacity: 0.9, lineHeight: 1.5 }
-  }, "탐험대 생성 후 고유 코드가 발급됩니다. 이 코드를 학생들에게 공유하세요.")))), seedMode() ? React.createElement(DemoSeedPanel, null) : null);
+  }, "탐험대 생성 후 고유 코드가 발급됩니다. 이 코드를 학생들에게 공유하세요.")))));
   if (page === "privacy") return React.createElement("div", {
     style: shell
   }, React.createElement("div", {
@@ -15577,6 +15545,12 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // 섬은 화면을 꽉 채운다. 상자 안에 넣으면 캔버스만 작아지고 아래가 여백이 된다.
   // 제목은 캔버스 위에 겹쳐 얹는다. 자리를 차지하면 그만큼 섬이 줄어든다.
   // ⑥-1 바다 화면. 부두 출항이 여기로 이어진다. #sea 해시로 바로 열 수도 있다(측정용).
+  if ((page === "island" || page === "plaza") && currentUser && !currentUser.teacherId) return React.createElement(V2App, {
+    key:currentUser.schoolCode+":"+currentUser.id, me:currentUser, entries:myEntries, trial:trialUser,
+    onDiary:function(){setPage("studentDiary");},onLogout:logout,
+    initialPanel:page==="plaza"?"board":null,onBoardSeen:plazaMarkSeen,
+    onBoardClose:function(){if(page==="plaza")setPage("island");},onTour:seaTour,tutOn:tutOn
+  });
   if ((page === "sea" || (page === "island" && seaHash())) && currentUser) return React.createElement("div", {
     style: { position: "fixed", inset: 0, overflow: "hidden", background: "#dfeef2" }
   }, React.createElement("div", {
@@ -16780,8 +16754,19 @@ function App() {
     tut && React.createElement(TutorialOverlay, { steps: tut.steps, i: tut.i, tone: tut.tone, onNext: tutNext, onSkip: tutSkip }));
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
+// The original App mounts after its new presentation assets are ready.
 </script>
+<script src="island-v2/502991c9f22e/coast-water.js"></script>
+<script src="island-v2/502991c9f22e/board.js"></script>
+<script src="island-v2/502991c9f22e/explorer.js"></script>
+<script src="island-v2/502991c9f22e/passages.js"></script>
+<script src="island-v2/502991c9f22e/social.js"></script>
+<script src="island-v2/502991c9f22e/custom-growth.js"></script>
+<script src="island-v2/502991c9f22e/world.js"></script>
+<script src="island-v2/502991c9f22e/account-view.js"></script>
+<script src="island-v2/502991c9f22e/integrated-app.js"></script>
+<script src="island-v2/502991c9f22e/landing.js"></script>
+<script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>

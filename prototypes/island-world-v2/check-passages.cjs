@@ -1,0 +1,32 @@
+// No browser, network, DB, or renderer: exercise real geometry and transition state in memory.
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const page=fs.readFileSync('index.html','utf8');
+const script=[...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('t.REVISION=e')&&s.includes('WebGLRenderer'));
+assert(script,'Existing THREE bundle required');
+const ctx=vm.createContext({console});vm.runInContext(script,ctx);
+vm.runInContext(page.slice(page.indexOf('function buildSplash()'),page.indexOf('// 조명. ③-2',page.indexOf('function buildSplash()'))),ctx);
+for(const p of ['explorer.js','passages.js'])vm.runInContext(fs.readFileSync('prototypes/island-world-v2/'+p,'utf8'),ctx);
+const result=vm.runInContext(`(()=>{
+ const T=THREE,scene=new T.Scene(),actor=buildExplorerCharacter(),boat=new T.Group(),log=[],writes=[];
+ actor.position.set(-7,1.2,26.5);boat.position.set(-3.7,.28,29.2);scene.add(actor,boat);
+ const origin=actor.position.clone(),home=boat.position.clone();
+ const host={dataset:{},parentElement:{dataset:{},style:{setProperty:(k,v)=>writes.push([k,v])}}};
+ const c=v2CreatePassages({scene,actor,boat,host,walkY:()=>1.2,walkable:()=>true,findPath:(x,z)=>[{x,z}],snapshot:()=>({x:origin.x,z:origin.z,yaw:-2.35}),onState:m=>log.push(m?.phase||'done'),onComplete:a=>log.push('open:'+a),reduced:false});
+ const first=c.begin('sea'),duplicate=c.begin('diary');
+ for(let i=0;i<700;i++)c.tick(1/60,i/60);
+ const sea={first,duplicate,opens:log.filter(x=>x==='open:sea').length,phases:[...log],restored:actor.position.equals(origin)&&boat.position.equals(home),saved:c.safeSnapshot()};
+ log.length=0;c.begin('diary');for(let i=0;i<900;i++)c.tick(1/60,i/60);
+ const dive={opens:log.filter(x=>x==='open:diary').length,phases:[...log],restored:actor.position.equals(origin),visible:actor.visible};
+ c.begin('sea');c.tick(.2,20);const snap=c.safeSnapshot();c.cancel();const cancelled=!c.busy&&actor.position.equals(origin)&&boat.position.equals(home);
+ c.begin('sea');c.skip();c.skip();const skipOpens=log.filter(x=>x==='open:sea').length;
+ let triangles=0,meshes=0,finite=true;actor.traverse(o=>{if(o.isMesh){meshes++;const p=o.geometry.attributes.position;triangles+=(o.geometry.index?o.geometry.index.count:p.count)/3;for(const n of p.array)if(!Number.isFinite(n))finite=false;}});
+ const reducedLog=[],fast=v2CreatePassages({scene,actor,boat,host,walkY:()=>1.2,walkable:()=>true,findPath:()=>[],snapshot:()=>({}),onState:()=>{},onComplete:a=>reducedLog.push(a),reduced:true});fast.begin('diary');
+ const legacy=buildCharacter(),legacyTop=new T.Box3().setFromObject(legacy.userData.body).max.y;
+ return {sea,dive,cancelled,skipOpens,snap,finite,meshes,triangles,reduced:reducedLog,legacyScale:legacy.scale.y,legacyTop};
+})()`,ctx);
+assert(result.sea.first&&!result.sea.duplicate);assert.equal(result.sea.opens,1);assert(result.sea.phases.includes('boarding')&&result.sea.phases.includes('sailing'));assert(result.sea.restored);
+assert.equal(result.dive.opens,1);assert(result.dive.phases.includes('diving')&&result.dive.phases.includes('splash'));assert(result.dive.restored&&result.dive.visible);
+assert(result.cancelled);assert.equal(result.skipOpens,1);assert.equal(result.snap.x,-7);assert(result.finite);assert.equal(result.reduced.join(','),'diary');
+assert.equal(result.legacyScale,1);assert(result.legacyTop>1&&result.legacyTop<1.2,'Legacy marker must remain above the hat');
+console.log('PASS: departure/dive complete once; duplicate trigger blocked; cancel/skip/reduced-motion; safe return position; finite explorer geometry.');
+console.log(JSON.stringify({characterMeshes:result.meshes,characterTriangles:result.triangles}));
