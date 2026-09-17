@@ -597,6 +597,12 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 .auth-knob { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #845430; background: #e8b473; color: #443124; cursor: pointer;
   box-shadow: 0 3px 0 #845430; font-size: 15px; line-height: 1; padding: 0; }
 .auth-knob:active { transform: translateY(2px); box-shadow: 0 1px 0 #845430; }
+.auth-inp.ro { background: #c08f58; color: rgba(68,49,36,0.8); cursor: default; box-shadow: inset 0 3px 0 rgba(68,49,36,0.35), inset 0 -1px 0 rgba(255,255,255,0.25); }   /* 심사용 체크: 못 고치는 칸(2026-09-17) */
+.auth-inp.ro:focus { box-shadow: inset 0 3px 0 rgba(68,49,36,0.35), inset 0 -1px 0 rgba(255,255,255,0.25); }
+.auth-judge { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; cursor: pointer; user-select: none;
+  background: rgba(255,255,255,0.22); border: 2px dashed rgba(132,84,48,0.55); color: #443124; }
+.auth-judge.on { background: rgba(255,255,255,0.34); border-style: solid; }
+.auth-judge input { width: 18px; height: 18px; margin: 0; accent-color: #845430; cursor: pointer; flex: none; }
 .auth-link { background: none; border: none; padding: 4px 2px; cursor: pointer; color: #443124; font-family: inherit; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .auth-link:hover { color: #845430; }
 /* 첫 화면 구름: 화면 밖 왼쪽에서 들어와 오른쪽으로 나간다. --x는 구름의 left 값 */
@@ -8227,8 +8233,11 @@ function seedMode() {
 }
 var DEMO_CODE = "DEMO01";
 // 체험 간판이 들어가는 시연 학생(2026-09-14, C안). DEMO.md의 학생 A 탐험이(d07, 2026-09-16 전 이름 하준). 비밀번호는 demo/seed-data.js의 D.PW와 같고 이미 공개된 가상 계정이다.
-// 학생 계정만 연다 — 시연 교사는 DEMO.md의 비밀번호로만 들어간다. 시연 학급이라 쓰기는 세션 메모리에만 남는다(MEM_ONLY).
+// 시연 학급이라 쓰기는 세션 메모리에만 남는다(MEM_ONLY).
 var DEMO_TRIAL = { lid: "d07", pw: "1234" };
+// 로그인 창 「심사용」 체크박스(2026-09-17)가 선생님 탭에 채우는 시연 교사. pw가 비어 있으면 선생님 탭에는 체크박스가 없다(자격은 DEMO.md·#seed 패널, 비밀번호는 제출 서류 별지).
+// 이 페이지는 누구나 소스를 볼 수 있으므로 여기 넣는 비밀번호는 공개된 것과 같다 — 다른 곳에 안 쓰는 시연 전용 비밀번호여야 한다.
+var DEMO_TEACHER = { lid: "demoteacher", pw: "" };
 // lv층 평지가 가장 좁아지는 각도. ③-5에서 1층만 0.85를 지키고 2층은
 // 둘레의 10%쯤에서 눌린다는 것을 눈으로 확인하려고 둔다.
 function narrowestTier(isle, lv) {
@@ -14046,7 +14055,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // 4단계: 시연·체험(메모리에만 쓰는 상태)에서는 "✅ …" 성공 안내 뒤에 저장되지 않았다는 꼬리를 붙인다 — 삭제·비우기를 누른 뒤 실제로 지워진 줄 알지 않게
   const setMsg = useCallback(function (m) { setMsgRaw(MEM_ONLY && typeof m === "string" && m.charAt(0) === "✅" ? m + MEM_NOTES.msg : m); }, []);
   const [currentUser, setCU] = useState(null);
-  const [trialUser, setTrialUser] = useState(false);   // 체험 간판·"시연 학급으로 들어가기"로 시연 학생에 들어왔는지(2026-09-15). 내 섬의 오른쪽 위 버튼이 "체험 끝내기"가 된다. 아이디를 쳐서 들어오면 false
+  const [trialUser, setTrialUser] = useState(false);   // 체험 간판·「심사용」 체크로 시연 학생에 들어왔는지(2026-09-15, 2026-09-17). 내 섬의 오른쪽 위 버튼이 "체험 끝내기"가 된다. 아이디를 쳐서 들어오면 false
   setDemoClock(currentUser);   // 시연 시계 플래그(2단계). 렌더마다 동기로 세운다 — 아래 효과들(살펴봐·반딧불·달라진 아이)이 첫 실행부터 고정 시계를 보게. 로그인 함수도 setCU 앞에서 세운다
   if (page === "trial") MEM_ONLY = true;   // 체험 모드도 메모리에만 쓴다(3단계) — 마음대화가 app/chat_trial_… 에 남던 것을 막는다
   if (!MEM_ONLY && MEM_OPS.length) MEM_OPS = [];   // 시연·체험을 벗어나면 세션 메모리를 비운다
@@ -14073,6 +14082,15 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     teacherPw: ""
   });
   const [authOpen, setAuthOpen] = useState(false);
+  // 「심사용」 체크박스(2026-09-17). 처음 열면 켜져 있고 시연 계정이 채워진다. 끄면 칸이 비고 직접 친다. 끈 것은 기기에 남아(localStorage judge=0) 실제 학급 학생·교사가 매번 끄지 않아도 된다.
+  const [judge, setJudgeRaw] = useState(function () { try { return localStorage.getItem("judge") !== "0"; } catch (e) { return true; } });
+  const judgeOn = function (role) { return judge && (role !== "teacher" || !!DEMO_TEACHER.pw); };   // 선생님 탭은 DEMO_TEACHER.pw가 있어야 채운다
+  const judgeForm = function (on, role) {
+    var r = role || "student";
+    if (!on || (r === "teacher" && !DEMO_TEACHER.pw)) return { schoolCode: "", loginId: "", password: "", role: r };   // on을 인자로 받는다 — 체크 직후엔 judge 상태가 아직 옛 값이라(2026-09-17 하네스)
+    return r === "teacher" ? { schoolCode: "", loginId: DEMO_TEACHER.lid, password: DEMO_TEACHER.pw, role: r } : { schoolCode: DEMO_CODE, loginId: DEMO_TRIAL.lid, password: DEMO_TRIAL.pw, role: r };
+  };
+  const setJudge = function (on) { setJudgeRaw(on); try { if (on) localStorage.removeItem("judge"); else localStorage.setItem("judge", "0"); } catch (e) {} };
   const [authView, setAuthView] = useState("login");   // "login" | "register" — 등록은 선생님 탭 안 링크로만 간다. 학생은 볼 일이 없다
   const homeBarRef = useRef(null);
   const [barH, setBarH] = useState(56);
@@ -14715,8 +14733,9 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       role: "student"
     });
     setMsg("");
+    setAuthOpen(false);   // 학생 로그인과 같이 창을 닫는다 — 안 닫으면 로그아웃해 첫 화면으로 돌아왔을 때 창이 열린 채다(2026-09-17 하네스에서 확인. 전부터 그랬다)
   };
-  // 학생 로그인 본체. 로그인 창(studentLogin)과 체험 간판·"시연 학급으로 들어가기"(demoLogin)가 같이 쓴다. 들어갔으면 true, 아니면 setMsg 뒤 false.
+  // 학생 로그인 본체. 로그인 창(studentLogin)과 체험 간판(demoLogin)이 같이 쓴다. 들어갔으면 true, 아니면 setMsg 뒤 false.
   const studentLoginWith = async (code, lid, pw, viaTrial) => {   // viaTrial: 체험 간판·시연 링크로(2026-09-15)
     let school = await sGet(schPubKey(code));
     if (!school || !school.schoolName) {
@@ -14772,9 +14791,9 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     setAuthOpen(false);   // 열려 있던 로그인 창을 닫는다 — 안 닫으면 로그아웃해 첫 화면으로 돌아왔을 때 창이 열린 채다(2026-09-14 하네스에서 확인)
     return true;
   };
-  const studentLogin = () => studentLoginWith(loginForm.schoolCode.trim().toUpperCase(), loginForm.loginId.trim(), loginForm.password.trim());
-  // 시연 학생(DEMO_TRIAL, 탐험이)으로 들어간다(2026-09-14, C안). 체험 간판과 로그인 창의 "시연 학급으로 들어가기"가 부른다.
-  // 못 들어가면(시연 학급이 없거나 DB가 안 닿거나 http라 해시를 못 만들면) onFail — 체험 간판은 예전 체험 모드(일기만)로, 로그인 창은 그 자리의 안내문으로.
+  const studentLogin = () => studentLoginWith(loginForm.schoolCode.trim().toUpperCase(), loginForm.loginId.trim(), loginForm.password.trim(), judgeOn("student"));   // 심사용 체크로 들어가면 체험 간판과 같은 체험 사용자(2026-09-17)
+  // 시연 학생(DEMO_TRIAL, 탐험이)으로 들어간다(2026-09-14, C안). 체험 간판이 부른다(로그인 창의 "시연 학급으로 들어가기" 링크는 2026-09-17 「심사용」 체크박스로 대신하고 뺐다).
+  // 못 들어가면(시연 학급이 없거나 DB가 안 닿거나 http라 해시를 못 만들면) onFail — 체험 간판은 예전 체험 모드(일기만)로.
   // 두 번 눌러도 한 번만 돈다(demoBusy). 교사 계정은 열지 않는다.
   const demoBusy = useRef(false);
   const demoLogin = async (onFail) => {
@@ -15133,7 +15152,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       background: "radial-gradient(ellipse 72% 62% at 50% 46%, rgba(3,16,32,0) 0%, rgba(3,16,32,0.22) 55%, rgba(3,16,32,0.68) 100%)" }
   }), React.createElement(HomeSigns, {
     // 카드·패널 없이(2026-09-10) 모래 위 나무 표지판이 로그인이다. 동선은 그대로(setAuthOpen / setPage("trial"))
-    onLogin: function () { setMsg(""); setAuthOpen(true); },
+    onLogin: function () { setMsg(""); setLF(judgeForm(judge, loginForm.role)); setAuthOpen(true); },   // 심사용이 켜져 있으면 시연 계정을 채운 채 연다(2026-09-17)
     // 체험 간판 = 시연 학생 탐험이로 자동 로그인(2026-09-14, C안). 일기만 있던 체험 모드는 못 들어갔을 때의 대비로만 남는다.
     onTrial: function () { setMsg(""); setTE([]); demoLogin(function () { setMsg(""); setPage("trial"); }); }
   })), React.createElement("div", {
@@ -15151,7 +15170,10 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, React.createElement("button", {
     onClick: function () { setPage("privacy"); },
     style: { pointerEvents: "auto", background: "none", border: "none", color: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, textShadow: "inherit" }
-  }, "개인정보 처리방침"), " · © 2026 마음 바다 탐험대"), React.createElement("div", { className: "scroll-cue-wrap" }, React.createElement("button", {
+  }, "개인정보 처리방침"), " · ", React.createElement("button", {
+    onClick: function () { setPage("credits"); },   // 출처와 저작권(2026-09-17). 개인정보 처리방침과 같은 구조의 페이지
+    style: { pointerEvents: "auto", background: "none", border: "none", color: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, textShadow: "inherit" }
+  }, "출처와 저작권"), " · © 2026 마음 바다 탐험대"), React.createElement("div", { className: "scroll-cue-wrap" }, React.createElement("button", {
     // 아래로 내려갈 수 있다는 표시. 4초에 한 번 8px 오르내린다. prefers-reduced-motion이면 멈춘다
     className: "scroll-cue", "aria-label": "아래로 내려가기",
     onClick: function () {
@@ -15180,24 +15202,34 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, ["student", "teacher"].map((r, i) => React.createElement("button", {
     key: r,
     className: "auth-tab " + (loginForm.role === r ? "on" : "off"),
-    onClick: () => { setMsg(""); setLF({ ...loginForm, role: r }); },
+    onClick: () => { setMsg(""); setLF(judgeForm(judge, r)); },   // 탭을 옮기면 그 탭의 시연 계정으로(심사용이 켜져 있을 때). 꺼져 있으면 빈 칸
     style: { "--rot": (i ? "1.5deg" : "-1.5deg"), fontSize: 17 * HOME_FONT.kb, fontWeight: HOME_FONT.bw }
   }, r === "student" ? "학생" : "선생님"))), React.createElement("p", {
     style: { fontSize: 14 * HOME_FONT.kb, fontWeight: HOME_FONT.rw, margin: "0 0 12px", opacity: 0.9 }
-  }, loginForm.role === "teacher" ? "아이디와 비밀번호로 들어가요" : "학교 코드, 아이디, 비밀번호로 들어가요"), msgBox, loginForm.role !== "teacher" && React.createElement("input", {
-    className: "auth-inp",
+  }, loginForm.role === "teacher" ? "아이디와 비밀번호로 들어가요" : "학교 코드, 아이디, 비밀번호로 들어가요"),
+  // 「심사용」 체크박스(2026-09-17). 켜져 있으면 시연 계정(학생: 탐험이 d07 · 선생님: demoteacher)이 채워져 있고 칸은 못 고친다. 끄면 칸이 비고 직접 친다.
+  // 선생님 탭은 DEMO_TEACHER.pw가 있을 때만 보인다. 옛 "계정이 없나요? 시연 학급으로 들어가기 →" 링크는 이것으로 대신한다.
+  (loginForm.role !== "teacher" || !!DEMO_TEACHER.pw) && React.createElement("label", {
+    className: "auth-judge" + (judge ? " on" : ""), style: { fontSize: 14 * HOME_FONT.kb }
+  }, React.createElement("input", {
+    type: "checkbox", checked: judge, "aria-label": "심사용",
+    onChange: e => { var on = e.target.checked; setMsg(""); setJudge(on); setLF(judgeForm(on, loginForm.role)); }
+  }), React.createElement("span", { style: { fontWeight: HOME_FONT.bw } }, "심사용"), React.createElement("span", {
+    style: { fontWeight: HOME_FONT.rw, opacity: 0.85 }
+  }, judge ? " · 시연 학급 계정이 채워져 있어요" : " · 직접 입력해요")), msgBox, loginForm.role !== "teacher" && React.createElement("input", {
+    className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role),
     value: loginForm.schoolCode,
     onChange: e => setLF({ ...loginForm, schoolCode: e.target.value.toUpperCase() }),
     placeholder: "학교 코드 (예: SCH3A7B2C)",
     style: { marginBottom: 10, letterSpacing: 1 }
   }), React.createElement("input", {
-    className: "auth-inp",
+    className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role),
     value: loginForm.loginId,
     onChange: e => setLF({ ...loginForm, loginId: e.target.value }),
     placeholder: "아이디",
     style: { marginBottom: 10 }
   }), React.createElement("input", {
-    className: "auth-inp",
+    className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role),
     value: loginForm.password,
     onChange: e => setLF({ ...loginForm, password: e.target.value }),
     onKeyDown: e => { if (e.key === "Enter") handleLogin(); },
@@ -15210,12 +15242,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     style: { marginTop: 14, textAlign: "right" }
   }, React.createElement("button", {
     className: "auth-link", onClick: () => { setMsg(""); setAuthView("register"); }
-  }, "탐험대를 처음 만드나요? 등록하기 →")), loginForm.role !== "teacher" && React.createElement("div", {
-    // 시연 학급으로 들어가기(2026-09-14, C안). 체험 간판과 같은 길(시연 학생 탐험이). 계정을 모르는 심사위원이 여기서도 3D에 닿는다. 실패하면 위 안내문(msgBox)에 이유가 뜬다
-    style: { marginTop: 14, textAlign: "right" }
-  }, React.createElement("button", {
-    className: "auth-link", onClick: () => { setMsg(""); demoLogin(null); }
-  }, "계정이 없나요? 시연 학급으로 들어가기 →"))) : React.createElement(React.Fragment, null, React.createElement("div", {
+  }, "탐험대를 처음 만드나요? 등록하기 →"))) : React.createElement(React.Fragment, null, React.createElement("div", {
     style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }
   }, React.createElement("span", {
     style: { fontSize: 19 * HOME_FONT.kb }
@@ -15477,6 +15504,9 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       color: "#475569"
     }
   }, "\uC2DC\uD589\uC77C: 2026\uB144 4\uC6D4 28\uC77C")))));
+  // 출처와 저작권(2026-09-17). 개인정보 처리방침과 같은 구조(← 홈으로 · 카드 하나). 내용은 CREDITS.md와 같아야 한다 — 한쪽을 고치면 다른 쪽도.
+  // 문구는 초안. 표(table)는 400폭에서 깨져서 항목마다 이름 한 줄 + 설명 한 줄로 둔다.
+  if (page === "credits") return React.createElement(CreditsPage, { onHome: function () { setPage("home"); } });
   if (page === "trial") return React.createElement("div", {
     style: shell
   }, React.createElement("div", {
@@ -16679,6 +16709,60 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   return null;
 }
 // 튜토리얼 상태는 여기(App)에 둔다(2026-09-15). 화면이 바뀌면 각 뷰는 언마운트되지만 투어는 이어진다. AppMain은 tutStart로 투어를 켠다(다음 단계에서 내 섬·교사 대시보드가 쓴다)
+// 출처와 저작권 페이지(2026-09-17). 첫 화면 꼬리 "출처와 저작권"에서 연다. 개인정보 처리방침(page === "privacy")과 같은 틀.
+// 항목은 CREDITS.md와 같은 내용이어야 한다. "확인 중"은 아직 출처를 못 적은 것 — 숨기지 않고 그대로 보인다.
+var CREDITS = {
+  intro: "마음 바다 탐험대는 여러 사람이 나눠 준 것들 위에서 만들어졌어요. 빌려 온 것과 만든 사람을 여기에 적어 둡니다.",
+  sections: [
+    { title: "글꼴", items: [
+      { name: "메이플스토리 서체", by: "㈜넥슨코리아", note: "첫 화면 제목과 표지판, 로그인 창, 섬의 팻말에 썼어요. 넥슨이 무료로 나눠 주는 글꼴이에요. 이 페이지에는 메이플스토리에서 제공한 메이플스토리 서체가 적용되어 있습니다." },
+      { name: "주아", by: "우아한형제들", note: "제목 글자. SIL Open Font License 1.1, Google Fonts에서 불러와요." },
+      { name: "고운돋움", by: "류양희", note: "본문 글자. SIL Open Font License 1.1, Google Fonts에서 불러와요." }
+    ] },
+    { title: "그림", items: [
+      { name: "첫 화면 배경 · 제목 · 나무 표지판 둘 · 로그인 창 나무판", by: "ChatGPT(OpenAI)로 만들고 손질", note: "생성 도구로 만든 그림이에요. 어떤 도구로 만들었는지 밝혀 둡니다." },
+      { name: "일기 화면의 감정 얼굴", by: "Twemoji — Twitter, Inc. and other contributors", note: "CC BY 4.0 (creativecommons.org/licenses/by/4.0). 그림을 그대로 썼어요." },
+      { name: "바다 생물 · 잠수함 · 잠수부 아이콘", by: "출처 확인 중", note: "2026년 4월 첫 판부터 있던 그림이에요. 만든 곳을 확인해 적을게요." },
+      { name: "섬 · 바다 · 광장", by: "이 앱이 직접 그려요", note: "3D 장면은 코드가 매번 그려요. 첫 화면 아래 소개 그림은 그 화면을 찍은 것이에요." }
+    ] },
+    { title: "소리", items: [
+      { name: "배경 피아노 · 발걸음 · 화면 전환 소리", by: "Pixabay", note: "Musical Peaceful Piano Loop · Nature Footstep Grass Leaf · Film Special Effects Soft Luxury Air Whoosh 5. Pixabay Content License(pixabay.com/service/license-summary). 소리는 기본으로 꺼져 있고 「소리」 버튼으로 켜요." }
+    ] },
+    { title: "함께 쓴 도구", items: [
+      { name: "React 18.3.1", by: "Meta Platforms, Inc.", note: "MIT License. 화면을 만드는 도구예요." },
+      { name: "Three.js r147", by: "Three.js Authors", note: "MIT License. 섬과 바다를 3D로 그려요." },
+      { name: "Firebase JavaScript SDK 10.12.2", by: "Google LLC", note: "Apache License 2.0. 일기와 명단을 저장해요." },
+      { name: "Google Fonts", by: "Google LLC", note: "주아·고운돋움 글꼴을 가져오는 곳이에요." }
+    ] },
+    { title: "기대고 있는 연구", items: [
+      { name: "CES-D 우울 척도", by: "Radloff, L. S. (1977)", note: "The CES-D Scale: A self-report depression scale for research in the general population. Applied Psychological Measurement, 1(3), 385–401. 「살펴봐주세요」가 눈여겨보는 낱말을 고를 때 참고했어요. 검사를 하는 것은 아니에요." },
+      { name: "정서 원형 모형", by: "Russell, J. A. (1980)", note: "A circumplex model of affect. Journal of Personality and Social Psychology, 39(6), 1161–1178. 마음 말 28가지가 섬 어디에서 자라는지(기운·긴장)를 이 모형으로 정했어요." },
+      { name: "비폭력대화", by: "Rosenberg, M. B. (2003)", note: "Nonviolent Communication: A Language of Life. PuddleDancer Press. 한국어판 『비폭력대화』(캐서린 한 옮김, 한국NVC센터). 선생님께 건네는 대화 문구의 바탕이에요." }
+    ] }
+  ],
+  outro: "이 앱의 코드와 글, 화면 구성은 © 2026 마음 바다 탐험대. 빌려 온 것은 각자의 라이선스를 따라요. 빠진 것이 있으면 알려 주세요."
+};
+function CreditsPage(props) {
+  return React.createElement("div", { style: shell }, React.createElement("div", {
+    style: { maxWidth: 680, margin: "0 auto", padding: "clamp(20px, 5vw, 40px) clamp(12px, 3.5vw, 24px)" }
+  }, React.createElement("button", { onClick: props.onHome, style: { ...bSoft, marginBottom: 20, fontSize: 14 } }, "\u2190 \uD648\uC73C\uB85C"),
+  React.createElement("div", { style: { ...crd, padding: "clamp(22px, 4.5vw, 32px) clamp(16px, 4vw, 28px)" } },
+    React.createElement("h1", { style: { fontSize: 24, fontWeight: 400, fontFamily: "'Jua',sans-serif", margin: "0 0 16px", textAlign: "center", color: "#0c4a6e" } }, "출처와 저작권"),
+    React.createElement("p", { style: { fontSize: 14, color: "#1e293b", lineHeight: 1.8, margin: "0 0 8px", textAlign: "center" } }, CREDITS.intro),
+    CREDITS.sections.map(function (sec) {
+      return React.createElement("div", { key: sec.title }, React.createElement("h3", {
+        style: { fontSize: 15, color: "#0c4a6e", margin: "24px 0 6px", paddingBottom: 6, borderBottom: "1px solid #e2e8f0" }
+      }, sec.title), sec.items.map(function (it) {
+        return React.createElement("div", { key: it.name, style: { padding: "9px 0", borderBottom: "1px dashed #f1f5f9" } },
+          React.createElement("div", { style: { fontSize: 14, color: "#1e293b", lineHeight: 1.6, display: "flex", flexWrap: "wrap", gap: "2px 10px", alignItems: "baseline" } },
+            React.createElement("strong", { style: { fontWeight: 700 } }, it.name),
+            React.createElement("span", { style: { color: it.by.indexOf("확인 중") >= 0 ? "#b45309" : "#0e7490", fontSize: 13 } }, it.by)),
+          React.createElement("div", { style: { fontSize: 13, color: "#475569", lineHeight: 1.7, marginTop: 2 } }, it.note));
+      }));
+    }),
+    React.createElement("div", { style: { textAlign: "center", marginTop: 24, paddingTop: 16, borderTop: "1px solid #f1f5f9" } },
+      React.createElement("p", { style: { fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 } }, CREDITS.outro)))));
+}
 function App() {
   const [tut, setTut] = useState(null);   // { steps, i, tone, onDone } | null
   const tutRef = useRef(null); tutRef.current = tut;
