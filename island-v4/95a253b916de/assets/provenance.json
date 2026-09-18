@@ -1,0 +1,54 @@
+[
+  {
+    "assetId": "tree",
+    "sourceTool": "Tripo, supplied by user",
+    "receivedDate": "2026-09-18",
+    "generatedDate": null,
+    "usageTerms": "Tripo generation plan / model page / terms unverified",
+    "changes": "Reuse existing 1K copy unchanged",
+    "optimizationDate": "2026-09-18",
+    "runtimeSha256": "ee0f09506d9884b2d5e3790ad42b485cd1b0397f70eba2cde48d74596e35d0ee",
+    "triangles": 4666,
+    "materials": 1,
+    "bytes": 887340
+  },
+  {
+    "assetId": "board",
+    "sourceTool": "Tripo, supplied by user",
+    "receivedDate": "2026-09-18",
+    "generatedDate": null,
+    "usageTerms": "Tripo generation plan / model page / terms unverified",
+    "changes": "Reuse existing 1K copy unchanged",
+    "optimizationDate": "2026-09-18",
+    "runtimeSha256": "2b6c528ba656352325bc06447ab2edc164b1d91274dc482ac3c0e9cc20e88aa7",
+    "triangles": 3914,
+    "materials": 1,
+    "bytes": 792036
+  },
+  {
+    "assetId": "book",
+    "sourceTool": "Tripo, supplied by user",
+    "receivedDate": "2026-09-18",
+    "generatedDate": null,
+    "usageTerms": "Tripo generation plan / model page / terms unverified",
+    "changes": "Embedded images 2K to 1K only; geometry/accessors unchanged",
+    "optimizationDate": "2026-09-18",
+    "runtimeSha256": "208c34a040a023e2f8d0ddf7970ad4456687cc831cdcb3976c88d623422b1d00",
+    "triangles": 4420,
+    "materials": 1,
+    "bytes": 861176
+  },
+  {
+    "assetId": "telescope",
+    "sourceTool": "Tripo, supplied by user",
+    "receivedDate": "2026-09-18",
+    "generatedDate": null,
+    "usageTerms": "Tripo generation plan / model page / terms unverified",
+    "changes": "Embedded images 2K to 1K only; geometry/accessors unchanged",
+    "optimizationDate": "2026-09-18",
+    "runtimeSha256": "188f049ac2763a6ddc16ab710cbafa62e1d9789f3d589c23e047e15e539e9595",
+    "triangles": 4860,
+    "materials": 1,
+    "bytes": 1070612
+  }
+]
