@@ -1,8 +1,9 @@
+import sys
 """Apply only the reviewed static manifest; no DB, Git or network actions."""
 from pathlib import Path
 import hashlib,json,shutil
 ROOT=Path(__file__).resolve().parents[4]
-OUT=ROOT/'renders/releases/mind-island-v4-20260919'
+OUT=ROOT/'renders/releases'/(sys.argv[1] if len(sys.argv)>1 else 'mind-island-v4-20260919')
 m=json.loads((OUT/'manifest.json').read_text())
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 assert sha(ROOT/'index.html') in (m['sourceSha256'],m['candidateSha256']), 'Unreviewed root index; refusing overwrite'

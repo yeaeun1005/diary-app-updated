@@ -1,0 +1,29 @@
+/* Shared placement rules. Basic scenery never depends on diary/learning scores. */
+const V4Decor=(()=>{
+ const items={
+  sunflower:{name:'햇살 꽃',icon:'✿',desc:'따뜻한 노란빛 한 송이',height:1.2,r:.56,color:'#e8be70'},
+  whiteflower:{name:'흰 꽃',icon:'✾',desc:'정원에 내려앉은 작은 구름',height:1.05,r:.51,color:'#e4dfc2'},
+  stoneLight:{name:'작은 돌등',icon:'☼',desc:'산책 끝에 만나는 포근한 불빛',height:1.10,r:.62,color:'#b6b398'},
+  mossRock:{name:'이끼 바위',icon:'◒',desc:'초록 이불을 덮은 둥근 돌',width:1.25,r:.89,color:'#9cad7b'},
+  reeds:{name:'갈대',icon:'❧',desc:'가늘게 자라난 풀 한 무리',height:1.50,r:.59,color:'#baa976'},
+  bench:{name:'목재 벤치',icon:'▰',desc:'쉬어 가고 싶은 나만의 자리',width:1.85,r:1.11,color:'#c89964'}
+ };
+ const zones={shade:{name:'나무 곁 정원',sub:'차분한 초록 사이, 작은 쉼터',x:-4.7,z:-6.45,halfX:1.65,halfZ:1.95},breeze:{name:'산책길 곁 정원',sub:'햇살을 따라 소품을 모아 봐요',x:6,z:2.35,halfX:1.6,halfZ:2.0}};
+ const oldSpots={'desk-garden':{x:.2,z:-3.8},'water-garden':{x:9,z:3},'bench-garden':{x:-8,z:1}};
+ const obstacles=[{x:-6.2,z:-5.3,r:.4}]; // Fixed lamp at the existing conversation bench.
+ const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
+ function catalog(s){return {...items,...(s?.reward?.item?{reward:{name:({flower:'도톰한 꽃',lantern:'작은 정원 등불',shrub:'둥근 관목'})[s.reward.item],icon:'✦',desc:'마음 탐험 01에서 받은 선물',reward:s.reward.item,r:({flower:.87,lantern:.82,shrub:1.46})[s.reward.item]}}:{})};}
+ function placements(s){const out={};for(const id of Object.keys(catalog(s))){if(own(s?.decor,id)){if(s.decor[id])out[id]={...s.decor[id]};}else if(id==='reward'&&oldSpots[s.reward.spot])out[id]={...oldSpots[s.reward.spot],rotation:0,legacy:true};}return out;}
+ function reserved(x,z,pad=0){return Object.values(zones).some(g=>Math.abs(x-g.x)<=g.halfX+pad&&Math.abs(z-g.z)<=g.halfZ+pad);}
+ function reason(s,id,p){const item=catalog(s)[id];if(!item)return '이 소품을 아직 가지고 있지 않아요.';if(p===null)return '';if(!p||![p.x,p.z,p.rotation].every(Number.isFinite)||!own(zones,p.zone))return '정원 안에서 자리를 골라 주세요.';
+  const g=zones[p.zone],r=item.r;if(Math.abs(p.x-g.x)>g.halfX-r||Math.abs(p.z-g.z)>g.halfZ-r)return '소품이 정원 밖으로 나가요. 안쪽으로 옮겨 주세요.';
+  if(obstacles.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<r+q.r+.12))return '원래 있던 등불과 가까워요. 조금 옮겨 주세요.';
+  for(const [other,q]of Object.entries(placements(s)))if(other!==id&&Math.hypot(p.x-q.x,p.z-q.z)<r+catalog(s)[other].r+.12)return '다른 소품과 가까워요. 조금 떨어뜨려 주세요.';
+  return '';
+ }
+ function normalize(p){return p===null?null:{zone:p.zone,x:Math.round(p.x*100)/100,z:Math.round(p.z*100)/100,rotation:((Math.round(p.rotation/45)*45)%360+360)%360};}
+ function suggest(s,id,zone='shade'){const g=zones[zone],points=[{x:g.x,z:g.z}];for(let z=g.z-g.halfZ;z<=g.z+g.halfZ;z+=.25)for(let x=g.x-g.halfX;x<=g.x+g.halfX;x+=.25)points.push({x,z});return points.map(p=>normalize({...p,zone,rotation:0})).find(p=>!reason(s,id,p))||{zone,x:g.x,z:g.z,rotation:0};}
+ function apply(s,event){if(!own(catalog(s),event.id))throw Error('decor-owner');const p=normalize(event.placement);if(reason(s,event.id,p))throw Error('decor-placement');s.decor={...(s.decor||{}),[event.id]:p};return s;}
+ return {items,zones,catalog,placements,reserved,reason,normalize,suggest,apply};
+})();
+if(typeof module==='object')module.exports=V4Decor;

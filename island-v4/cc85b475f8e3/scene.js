@@ -1,6 +1,6 @@
 /* Compact V4 own-island scene. Existing explorer, navigation and passage math reused. */
 const V4={version:'v4-roomy-light',seed:'v4-cozy',speed:3,spawn:{x:0,z:4},camera:{yaw:-.20,pitch:.80,distance:32},zones:[{key:'rose',x:-9,z:-7},{key:'mint',x:2,z:-8},{key:'water',x:11,z:-1},{key:'lavender',x:-9,z:5}],stops:{write:{x:3,z:-4.5,title:'내 안으로 · 마음 쓰기',action:'write'},review:{x:11,z:-1,title:'마음 살펴보기',action:'review'},talk:{x:-8,z:-4,title:'마음 대화',action:'talk'},practice:{x:-9,z:5,title:'마음 연습',action:'practice'},archive:{x:5.4,z:-4.5,title:'일기 모아보기',action:'archive'},board:{x:-3.8,z:7.2,title:'우리 반 게시판',action:'board'},dock:{x:6.4,z:17.3,title:'부두',action:'sea'}}};
-const V4_QUERY=new URLSearchParams(location.search),v4Clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const V4_QUERY=new URLSearchParams(),v4Clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const V4_BRIDGE={x0:80,x1:81,z:-3,half:1};
 function v4Pond(x,z){return Math.hypot((x-12)/3,(z+3)/5);}
 function v4Radius(x,z){const a=Math.atan2(z/19,x/23);return Math.hypot(x/23,z/19)/(1+.045*Math.sin(a*3+.6)+.025*Math.sin(a*7));}

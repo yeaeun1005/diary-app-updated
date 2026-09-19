@@ -1,10 +1,7 @@
-/* V4 integration is loaded only by the verified memory preview. */
-if(typeof __DB!=='object'||!document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content.includes("connect-src 'none'"))throw Error('V4 requires isolated memory preview');
-V4State.configure({read:k=>__get('v4-local/'+k),write:async(k,v)=>{if(new URLSearchParams(location.search).get('saveFail')==='1')throw Error('local-write-failure');__set('v4-local/'+k,v);}});
 const v4h=React.createElement,V4_SESSIONS={};
 const V4_TABS=[['write','마음 쓰기','✎'],['review','마음 살펴보기','◉'],['talk','마음 대화','♡'],['practice','마음 연습','✧'],['archive','일기 모아보기','▤']];
 function v4Analyze(raw){try{if(V4_QUERY.get('analysisFail')==='1')throw Error('local-analysis-failure');return analyzeEntry(raw);}catch{return{hits:[],excluded:[],matchedPos:[],matchedNeg:[],posScore:null,negScore:null,posPct:null,negPct:null,valence9:null,arousal9:null,valStd:null,aroStd:null,status:'unavailable'};}}
-function V4App(props){
+function V4AppInner(props){
  const {me,entries,onAdd,onUpdate,onDelete,setEntries,onDiary,onLogout,onBoardSeen,onBoardClose}=props;
  const [view,setView]=useState(V4_QUERY.get('inspect')==='1'&&V4_QUERY.get('view')==='sea'?'sea':'world'),[friend,setFriend]=useState(null),[seaFrom,setSeaFrom]=useState(null),[panel,setPanel]=useState(props.initialPanel),[data,setData]=useState(()=>V4State.load(me)),[error,setError]=useState(''),[state,setState]=useState(()=>islandState(entries||[]));
  const [placeRequest,setPlaceRequest]=useState(null),[celebrate,setCelebrate]=useState(false),[editDecor,setEditDecor]=useState(null);
@@ -32,7 +29,7 @@ function V4App(props){
 function V4World({me,data,change,panel,onOpen,onLogout,placeRequest,editDecor,onDecorClose,onDecorLibrary}){
  const host=useRef(null),api=useRef(null),openRef=useRef(onOpen);openRef.current=onOpen;
  const [ui,setUI]=useState({}),[quality,setQuality]=useState('standard'),[help,setHelp]=useState(false),[map,setMap]=useState(false),[motion,setMotion]=useState(null),[collapsed,setCollapsed]=useState(()=>innerWidth<700),[notice,setNotice]=useState(''),[failed,setFailed]=useState(''),[lit,setLit]=useState(null);
- useEffect(()=>{SND.loop('bgm');try{api.current=v4CreateWorld(host.current,[],{open:a=>openRef.current(a),update:setUI,motion:setMotion},V4_SESSIONS[me.id],{quality,islandId:me.id});window.__V4=api.current;api.current.setDecoration(data.reward,data.decor);}catch(e){setFailed('섬 화면을 열지 못했어요. 마음 활동 바로가기를 이용해 주세요.');console.error(e);}return()=>{SND.leave();if(api.current){V4_SESSIONS[me.id]=api.current.snapshot();api.current.dispose();}delete window.__V4;};},[me.id,quality]);
+ useEffect(()=>{SND.loop('bgm');try{api.current=v4CreateWorld(host.current,[],{open:a=>openRef.current(a),update:setUI,motion:setMotion},V4_SESSIONS[me.id],{quality,islandId:me.id});api.current.setDecoration(data.reward,data.decor);}catch(e){setFailed('섬 화면을 열지 못했어요. 마음 활동 바로가기를 이용해 주세요.');console.error(e);}return()=>{SND.leave();if(api.current){V4_SESSIONS[me.id]=api.current.snapshot();api.current.dispose();}};},[me.id,quality]);
  useEffect(()=>{api.current?.pause(!!panel||help||!!editDecor);},[panel,help,quality,editDecor]);useEffect(()=>{api.current?.setDecoration(data.reward,data.decor);},[data.reward.item,data.reward.spot,data.decor,quality]);
  async function act(event){try{await change(event);}catch(e){setNotice('저장하지 못했어요. 다시 눌러 주세요.');}}
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),6000);return()=>clearTimeout(timer);},[notice]);
@@ -54,7 +51,7 @@ function V4World({me,data,change,panel,onOpen,onLogout,placeRequest,editDecor,on
   notice&&!panel&&v4h('div',{className:'v4-notice',role:'status'},notice,button('×',()=>setNotice(''),'','안내 닫기')),
   failed&&v4h('div',{className:'v4-notice',role:'alert'},failed,V4_TABS.map(([id,title])=>button(title,()=>onOpen(id)))),
   motion&&v4h('div',{className:'v2-passage-shield'},v4h('div',{className:'v2-passage-caption'},v4h('p',{role:'status'},'배를 타고 친구들의 바다로 가요'),button('바로 들어가기',()=>api.current?.skipPassage()),button('취소',()=>api.current?.cancelPassage()))),
-  help&&v4h(V4Dialog,{title:'편안하게 탐험하기',onClose:()=>setHelp(false)},v4h('p',null,'방향키 또는 WASD로 걸어요. 길을 눌러 걸을 수도 있어요. 화면을 드래그하면 360도로 둘러봐요.'),v4h('p',null,'장소 가까이에서 E 또는 ㄷ을 누르세요. 글을 쓸 때는 캐릭터가 움직이지 않아요.'),v4h('div',{className:'v4-actions'},button('표준 화질',()=>setQuality('standard')),button('가벼운 화질',()=>setQuality('low'))),v4h('p',{className:'v4-muted'},'로컬 검수용 섬 · 새로고침하면 연습 기록이 초기화돼요.'),button('처음으로',onLogout)),
+  help&&v4h(V4Dialog,{title:'편안하게 탐험하기',onClose:()=>setHelp(false)},v4h('p',null,'방향키 또는 WASD로 걸어요. 길을 눌러 걸을 수도 있어요. 화면을 드래그하면 360도로 둘러봐요.'),v4h('p',null,'장소 가까이에서 E 또는 ㄷ을 누르세요. 글을 쓸 때는 캐릭터가 움직이지 않아요.'),v4h('div',{className:'v4-actions'},button('표준 화질',()=>setQuality('standard')),button('가벼운 화질',()=>setQuality('low'))),v4h('p',{className:'v4-muted'},MEM_ONLY?'체험 중 · 새로고침하면 처음으로 돌아가요.':'로그인한 계정에 기록과 탐험 진행을 저장해요.'),button('처음으로',onLogout)),
   editDecor&&v4h(V4DecorEditor,{key:editDecor,api,data,change,id:editDecor,onClose:message=>{onDecorClose();setNotice(message);},onLibrary:onDecorLibrary}),
   V4_QUERY.get('inspect')==='1'&&v4h(V4Inspect,{api,host,data}));
 }
