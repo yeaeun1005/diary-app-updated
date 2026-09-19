@@ -1,0 +1,12 @@
+.v4-restored-card{background:#fffdf7;border:1px solid #dae5d9;border-radius:18px;padding:22px;margin:18px 0;min-width:0}
+.v4-restored-card h3,.v4-restored-card h4{margin:0 0 12px;color:#315f53}.v4-restored-card h3{font-size:24px}.v4-restored-card h4{font-size:19px}.v4-restored-card h5,.v4-action-suggestions h5{font-size:15px;margin:20px 0 10px}
+.v4-restored-card p,.v4-talk-detection p{font-size:14px;line-height:1.8;overflow-wrap:anywhere}
+.v4-restored-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.v4-restored-grid>.v4-restored-card{margin:0}
+.v4-restored-analysis canvas{max-width:100%;height:auto}.v4-restored-analysis .v4-restored-card{overflow:hidden}
+.v4-detection,.v4-talk-detection{padding:15px 18px;border-radius:13px;background:#eaf2eb;margin:18px 0;border:1px solid #d1e3d6}
+.v4-talk-detection h4{margin:0 0 8px;font-size:15px}.v4-talk-detection .v4-chips{margin:8px 0}.v4-talk-detection .v4-chips button{background:#fffdf7}
+.v4-suggestion-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 22px}.v4-suggestion-list button{text-align:left;line-height:1.65;padding:12px 14px;white-space:normal;overflow-wrap:anywhere}
+.v4-suggestion-list button[aria-pressed=true]{background:#dcebdc;border-color:#7eaa92}.v4-date-range{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}.v4-date-range label{display:flex;flex-direction:column;gap:5px;font-size:13px}.v4-date-range input,.v4-write-date input{font:inherit;color:#315f53;padding:9px;border:1px solid #c8d9cc;border-radius:9px;background:#fffdf7;max-width:100%;box-sizing:border-box}
+.v4-write-date{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}.v4-write-date button{font-size:13px}.v4-study-details>summary{font-size:16px;font-weight:650}
+.v4-custom-emotion{display:flex;align-items:end;flex-wrap:wrap;gap:9px;margin:16px 0}.v4-custom-emotion label{display:flex;flex-direction:column;gap:6px;font-size:13px;flex:1;min-width:180px}.v4-custom-emotion input{font:inherit;padding:12px;border-radius:10px;border:1px solid #c8d9cc;background:#fff;min-width:0;color:#315f53}
+@media(max-width:700px){.v4-restored-grid,.v4-suggestion-list{grid-template-columns:1fr}.v4-restored-card{padding:16px;margin:14px 0}.v4-restored-card h3{font-size:21px}.v4-restored-card h4{font-size:17px}.v4-detection,.v4-talk-detection{padding:12px}.v4-restored-analysis .v4-segment{flex-wrap:wrap}}

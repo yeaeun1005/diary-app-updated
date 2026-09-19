@@ -1,0 +1,46 @@
+// Offline checks against the actual auth handlers and fictional classroom. No live Firebase.
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),crypto=require('crypto');
+const out='renders/releases/six-models-20260920/',m=JSON.parse(fs.readFileSync(out+'manifest.json')),base=fs.readFileSync(out+'before-work/index.html','utf8'),page=fs.readFileSync(out+'candidate/index.html','utf8'),preview=fs.readFileSync(out+'memory-preview/index.html','utf8');
+const cut=(s,a,b)=>{const x=s.indexOf(a),y=s.indexOf(b,x);assert(x>=0&&y>x,a);return s.slice(x,y);};
+for(const[a,b]of [['  const teacherLogin = async () => {','  // 학생 로그인 본체.'],['  const studentLoginWith = async','  const studentLogin = () =>'],['  const syncIsland = useCallback','  const logout =']])assert.equal(cut(page,a,b),cut(base,a,b));
+assert.equal(cut(page,'function dbRef(k)','// 실패를 그대로 던진다.'),cut(base,'function dbRef(k)','// 실패를 그대로 던진다.'));
+for(const html of [page,preview])for(const a of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(a[1].trim())new vm.Script(a[1]);
+for(const[f,d]of Object.entries(m.files)){const data=fs.readFileSync(out+'candidate/'+f);assert.equal(crypto.createHash('sha256').update(data).digest('hex'),d);if(f.endsWith('.js'))new vm.Script(data.toString());}
+assert(preview.includes("connect-src 'none'")&&preview.includes('var __DB = {}'));
+assert(!/firebase\.initializeApp|firebase-database-compat|<script[^>]+src=["']https?:/.test(preview));
+assert(!/V2_TEST_AUTH|__local-fixtures|127\.0\.0\.1|var __DB = \{\}/.test(page));
+assert(page.includes('선생님 길잡이')&&page.includes('기록 전체 삭제')&&page.includes('download:"마음바다탐험대_보호자동의서.pdf"'));
+let realCalls=0;
+const ctx=vm.createContext({console,crypto:crypto.webcrypto,TextEncoder,setTimeout,clearTimeout,DEMO_CODE:'DEMO01',window:{},firebase:{database:()=>({ref:()=>{realCalls++;return{realSentinel:true};}})}});
+vm.runInContext('window=this;',ctx);
+for(const[a,b]of [['function normalizeKorean(','const FONT ='],['const SITUATION_MAP =','var NEED_OPTIONS ='],['var SAD_EMOS =','var CREATURES ='],['var CAUSAL_ENDINGS =','var ISLE = {'],['function islandState(entries)','// 영역별 식생 규칙.']])vm.runInContext(cut(page,a,b),ctx);
+for(const f of ['review-data.js','review-generator.js','review-class.js'])vm.runInContext(fs.readFileSync(out+'candidate/'+m.assetPath+'/'+f,'utf8'),ctx);
+vm.runInContext(fs.readFileSync(out+'candidate/'+m.assetPath+'/sharing.js','utf8'),ctx);
+vm.runInContext(fs.readFileSync(out+'candidate/'+m.assetPath+'/legacy/social.js','utf8'),ctx);
+const run=s=>vm.runInContext(s,ctx);
+run('var observed={};function setMsg(v){observed.message=v;}function setCU(v){observed.user=v;}function setMS(v){observed.students=v;}function setME(v){observed.entries=v;}function setPage(v){observed.page=v;}function setLF(){}function setAuthOpen(){}function setTrialUser(){}function hubStart(){return "island";}var DEMO_TRIAL={};var loginForm={};');
+run(cut(page,'  const teacherLogin = async () => {','  // 학생 로그인 본체.')+cut(page,'  const studentLoginWith = async','  const studentLogin = () =>'));
+(async()=>{
+ await run('V4ReviewClass.start()');assert.equal(realCalls,0);
+ await run('loginForm=V4ReviewClass.form("teacher");teacherLogin()');
+ assert.equal(run('observed.user.schoolCode'),'DEMO01');assert.equal(run('observed.students.length'),25);assert.equal(run('observed.page'),'teacherDash');
+ await run('V4ReviewClass.leave();V4ReviewClass.start()');
+ await run('loginForm=V4ReviewClass.form("student");studentLoginWith(loginForm.schoolCode,loginForm.loginId,loginForm.password,true)');
+ assert.equal(run('observed.user.loginId'),'d07');assert(run('observed.entries.length')>5);assert.equal(run('observed.page'),'island');
+ await run('d2Put(observed.user.id,{ts:123456789,date:"2026-09-16",text:"review-shared-check",analysis:{hits:[]}})');
+ await run('V4Sharing.publish(observed.user,{ts:123456789,date:"2026-09-16",text:"review-shared-check",analysis:{hits:[]}},true)');
+ assert.equal(await run('V4Sharing.list({id:700000000008,schoolCode:"DEMO01"},observed.user.id).then(es=>es.filter(e=>e.text==="review-shared-check").length)'),1);
+ await run('V4Sharing.publish(observed.user,{ts:123456789,date:"2026-09-16",text:"review-shared-check",analysis:{hits:[]}},false)');
+ assert.equal(await run('V4Sharing.list({id:700000000008,schoolCode:"DEMO01"},observed.user.id).then(es=>es.length)'),0);
+ await run('var targetFriend={id:700000000008},chosen; (async()=>{var myWords=await isleLoad(observed.user.id);var friendWords=await isleLoad(targetFriend.id);var previousHearts=await empLoad(targetFriend.id);chosen=friendWords.state.find(w=>v2EmpathyRule(observed.user,targetFriend,friendWords.state,myWords.state,previousHearts,w.label)==="ready");})()');
+ assert(run('!!chosen'));
+ assert.equal(await run('V4Sharing.send(observed.user,targetFriend,chosen.label,"네 마음을 들려줘서 고마워.").then(r=>r.status)'), 'sent-now');
+ assert(await run('empLoad(targetFriend.id).then(rs=>rs.some(r=>r.message==="네 마음을 들려줘서 고마워."))'));
+ assert.equal(await run('V4Sharing.send(observed.user,targetFriend,chosen.label,"다시 보내기").then(r=>r.status)'), 'sent');
+ await run('V4ReviewClass.leave();V4ReviewClass.start()');await run('loginForm=V4ReviewClass.form("teacher");teacherLogin()');
+ assert(await run('dLoad(700000000007).then(es=>es.some(e=>e.text==="review-shared-check"))'));
+ assert.equal(realCalls,0,'Review must make zero real DB references');
+ assert.throws(()=>run('V4ReviewClass.ref("__proto__/bad")'));
+ run('V4ReviewClass.leave();setDemoClock(null)');assert.equal(run('dbRef("real-class-sentinel").realSentinel'),true);assert.equal(realCalls,1,'Real login still delegates to original gateway');
+ console.log(JSON.stringify({pass:true,version:m.version,files:Object.keys(m.files).length,checks:['original real teacher/student auth preserved','explicit public sharing module integrated','PDF included and teacher labels updated','isolated Firebase-stripped preview','fictional teacher and student share DEMO01 and 25 students','student write visible after teacher role switch','public copy read and unpublish','empathy message saved once with existing eligibility','zero real DB references during review','normal account uses original gateway','invalid memory paths rejected']},null,2));
+})().catch(e=>{console.error(e);process.exitCode=1;});

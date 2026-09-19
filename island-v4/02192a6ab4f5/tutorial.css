@@ -1,0 +1,10 @@
+.v4-world .v4-tour-launch{position:absolute;left:24px;bottom:27px;z-index:5;display:flex;align-items:center;gap:9px;min-height:48px;padding:11px 17px;border:2px solid #fff8dc;border-radius:20px;background:#fffbea;font-size:16px;box-shadow:0 4px 0 #47837530;color:#315d59}
+.v4-tour-launch span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#dcebdd;color:#315d59;font-size:18px}
+.v4-tutorial-anchor{position:absolute;left:0;top:0;width:170px;height:140px;pointer-events:none;opacity:0}
+.v4-tutorial-anchor[data-tut=v4-walk]{width:95px;height:125px}
+.v4-tutorial-anchor[data-tut=v4-dock]{width:240px;height:135px}
+.v4-tour-welcome{text-align:center;padding:8px 5px 14px}.v4-tour-welcome .v4-tour-emblem{display:grid;place-items:center;width:82px;height:82px;margin:0 auto 18px;border-radius:28px;background:#ecddb2;color:#98693b;font-size:44px;box-shadow:0 5px 0 #d8c697}.v4-tour-welcome h3{font-size:28px;margin:12px 0}.v4-tour-welcome p{font-size:17px;line-height:1.8}.v4-tour-welcome .v4-actions{justify-content:center}
+.v4-world .tut-bubble{font-family:Maplestory,sans-serif;font-size:17px;font-weight:700;line-height:1.7;max-width:calc(100vw - 24px);box-sizing:border-box}.v4-world .tut-title{font-size:22px}.v4-world .tut-bubble button{min-height:44px;font-size:15px;font-weight:700}.v4-world .tut-count{font-size:14px}.v4-world .tut-bubble .tut-next{border:2px solid #fff0c2;border-radius:13px;background:#397967;color:#fffdf2;padding:10px 19px;box-shadow:0 3px 0 #235c50}
+.v4-world.is-touring .v4-interact,.v4-world.is-touring .v4-beacon-label,.v4-world.is-touring .v4-notice{visibility:hidden}.v4-world.is-touring .v4-quest{animation:none}
+@media(max-width:700px){.v4-world .v4-tour-launch{left:12px;bottom:78px;min-height:42px;font-size:13px;padding:8px 11px;gap:6px}.v4-world .tut-bubble{font-size:15px;line-height:1.65}.v4-world .tut-title{font-size:20px}.v4-tour-welcome h3{font-size:24px}.v4-tour-welcome p{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.v4-world .tut-ring,.v4-world .tut-shine{animation:none}}
