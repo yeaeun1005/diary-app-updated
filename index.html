@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta name="island-world-release" content="3739dea5bb1f">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/legacy/world.css">
+<meta name="island-world-release" content="d462f3a7c9b0">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/legacy/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -10390,12 +10390,12 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: qFont, color: "#0e7490", lineHeight: 1.4, marginBottom: 6 } }, q.t),
     q.nm ? React.createElement("div", { style: { fontSize: 12, color: "#9a5b2b", background: "#fff4e6", borderRadius: 8, padding: "5px 10px", marginBottom: 6 } }, "친구 이름은 쓰지 않아요. '어떤 친구가'라고 써요.") : null,
     // 2026-09-16 개편: 관찰·느낌·바람 세 칸 → 답 한 칸(자유롭게) + 마음 말 칩(선택). 이름 검사·교사 승인은 그대로
-    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 6 } }, "내 답 · 있었던 일과 그때 마음을 자유롭게 써요"),
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 6 } }, "내 답 · 질문에 대한 답과 그때의 나의 마음을 자유롭게 적어주세요"),
     React.createElement("textarea", { value: form.o, maxLength: PLAZA_MAX, rows: 4, placeholder: "생각나는 대로 써요. 친구 이름 대신 '어떤 친구가'라고 써요",
       onChange: function (e) { setWarn(""); setForm({ ...form, o: e.target.value }); },
       style: { width: "100%", boxSizing: "border-box", marginTop: 3, padding: "7px 10px", border: "1px solid #cfdde3", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "none" } }),
-    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 8 } }, "그때 마음 말",
-      React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#6b8792", marginLeft: 6 } }, "골라도 좋아요 · 다섯 개까지")),
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#0e7490", marginTop: 8 } }, "그때의 나의 감정을 골라보세요.",
+      React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#6b8792", marginLeft: 6 } }, "(최대 5개)")),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5, maxHeight: 92, overflowY: "auto", padding: 2 } },
       chips.map(function (c) { return chipEl(c, form.fl.some(function (x) { return x.l === c.l; }), function () { toggleChip(c); }, 0.95); })),
     React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#6b8792", marginTop: 4 } }, "테두리가 점선이면 아직 내 섬에 없는 말이에요. 탭하면 뜻이 보여요."),
@@ -10415,7 +10415,7 @@ function PlazaView({ me, myState, arrive, backLabel, onBack, onSeen, onTour, tut
     top3El,
     !ans ? React.createElement("div", null,
       React.createElement("div", { "data-tut": "plz-how", style: { display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" } },
-        React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#3a5561" } }, "있었던 일과 그때 마음을 자유롭게 써요."),   // 2026-09-16: 세 칸 안내 → 한 칸
+        React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#3a5561" } }, "질문에 대한 답과 그때의 나의 마음을 자유롭게 적어주세요"),   // 2026-09-16: 세 칸 안내 → 한 칸
         React.createElement("button", { onClick: startWrite, style: { ...bSoft, padding: "8px 20px", fontSize: 15, color: "#fff", background: "#0e7490", border: "1px solid #0e7490" } }, "답하기")),
       // 쓰기 전에는 친구 답을 읽지 않는다(§8 "쓰기 전에 보면 베낀다"). 대신 몇 명이 답했는지만 알린다(게시판에도 같은 줄)
       React.createElement("div", { style: { marginTop: 10, fontSize: 13, fontWeight: 600, color: "#5b7684", background: "#f4f8fa", borderRadius: 8, padding: "7px 10px", lineHeight: 1.5 } },
@@ -13952,10 +13952,10 @@ function teacherTourSteps() {
     S("t-consent", "보호자 동의", "만 14세 미만 학생의 정보를 모으려면 보호자 동의가 먼저예요. 양식을 열어 받은 뒤 확인에 표시하면 아래 학생 추가가 열려요."),
     S("t-add", "학생 추가", "학생을 한 명씩 추가하거나, 아래 일괄 등록에서 번호로 한꺼번에 만들 수 있어요. 아이디와 비밀번호를 아이에게 알려 주세요."),
     S("t-watch", "살펴봐 주세요", "최근 7일 중 4일 이상, 일기에 슬픔·외로움·피곤 같은 감정이나 '혼자'·'울적' 같은 말이 잡힌 학생이에요. 우울 선별 척도(CES-D)에서 가져온 기준이라 화난 아이는 여기 뜨지 않아요. 진단이 아니라 살펴볼 신호이고, 판단은 선생님이 해요. 카드에 며칠인지, 자주 나온 감정, 그때의 상황이 함께 있어요."),
-    S("t-talk", "말 걸어봤어요", "말을 걸어봤으면 [말 걸어봤어요]. 수업일 사흘 뒤 「다시 볼 때예요」로 다시 올라오고, 그 사이 일기가 어떻게 달라졌는지 세 줄로 보여요. 면담 기록은 남지 않아요.", { radius: 12 }),   // 문구 ②(2026-09-16 사용자 확정)
+    S("t-care", "살펴본 뒤 기록하기", "학생 카드에서 [더 지켜볼게요] 또는 [이렇게 조치했어요]를 선택해요. 조치했으면 실제로 한 내용을 고르고 저장해요. 카드는 그대로 남고 자동 재알림이나 외부 전달은 하지 않아요.", { radius: 12 }),
     S("t-emp", "나도 그래", "친구 섬에서 주고받는 공감이에요. 최근 7일에 받지 못한 학생과 보내지 않은 학생을 보여 줘요. 지시가 아니라 정보예요."),
     S("t-plaza", "광장", "오늘의 질문은 준비된 목록에서 차례로 나와요. 그대로 올리거나 고쳐 써도 돼요. 아이들의 답은 이름 없이 자동 공개돼요. 이름이 들어간 답은 확인한 뒤 공개해 주세요."),   // 문구 ②(2026-09-16 사용자 확정)
-    S("t-roster", "학생 명단", "[항해 일지]를 누르면 그 아이의 일기를 읽을 수 있어요. [오늘 참여 현황]은 오늘 누가 썼는지와 많이 쓴 감정 말이에요.")
+    S("t-roster", "학생 명단", "[탐험일지]를 누르면 그 아이의 일기를 읽을 수 있어요. [오늘 참여 현황]은 오늘 누가 썼는지와 많이 쓴 감정 말이에요.")
   ];
 }
 // ── 바다 투어(4단계, 2026-09-15, 문구 A안 확정) ── 전부 free(막 없음). 카메라가 움직이는 화면이라 막으로 끌기를 막지 않고 링만 대상을 따라간다.
@@ -13976,7 +13976,7 @@ function plazaTourSteps() {
   return [
     // 2026-09-16 개편: 게시판 단계 추가(3D 덧판, 폰에서는 숨겨져 skipMissing으로 빠진다), 세 칸 문구 → 한 칸
     { target: "plz-board", inert: true, title: "게시판", text: "오늘의 질문과 우리 반이 오늘 많이 쓴 마음 말 셋이 보여요. 많이 쓴 말이 커요. 내 답을 쓰면 친구들의 답도 여기에 차례로 떠요." },
-    { target: "plz-q", inert: true, title: "오늘의 질문", text: "선생님이 올린 오늘의 질문이에요. [답하기]를 누르고 있었던 일과 그때 마음을 자유롭게 써요. 마음 말을 골라 붙여도 좋아요." },
+    { target: "plz-q", inert: true, title: "오늘의 질문", text: "선생님이 올린 오늘의 질문이에요. [답하기]를 누르고 질문에 대한 답과 그때의 나의 마음을 자유롭게 적어주세요. 마음 말을 골라 붙여도 좋아요." },
     { target: function () { return q("plz-how") || q("plz-mine"); }, inert: true, title: "이름은 쓰지 않아요", text: "친구 이름은 쓰지 않아요. '어떤 친구가'라고 써요. 답은 이름 없이 자동 공개돼요. 친구 이름은 쓰지 않아요." },
     { target: function () { return q("plz-pub") || q("plz-card"); }, inert: true, title: "광장과 섬", text: "광장에 쓴 답은 섬을 키우지 않아요. 같은 마음을 일기에도 쓰면 그때 섬에 자라요." }
   ];
@@ -14111,6 +14111,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, [authOpen]);
   const [viewStu, setVS] = useState(null);
   const [viewEntries, setVE] = useState([]);
+  const [viewLoading,setViewLoading]=useState(false),[viewError,setViewError]=useState(false);
+  const viewRequest=useRef(0);
   // ①단계 마이그레이션 도구 — 지정 교사 계정에서만 보인다.
   const MIG_OWNER = "toya1005";
   const [migOpen, setMigOpen] = useState(false);
@@ -14328,7 +14330,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     if (!viewStu) return;
     const onKey = e => {
       if (e.key === "Escape") {
-        setVS(null);
+        viewRequest.current++;setVS(null);
         setVE([]);
       }
     };
@@ -14577,34 +14579,6 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     })();
     return function () { cancelled = true; };
   }, [diaryById]);
-  // 「말 걸어봤어요」(2026-09-15, DESIGN §9-⑤). talkMap: {학생id: 말 건 시각}. 교사 전용 노드에서 읽고, 누르면 낙관적으로 갱신한 뒤 쓴다.
-  // 시연 계정은 dbRef 관문이 MEM_OPS에만 쓰므로 그 세션에서만 사라지고 새로고침하면 돌아온다. 저장되는 것은 id와 시각뿐이다
-  const [talkMap, setTalkMap] = useState({});
-  useEffect(function () {
-    var k = talkKey(currentUser), dead = false;
-    if (!k) { setTalkMap({}); return; }
-    sGet(k).then(function (v) { if (!dead) setTalkMap(v && typeof v === "object" ? v : {}); }).catch(function () {});
-    return function () { dead = true; };
-  }, [currentUser]);
-  const talkWrite = useCallback(function (patch) {
-    var k = talkKey(currentUser); if (!k) return;
-    dbRef(k).update(patch).catch(function (e) { console.error("talk:", e); setMsg("말 걸어봤어요 표시를 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."); });
-  }, [currentUser, setMsg]);
-  const markTalk = useCallback(function (id) { var ts = nowTs(), p = {}; p[String(id)] = ts; setTalkMap(function (m) { return Object.assign({}, m, p); }); talkWrite(p); }, [talkWrite]);
-  const clearTalk = useCallback(function (id) { var p = {}; p[String(id)] = null; setTalkMap(function (m) { var n = Object.assign({}, m); delete n[String(id)]; return n; }); talkWrite(p); }, [talkWrite]);
-  // 「다시 볼 때예요」: 말 건 뒤 수업일 사흘. 원래 조건(살펴봐·달라진 아이)과 무관하게 올린다 — 나아진 아이는 4일 기준을 못 채워 목록에서 빠지는데 그 아이야말로 다시 봐야 한다
-  const talkReturns = useMemo(function () {
-    if (!diaryById || !myStudents.length) return [];
-    var isSD = shiftSchoolDayFn(diaryById, myStudents.length), now = nowTs(), out = [];
-    myStudents.forEach(function (s) {
-      var ts = talkMap[String(s.id)]; if (!ts) return;
-      var n = talkSchoolDays(ts, now, isSD);
-      if (n >= TALK_RETURN_DAYS) out.push({ id: s.id, name: s.name || s.loginId || "학생", ts: ts, days: n, watch: watchList.filter(function (w) { return String(w.id) === String(s.id); })[0] || null,
-        cmp: talkCompare(diaryById[s.id] || [], ts, now) });   // ③ 비교 데이터 — 이미 읽은 diaryById로 계산, 추가 읽기 없음
-    });
-    if (devMode()) window.__talk = { map: talkMap, returns: out };   // 하네스
-    return out;
-  }, [diaryById, myStudents, talkMap, watchList]);
   const [myEntries, setME] = useState([]);
   const [seaFrom, setSeaFrom] = useState(null);   // ⑥-1 부두 출항 → 바다 화면에 넘길 것
   const [isleFrom, setIsleFrom] = useState(null); // ⑥-2 배로 내 섬에 도착 { boatDir }
@@ -14981,9 +14955,11 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       style: { ...bPri, padding: "6px 12px", fontSize: 13, whiteSpace: "nowrap" }
     }, "비밀번호 보호 적용 (" + plainCount + "명)"));
   const viewStudentRecords = async stu => {
-    setVS(stu);
-    const e = await dLoad(stu.id);
-    setVE(e);
+    const request=++viewRequest.current;
+    setVS(stu);setVE([]);setViewLoading(true);setViewError(false);
+    try{const entries=await v4LoadTeacherDiary(stu.id);if(viewRequest.current===request)setVE(entries);}
+    catch{if(viewRequest.current===request)setViewError(true);}
+    finally{if(viewRequest.current===request)setViewLoading(false);}
   };
   const clearStuRecords = async stu => {
     if (!confirm(stu.name + " 학생의 일기와 연결된 탐험 기록을 모두 삭제할까요? 학생 계정은 유지되며, 삭제한 기록은 되돌릴 수 없습니다.")) return;
@@ -15014,6 +14990,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     await d2Del(currentUser.id, e);
   }, [currentUser]);
   const logout = () => {
+    viewRequest.current++;
     V4ReviewClass.leave();
     setDemoClock(null); setCU(null); setTrialUser(false);
     setPage("home");
@@ -15128,8 +15105,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // 로그인·체험하기 동선은 그대로다(setAuthOpen / setPage("trial")). #seed면 패널이 무대 아래에 붙어 스크롤된다.
   // 첫 화면은 100vh 한 장면(home-hero), 그 아래 소개 섹션이 이어진다(2026-09-10). 전에는 fixed라 스크롤이 없었다.
   if (page === "home") return React.createElement(React.Fragment, null,
-    React.createElement(V2Landing, {authOpen:authOpen,
-      onLogin:function(){setMsg("");setLF(judgeForm(judge,loginForm.role));setAuthOpen(true);},
+    React.createElement(V2Landing, {authOpen:authOpen,signedIn:!!currentUser&&!currentUser.teacherId,
+      onLogin:function(){if(currentUser&&!currentUser.teacherId){setPage("island");return;}setMsg("");setLF(judgeForm(judge,loginForm.role));setAuthOpen(true);},
       onTrial:function(){setMsg("");setTE([]);return demoLogin(function(){setMsg("");setPage("trial");});},
       onPrivacy:function(){setPage("privacy");},onCredits:function(){setPage("credits");}}), authOpen && React.createElement("div", {
     onClick: () => setAuthOpen(false), className: "auth-wrap",
@@ -15531,7 +15508,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   // ⑥-1 바다 화면. 부두 출항이 여기로 이어진다. #sea 해시로 바로 열 수도 있다(측정용).
   if ((page === "island" || page === "plaza") && currentUser && !currentUser.teacherId) return React.createElement(V4App, {
     key:currentUser.schoolCode+":"+currentUser.id, me:currentUser, entries:myEntries, trial:trialUser, onAdd:myAdd,onUpdate:myUpdate,onDelete:myDelete,setEntries:setME,
-    onDiary:function(){setPage("studentDiary");},onLogout:logout,
+    onDiary:function(){setPage("studentDiary");},onLogout:logout,onHome:function(){setAuthOpen(false);setPage("home");},
     initialPanel:page==="plaza"?"board":null,onBoardSeen:plazaMarkSeen,
     onBoardClose:function(){if(page==="plaza")setPage("island");},onTour:seaTour,tutOn:tutOn
   });
@@ -15828,51 +15805,6 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     readOnly: false,
     userId: currentUser ? currentUser.id : null
   })));
-  // 말 걸어봤어요(2026-09-15): 누른 아이는 살펴봐 카드에서 빠진다(표시는 학생당 하나). 「다시 볼 때예요」는 살펴봐 카드 맨 위. 2026-09-16: 「요즘 달라진 아이」 카드가 없어져 여기에만 있다
-  var watchShown = watchList.filter(function (w) { return !talkMap[String(w.id)]; });
-  var talkBtn = function (id) {
-    return React.createElement("button", { "data-tut": "t-talk", onClick: function () { markTalk(id); }, title: "이 아이에게 말을 걸어봤다고 표시해요. 수업일 사흘 뒤 「다시 볼 때예요」로 올라와요",
-      style: { ...bSoft, marginLeft: "auto", padding: "4px 11px", fontSize: 12, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "말 걸어봤어요");
-  };
-  // 「다시 볼 때예요」의 비교 데이터 세 줄(2026-09-15, talkCompare). 라벨은 회색, 값은 본문색. 늘고 줄었음은 글자(TALK_CMP_MARK)로만 — 색으로 판단을 주지 않는다(§9)
-  var talkCmpEl = function (c) {
-    if (!c) return null;
-    var lab = function (t) { return React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, t); };
-    var row = function (key, a, b) { return React.createElement("div", { key: key, "data-cmp": key }, a, b); };
-    var rows = [];
-    if (!c.afterN) {
-      rows.push(row("after", lab("그 뒤로 쓴 일기"), "아직 없어요 (" + c.afterDays + "일 동안)"));
-    } else {
-      rows.push(row("after", lab("그 뒤로 쓴 일기"), c.afterN + "편 (" + c.afterDays + "일 동안)"));
-      if (c.emo) {
-        var d = c.emo.after - c.emo.before, mark = TALK_CMP_MARK === "none" ? "" : TALK_CMP_MARK === "arrow" ? (d < 0 ? " ↓" : d > 0 ? " ↑" : " =") : (d < 0 ? " · 줄었어요" : d > 0 ? " · 늘었어요" : " · 그대로예요");
-        rows.push(row("emo", lab("주요 감정"), c.emo.label + " · 말 걸기 전 7일 중 " + c.emo.before + "일 → 그 뒤 " + c.afterDays + "일 중 " + c.emo.after + "일" + mark));
-      } else if (!c.beforeN) rows.push(row("emo", lab("주요 감정"), "말 걸기 전 7일에 일기가 없어 견줄 수 없어요"));
-      if (c.newPos.length) rows.push(row("newpos", lab("새로 나온 긍정 감정"), c.newPos.map(function (p) { return p.label + " " + talkMDW(p.ts); }).join(" · ")));
-      else if (TALK_NEWPOS_EMPTY === "text") rows.push(row("newpos", lab("새로 나온 긍정 감정"), "아직 없어요"));
-    }
-    return React.createElement("div", { "data-talk-cmp": "1", style: { marginTop: 8, fontSize: 13, color: "#54626c", lineHeight: 1.9 } }, rows);
-  };
-  // 살펴봐 행의 세부(날짜 칩·자주 나온 감정·상황·대화 문구·연계). 보통 행과 「다시 볼 때예요」의 "지난 신호"가 같이 쓴다. k: 펼침 상태 키
-  var watchDetail = function (w, k) {
-    return React.createElement(React.Fragment, null, React.createElement("div", null, w.days.map(function (dy, di) {
-      var isKw = dy.sad.length === 0;
-      return React.createElement("span", { key: di, style: { display: "inline-block", padding: "3px 10px", borderRadius: 11, fontSize: 13, margin: "2px 4px 2px 0", background: isKw ? "#eef0f4" : "#e7eef6", color: isKw ? "#6b7480" : "#4a72a0" } },
-        dy.d, " ", isKw ? "'" + dy.kw + "'" : dy.sad.join("·"));
-    })),
-    (w.topLab && w.topLab.length) || (w.sits && w.sits.length) ? React.createElement("div", { style: { marginTop: 9, fontSize: 13, color: "#54626c", lineHeight: 1.9 } },
-      w.topLab && w.topLab.length ? React.createElement("div", null, React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "자주 나온 감정"), w.topLab.map(function (t) { return t.label + " " + t.n; }).join(" · ")) : null,
-      w.sits && w.sits.length ? React.createElement("div", null, React.createElement("span", { style: { color: "#93a3ac", marginRight: 8 } }, "그때의 상황"), w.sits.map(function (t) { return t.text + " " + t.count; }).join(" · ")) : null) : null,
-    React.createElement("div", { style: { marginTop: 8 } }, React.createElement("button", {
-      onClick: function () { setOpenPhr(Object.assign({}, openPhr, { [k]: !openPhr[k] })); },
-      style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
-    }, openPhr[k] ? "대화 문구 접기" : "대화 문구 보기")),
-    openPhr[k] && w.phrases && w.phrases.length ? React.createElement("div", { style: { marginTop: 8, padding: "11px 13px", background: "#fff", border: "1px solid #e3edf1", borderRadius: 10 } },
-      React.createElement("div", { style: { fontSize: 12, color: "#93a3ac", marginBottom: 6 } }, "이렇게 말을 걸어볼 수 있어요 · " + (FAM_LABEL[w.fam] || "") + (w.sitKey ? " × " + w.sitKey : " (상황 불명)")),
-      w.phrases.map(function (ph, pi) { return React.createElement("div", { key: pi, style: { fontSize: 14, color: "#2b3a42", lineHeight: 1.9 } }, "· " + ph); }),
-      React.createElement("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f4f6", fontSize: 12, color: "#93a3ac", lineHeight: 1.7 } }, "이 문구는 참고용 예시입니다. 아이의 상황을 가장 잘 아는 것은 선생님입니다.")) : null,
-    React.createElement("div", { style: { fontSize: 13, color: "#93a3ac", marginTop: 10 } }, "Wee·상담 연계 › 보호자 상담 › 필요시 1388·109"));
-  };
   if (page === "teacherDash" && currentUser) return React.createElement("div", {
     style: shell
   }, React.createElement("div", {
@@ -15927,7 +15859,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, currentUser.teacherId === MIG_OWNER && migUI(), msgBox,
   React.createElement("section",{className:"v4-teacher-download","aria-label":"보호자 동의서"},
     React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명·활동 기간·문의처를 작성한 뒤 보호자에게 나눠 주세요. 학생을 등록한 뒤에도 언제든 내려받을 수 있어요.")),
-    React.createElement("a",{className:"v4-consent-link",href:"island-v4/3739dea5bb1f/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
+    React.createElement("a",{className:"v4-consent-link",href:"island-v4/d462f3a7c9b0/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
     "data-tut": "t-consent",
     style: {
       ...crd,
@@ -15944,7 +15876,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       lineHeight: 1.7,
       margin: "0 0 12px"
     }
-  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/3739dea5bb1f/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
+  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/d462f3a7c9b0/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -16167,69 +16099,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       background: "#8b5cf6",
       opacity: bulkCount ? 1 : 0.4
     }
-  }, "1\uBC88~", bulkCount || "N", "\uBC88 \uC77C\uAD04 \uC0DD\uC131")), myStudents.length > 0 && React.createElement("div", {
-  "data-tut": "t-watch",
-  style: {
-    ...crd,
-    marginBottom: 16,
-    padding: "18px 20px"
-  }
-}, React.createElement("div", {
-  style: {
-    display: "flex",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    marginBottom: 5
-  }
-}, React.createElement("div", {
-  style: {
-    fontFamily: "'Jua',sans-serif",
-    fontSize: 16,
-    color: "#2f6a97"
-  }
-}, "살펴봐 주세요"), React.createElement("div", {
-  style: {
-    fontSize: 14,
-    color: "#9fb0bb"
-  }
-}, watchShown.length, "명")), React.createElement("div", {
-  style: {
-    fontSize: 14,
-    color: "#9aa7b0",
-    marginBottom: 12,
-    lineHeight: 1.6
-  }
-}, "최근 7일 감정일기에서 마음이 힘들어 보이는 신호가 있는 학생이에요."),
-  // 「다시 볼 때예요」(2026-09-15): 말 건 뒤 수업일 사흘이 지난 아이. 호박색 띠. 지난 신호(살펴봐 사유)와 대화 문구는 접어 둔다. 비교 데이터는 다음 차례
-  talkReturns.length ? React.createElement("div", { "data-talk": "returns", "data-tut": "t-talk", style: { marginBottom: 12 } },   // 투어 대상(2026-09-16): 있으면 이 띠, 없으면 첫 「말 걸어봤어요」 버튼(같은 data-tut, DOM 순서상 이 띠가 먼저)
-    React.createElement("div", { style: { fontSize: 13, color: "#9a6b1c", fontWeight: 700, marginBottom: 6 } }, "다시 볼 때예요"),
-    talkReturns.map(function (r, ri) {
-      var k = "r" + r.id;
-      return React.createElement("div", { key: k, "data-talk-id": String(r.id), style: { borderRadius: 12, padding: "13px 15px", marginTop: ri ? 10 : 0, border: "1px solid #f1e3c4", borderLeft: "3px solid #e0a23a", background: "#fffaf0" } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } },
-          React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, r.name),
-          React.createElement("span", { style: { fontSize: 13, color: "#6b5a2a" } }, "수업일 " + r.days + "일 전(" + shiftMD(r.ts) + ")에 말 걸어보셨어요")),
-        talkCmpEl(r.cmp),   // ③ 비교 데이터(2026-09-15)
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 9, flexWrap: "wrap" } },
-          React.createElement("button", { onClick: function () { markTalk(r.id); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13, color: "#8a5a12", background: "#fff4dc", border: "1px solid #f0d9a8" } }, "다시 걸어봤어요"),
-          React.createElement("button", { onClick: function () { clearTalk(r.id); }, style: { ...bSoft, padding: "5px 12px", fontSize: 13 } }, "지켜볼게요"),
-          r.watch ? React.createElement("button", { onClick: function () { setOpenPhr(Object.assign({}, openPhr, { [k + "s"]: !openPhr[k + "s"] })); },
-            style: { background: "none", border: "none", padding: 0, fontSize: 13, color: "#3f6f97", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" } }, openPhr[k + "s"] ? "지난 신호 접기" : "지난 신호 보기") : null),
-        r.watch && openPhr[k + "s"] ? React.createElement("div", { style: { marginTop: 8 } }, watchDetail(r.watch, k)) : null);
-    })) : null,
-  watchShown.length ? watchShown.map(function (w, wi) {
-  return React.createElement("div", {
-    key: w.id || wi, "data-talk-id": String(w.id),
-    style: { borderRadius: 12, padding: "13px 15px", marginTop: wi ? 10 : 0, border: "1px solid #e3edf1", borderLeft: "3px solid " + (wi % 2 ? "#c98aa0" : "#7fa8c9"), background: "#f7fafc" }
-  }, React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 8, flexWrap: "wrap" } },
-    React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: "#26333d" } }, w.name),
-    React.createElement("span", { style: { fontSize: 13, color: "#3f6f97", background: "#e7f0f7", borderRadius: 7, padding: "2px 9px" } }, "지난 7일 · ", w.count, "일"),
-    talkBtn(w.id)),
-  watchDetail(w, w.id));
-}) : talkReturns.length ? null : React.createElement("div", {
-  style: { padding: "14px 15px", background: "#f7fafc", border: "1px solid #e3edf1", borderRadius: 12, fontSize: 14, color: "#7d8b95", lineHeight: 1.7 }
-}, "최근 7일 안에 살펴볼 신호가 있는 학생이 없어요.")),
-  // 「요즘 달라진 아이」 카드(2026-09-14)는 2026-09-16 제거 — 판정 코드 없음(DESIGN §9-④). 「말 걸어봤어요」는 살펴봐 카드에만 남는다
+  }, "1\uBC88~", bulkCount || "N", "\uBC88 \uC77C\uAD04 \uC0DD\uC131")), myStudents.length > 0 && React.createElement(V4TeacherWatch,{key:currentUser.schoolCode+":"+currentUser.teacherId,user:currentUser,students:myStudents,watchList}),
   // ⑥-2 나도 그래 — 받지 못한 / 보내지 않은 학생. 지시가 아니라 정보다(§9).
   empGap ? React.createElement("div", { "data-tut": "t-emp", style: { ...crd, marginBottom: 16 } },
     React.createElement("div", { style: { fontFamily: "'Jua',sans-serif", fontSize: 16, color: "#2f6a97", marginBottom: 5 } }, "나도 그래"),
@@ -16313,7 +16183,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       color: viewStu && viewStu.id === s.id ? "#6366f1" : "#475569",
       border: "1px solid " + (viewStu && viewStu.id === s.id ? "#c7d2fe" : "#e2e8f0")
     }
-  }, "항해 일지"), React.createElement("button", {
+  }, "탐험일지"), React.createElement("button", {
     onClick: () => resetStudentPw(s),
     style: { ...bSoft, padding: "6px 12px", fontSize: 14, color: "#0369a1", border: "1px solid #bae6fd", background: "#f0f9ff" }
   }, "비밀번호 " + PW_DEFAULT), React.createElement("button", {
@@ -16467,9 +16337,9 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       color: QC[w.q] || "#5bb5a6"
     }
   }, w.label);
-})))))), viewStu && React.createElement("div", {
+})))))), viewStu && React.createElement("div", {className:"v4-teacher-overlay",
     onClick: () => {
-      setVS(null);
+      viewRequest.current++;setVS(null);
       setVE([]);
     },
     style: {
@@ -16486,10 +16356,11 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       overflowY: "auto"
     }
   }, React.createElement("div", {
+    className:"v4-teacher-record-modal",role:"dialog","aria-modal":true,"aria-label":"학생 탐험일지",
     onClick: e => e.stopPropagation(),
     style: {
       width: "100%",
-      maxWidth: 760,
+      maxWidth: 1080,
       background: "#fff",
       borderRadius: 20,
       border: "1px solid rgba(14,165,233,0.2)",
@@ -16514,7 +16385,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     }
   }, React.createElement("div", null, React.createElement("div", {
     style: lbl
-  }, "\uD559\uC0DD \uD56D\uD574 \uC77C\uC9C0"), React.createElement("div", {
+  }, "학생 탐험일지"), React.createElement("div", {
     style: {
       fontSize: 16,
       fontWeight: 600
@@ -16533,7 +16404,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     }
   }, "\uC800\uC7A5\uB41C \uC77C\uAE30: ", viewEntries.length, "\uAC1C")), React.createElement("button", {
     onClick: () => {
-      setVS(null);
+      viewRequest.current++;setVS(null);
       setVE([]);
     },
     "aria-label": "\uB2EB\uAE30",
@@ -16549,13 +16420,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       lineHeight: 1,
       flexShrink: 0
     }
-  }, "\u2715")), React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 } }, React.createElement("button", { onClick: function () { openEmotionReport(viewStu.name, viewEntries, "teacher"); }, style: { padding: "7px 16px", fontSize: 14, borderRadius: 8, border: "1px solid #99d8c9", background: "#e6f4f0", color: "#0e7490", cursor: "pointer", fontFamily: "'Gowun Dodum',system-ui" } }, "리포트 저장")), React.createElement(DiaryView, {
-    entries: viewEntries,
-    setEntries: setVE,
-    onAdd: async () => {},
-    onUpdate: async () => {},
-    onDelete: async () => {},
-    readOnly: true
+  }, "\u2715")), React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 } }, React.createElement("button", { onClick: function () { openEmotionReport(viewStu.name, viewEntries, "teacher"); }, style: { padding: "7px 16px", fontSize: 14, borderRadius: 8, border: "1px solid #99d8c9", background: "#e6f4f0", color: "#0e7490", cursor: "pointer", fontFamily: "'Gowun Dodum',system-ui" } }, "리포트 저장")), React.createElement(V4TeacherJournal, {
+    key:viewStu.id,student:viewStu,entries:viewEntries,loading:viewLoading,error:viewError,onRetry:()=>viewStudentRecords(viewStu)
   })))));
   return null;
 }
@@ -16632,49 +16498,49 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 // The original App mounts after its new presentation assets are ready.
 </script>
-<script src="island-v4/3739dea5bb1f/legacy/coast-water.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/board.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/explorer.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/passages.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/social.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/custom-growth.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/world.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/account-view.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/integrated-app.js"></script>
-<script src="island-v4/3739dea5bb1f/legacy/landing.js"></script>
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/style.css">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/sea.css">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/friend.css">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/activities.css">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/decor.css">
-<script src="island-v4/3739dea5bb1f/GLTFLoader.r147.js"></script>
-<script src="island-v4/3739dea5bb1f/decor-model.js"></script>
-<script src="island-v4/3739dea5bb1f/state.js"></script>
-<script src="island-v4/3739dea5bb1f/content.js"></script>
-<script src="island-v4/3739dea5bb1f/assets.js"></script>
-<script src="island-v4/3739dea5bb1f/passages.js"></script>
-<script src="island-v4/3739dea5bb1f/scene.js"></script>
-<script src="island-v4/3739dea5bb1f/sea-scene.js"></script>
-<script src="island-v4/3739dea5bb1f/sea-view.js"></script>
-<script src="island-v4/3739dea5bb1f/friend-style.js"></script>
-<script src="island-v4/3739dea5bb1f/friend-scene.js"></script>
-<script src="island-v4/3739dea5bb1f/friend-view.js"></script>
-<script src="island-v4/3739dea5bb1f/activity-model.js"></script>
-<script src="island-v4/3739dea5bb1f/student-tools-model.js"></script>
-<script src="island-v4/3739dea5bb1f/student-tools.js"></script>
-<script src="island-v4/3739dea5bb1f/activities.js"></script>
-<script src="island-v4/3739dea5bb1f/decor-scene.js"></script>
-<script src="island-v4/3739dea5bb1f/decor-ui.js"></script>
-<script src="island-v4/3739dea5bb1f/persistence.js"></script>
-<script src="island-v4/3739dea5bb1f/app.js"></script>
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/student-tools.css">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/home.css">
-<script src="island-v4/3739dea5bb1f/review-data.js"></script>
-<script src="island-v4/3739dea5bb1f/review-generator.js"></script>
-<script src="island-v4/3739dea5bb1f/review-class.js"></script>
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/access.css">
-<link rel="stylesheet" href="island-v4/3739dea5bb1f/clarity.css">
-<script src="island-v4/3739dea5bb1f/sharing.js"></script><link rel="stylesheet" href="island-v4/3739dea5bb1f/social.css"><script src="island-v4/3739dea5bb1f/tutorial.js"></script><link rel="stylesheet" href="island-v4/3739dea5bb1f/tutorial.css"><script>root.render(React.createElement(App));</script>
+<script src="island-v4/d462f3a7c9b0/legacy/coast-water.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/board.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/explorer.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/passages.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/social.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/custom-growth.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/world.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/account-view.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/integrated-app.js"></script>
+<script src="island-v4/d462f3a7c9b0/legacy/landing.js"></script>
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/style.css">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/sea.css">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/friend.css">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/activities.css">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/decor.css">
+<script src="island-v4/d462f3a7c9b0/GLTFLoader.r147.js"></script>
+<script src="island-v4/d462f3a7c9b0/decor-model.js"></script>
+<script src="island-v4/d462f3a7c9b0/state.js"></script>
+<script src="island-v4/d462f3a7c9b0/content.js"></script>
+<script src="island-v4/d462f3a7c9b0/assets.js"></script>
+<script src="island-v4/d462f3a7c9b0/passages.js"></script>
+<script src="island-v4/d462f3a7c9b0/scene.js"></script>
+<script src="island-v4/d462f3a7c9b0/sea-scene.js"></script>
+<script src="island-v4/d462f3a7c9b0/sea-view.js"></script>
+<script src="island-v4/d462f3a7c9b0/friend-style.js"></script>
+<script src="island-v4/d462f3a7c9b0/friend-scene.js"></script>
+<script src="island-v4/d462f3a7c9b0/friend-view.js"></script>
+<script src="island-v4/d462f3a7c9b0/activity-model.js"></script>
+<script src="island-v4/d462f3a7c9b0/student-tools-model.js"></script>
+<script src="island-v4/d462f3a7c9b0/student-tools.js"></script>
+<script src="island-v4/d462f3a7c9b0/activities.js"></script>
+<script src="island-v4/d462f3a7c9b0/decor-scene.js"></script>
+<script src="island-v4/d462f3a7c9b0/decor-ui.js"></script>
+<script src="island-v4/d462f3a7c9b0/persistence.js"></script>
+<script src="island-v4/d462f3a7c9b0/app.js"></script>
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/student-tools.css">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/home.css">
+<script src="island-v4/d462f3a7c9b0/review-data.js"></script>
+<script src="island-v4/d462f3a7c9b0/review-generator.js"></script>
+<script src="island-v4/d462f3a7c9b0/review-class.js"></script>
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/access.css">
+<link rel="stylesheet" href="island-v4/d462f3a7c9b0/clarity.css">
+<script src="island-v4/d462f3a7c9b0/sharing.js"></script><link rel="stylesheet" href="island-v4/d462f3a7c9b0/social.css"><script src="island-v4/d462f3a7c9b0/tutorial.js"></script><link rel="stylesheet" href="island-v4/d462f3a7c9b0/tutorial.css"><script src="island-v4/d462f3a7c9b0/care-model.js"></script><script src="island-v4/d462f3a7c9b0/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/d462f3a7c9b0/classroom.css"><script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>
