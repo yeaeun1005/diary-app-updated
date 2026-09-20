@@ -16563,35 +16563,34 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
 // 출처와 저작권 페이지(2026-09-17). 첫 화면 꼬리 "출처와 저작권"에서 연다. 개인정보 처리방침(page === "privacy")과 같은 틀.
 // 항목은 CREDITS.md와 같은 내용이어야 한다. "확인 중"은 아직 출처를 못 적은 것 — 숨기지 않고 그대로 보인다.
 var CREDITS = {
-  intro: "마음 바다 탐험대는 여러 사람이 나눠 준 것들 위에서 만들어졌어요. 빌려 온 것과 만든 사람을 여기에 적어 둡니다.",
+  intro: "마음 바다 탐험대의 출처와 기반을 둔 이론을 소개합니다.",
   sections: [
     { title: "글꼴", items: [
-      { name: "메이플스토리 서체", by: "㈜넥슨코리아", note: "첫 화면 제목과 표지판, 로그인 창, 섬의 팻말에 썼어요. 넥슨이 무료로 나눠 주는 글꼴이에요. 이 페이지에는 메이플스토리에서 제공한 메이플스토리 서체가 적용되어 있습니다." },
-      { name: "주아", by: "우아한형제들", note: "제목 글자. SIL Open Font License 1.1, Google Fonts에서 불러와요." },
-      { name: "고운돋움", by: "류양희", note: "본문 글자. SIL Open Font License 1.1, Google Fonts에서 불러와요." }
+      { name: "메이플스토리 서체", by: "㈜넥슨코리아", note: "첫 화면 제목과 표지판, 로그인 창, 섬의 팻말에 사용" },
+      { name: "주아", by: "우아한형제들", note: "제목 글자. SIL Open Font License 1.1, 출처: Google Fonts" },
+      { name: "고운돋움", by: "류양희", note: "본문 글자. SIL Open Font License 1.1, 출처: Google Fonts" }
     ] },
     { title: "그림", items: [
-      { name: "첫 화면 배경 · 제목 · 나무 표지판 둘 · 로그인 창 나무판", by: "ChatGPT(OpenAI)로 만들고 손질", note: "생성 도구로 만든 그림이에요. 어떤 도구로 만들었는지 밝혀 둡니다." },
-      { name: "일기 화면의 감정 얼굴", by: "Twemoji — Twitter, Inc. and other contributors", note: "CC BY 4.0 (creativecommons.org/licenses/by/4.0). 그림을 그대로 썼어요." },
-      { name: "바다 생물 · 잠수함 · 잠수부 아이콘", by: "출처 확인 중", note: "2026년 4월 첫 판부터 있던 그림이에요. 만든 곳을 확인해 적을게요." },
-      { name: "섬 · 바다 · 광장", by: "이 앱이 직접 그려요", note: "3D 장면은 코드가 매번 그려요. 첫 화면 아래 소개 그림은 그 화면을 찍은 것이에요." }
+      { name: "첫 화면 배경 · 제목 · 나무 표지판 둘 · 로그인 창 나무판", by: "ChatGPT(OpenAI) 생성", note: "생성형 AI도구로 만든 그림입니다." },
+      { name: "일기 화면의 감정 얼굴", by: "Twemoji — Twitter, Inc. and other contributors", note: "CC BY 4.0 (creativecommons.org/licenses/by/4.0)." },
+      { name: "바다 생물 · 잠수함 · 잠수부 아이콘", by: "ChatGPT(OpenAI) 생성", note: "생성형 AI도구로 만든 그림입니다." },
+      { name: "섬 · 바다 · 광장", by: "이 앱이 직접 그려요", note: "3D 장면은 코드로 매번 생성됩니다" }
     ] },
     { title: "소리", items: [
       { name: "배경 피아노 · 발걸음 · 화면 전환 소리", by: "Pixabay", note: "Musical Peaceful Piano Loop · Nature Footstep Grass Leaf · Film Special Effects Soft Luxury Air Whoosh 5. Pixabay Content License(pixabay.com/service/license-summary). 소리는 기본으로 꺼져 있고 「소리」 버튼으로 켜요." }
     ] },
-    { title: "함께 쓴 도구", items: [
-      { name: "React 18.3.1", by: "Meta Platforms, Inc.", note: "MIT License. 화면을 만드는 도구예요." },
-      { name: "Three.js r147", by: "Three.js Authors", note: "MIT License. 섬과 바다를 3D로 그려요." },
-      { name: "Firebase JavaScript SDK 10.12.2", by: "Google LLC", note: "Apache License 2.0. 일기와 명단을 저장해요." },
-      { name: "Google Fonts", by: "Google LLC", note: "주아·고운돋움 글꼴을 가져오는 곳이에요." }
+    { title: "함께 사용된 도구", items: [
+      { name: "React 18.3.1", by: "Meta Platforms, Inc.", note: "MIT License. 화면을 만드는 도구" },
+      { name: "Three.js r147", by: "Three.js Authors", note: "MIT License. 섬과 바다를 3D로 생성" },
+      { name: "Firebase JavaScript SDK 10.12.2", by: "Google LLC", note: "Apache License 2.0. 일기와 명단 저장" },
+      { name: "Google Fonts", by: "Google LLC", note: "주아·고운돋움 글꼴 출처." }
     ] },
-    { title: "기대고 있는 연구", items: [
-      { name: "CES-D 우울 척도", by: "Radloff, L. S. (1977)", note: "The CES-D Scale: A self-report depression scale for research in the general population. Applied Psychological Measurement, 1(3), 385–401. 「살펴봐주세요」가 눈여겨보는 낱말을 고를 때 참고했어요. 검사를 하는 것은 아니에요." },
+    { title: "배경이 된 이론 및 연구", items: [
       { name: "정서 원형 모형", by: "Russell, J. A. (1980)", note: "A circumplex model of affect. Journal of Personality and Social Psychology, 39(6), 1161–1178. 마음 말 28가지가 섬 어디에서 자라는지(기운·긴장)를 이 모형으로 정했어요." },
       { name: "비폭력대화", by: "Rosenberg, M. B. (2003)", note: "Nonviolent Communication: A Language of Life. PuddleDancer Press. 한국어판 『비폭력대화』(캐서린 한 옮김, 한국NVC센터). 선생님께 건네는 대화 문구의 바탕이에요." }
     ] }
   ],
-  outro: "이 앱의 코드와 글, 화면 구성은 © 2026 마음 바다 탐험대. 빌려 온 것은 각자의 라이선스를 따라요. 빠진 것이 있으면 알려 주세요."
+  outro: "© 2026 마음 바다 탐험대"
 };
 function CreditsPage(props) {
   return React.createElement("div", { style: shell }, React.createElement("div", {
