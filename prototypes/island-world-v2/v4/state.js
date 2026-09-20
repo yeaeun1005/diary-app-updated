@@ -1,6 +1,6 @@
 /* V4 local prototype state. No production adapter; explicit, serialized writes. */
 const V4State=(()=>{
- const ITEMS=['flower','lantern','shrub'],SPOTS=['desk-garden','water-garden','bench-garden'];
+ const ITEMS=['flower','lantern','shrub','swing','lighthouse','flowerBoat'],SPOTS=['desk-garden','water-garden','bench-garden'];
  const fresh=()=>({schema:1,revision:0,draft:'',selectedEntryTs:null,context:null,choices:{},q:{active:false,stage:'offer',source:null,response:null,feedbackSeen:false,completedAt:null},reward:{id:'Q01:v1',available:false,item:null,spot:null},talk:{}});
  function reduce(input,event,now=Date.now()){
   const s=JSON.parse(JSON.stringify(input||fresh())),q=s.q,r=s.reward;
