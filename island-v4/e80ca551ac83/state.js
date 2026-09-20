@@ -29,8 +29,8 @@ const V4State=(()=>{
  const queues=new Map();let adapter=null;
  function configure(a){adapter=a;}
  const key=me=>{if(!me?.id||!me?.schoolCode)throw Error('account');return encodeURIComponent(me.schoolCode)+':'+encodeURIComponent(me.id);};
- function load(me){if(!adapter)throw Error('local-adapter-required');return JSON.parse(JSON.stringify(adapter.read(key(me))||fresh()));}
- function dispatch(me,event){const k=key(me),previous=queues.get(k)||Promise.resolve();const next=previous.catch(()=>{}).then(async()=>{const state=reduce(load(me),event);await adapter.write(k,state);return state;});queues.set(k,next);next.finally(()=>{if(queues.get(k)===next)queues.delete(k);}).catch(()=>{});return next;}
+ function load(me){if(!adapter)throw Error('adapter-required');return JSON.parse(JSON.stringify(adapter.read(key(me))||fresh()));}
+ function dispatch(me,event){const k=key(me),previous=queues.get(k)||Promise.resolve();const next=previous.catch(()=>{}).then(async()=>{if(adapter.dispatch)return adapter.dispatch(k,event);const state=reduce(load(me),event);await adapter.write(k,state);return state;});queues.set(k,next);next.finally(()=>{if(queues.get(k)===next)queues.delete(k);}).catch(()=>{});return next;}
  return {fresh,reduce,configure,load,dispatch,ITEMS,SPOTS};
 })();
 if(typeof module==='object')module.exports=V4State;

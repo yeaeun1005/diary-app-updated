@@ -1,0 +1,578 @@
+[
+  {
+    "assetId": "talk-shell",
+    "originalPath": "/Users/kim/Downloads/pastel shell chair 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "3cefa1e5d6d8614eee13d831581079a990f7be41605d20522a1a5a40ff4f04cb",
+    "sourceBytes": 2375952,
+    "runtimeSha256": "e5699c0b963291025c7b2187dd9532c6f5a12299ed55e2cb79cc6a4b5437cba3",
+    "deliveryBytes": 1243878,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 932856,
+    "sha256": "e5699c0b963291025c7b2187dd9532c6f5a12299ed55e2cb79cc6a4b5437cba3",
+    "triangles": 4878,
+    "vertices": 3208,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 109992
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 132825
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 526773
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.401763916015625,
+        0.0,
+        -0.3820037841796875
+      ],
+      "max": [
+        0.401763916015625,
+        1.000091552734375,
+        0.3820037841796875
+      ],
+      "size": [
+        0.80352783203125,
+        1.000091552734375,
+        0.764007568359375
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_bc1da5c3-357d-411e-b84e-50d7164b1c72",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "practice-compass",
+    "originalPath": "/Users/kim/Downloads/compass 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "1c7eb6e984aa99252121c5c646fdd85cfde355b867da7b0e58d0fe21415d85b2",
+    "sourceBytes": 2401476,
+    "runtimeSha256": "8703a6e76604fc7965d35df31ee968f2fb59d4291276ed5dbc6f6c15db636507",
+    "deliveryBytes": 1213256,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 909884,
+    "sha256": "8703a6e76604fc7965d35df31ee968f2fb59d4291276ed5dbc6f6c15db636507",
+    "triangles": 4348,
+    "vertices": 3646,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 134310
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 149218
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 455485
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.50006103515625,
+        0.0,
+        -0.4467315673828125
+      ],
+      "max": [
+        0.50006103515625,
+        1.0025634765625,
+        0.4467315673828125
+      ],
+      "size": [
+        1.0001220703125,
+        1.0025634765625,
+        0.893463134765625
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_449945f6-3591-4171-aef8-91eb2683dadb",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "journal-chest",
+    "originalPath": "/Users/kim/Downloads/treasure chest 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "3528a29d3d23064e170f20cc8d3f1f1ab95258eb4c4e7e6028cc12ec6d1c7571",
+    "sourceBytes": 2553492,
+    "runtimeSha256": "c967e6fdcd312fe9ff35f92f86397f5f4b44d7907c744271a53f7e27be17877a",
+    "deliveryBytes": 1251529,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 938592,
+    "sha256": "c967e6fdcd312fe9ff35f92f86397f5f4b44d7907c744271a53f7e27be17877a",
+    "triangles": 4340,
+    "vertices": 4009,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 191587
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 158000
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 406631
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.4996185302734375,
+        0.0,
+        -0.373291015625
+      ],
+      "max": [
+        0.4996185302734375,
+        0.971435546875,
+        0.373291015625
+      ],
+      "size": [
+        0.999237060546875,
+        0.971435546875,
+        0.74658203125
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_053c1b69-a673-49c5-b6b7-9ea8235a07ae",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "decor-swing",
+    "originalPath": "/Users/kim/Downloads/wooden swing 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "49dd834ae66712a0a2c64439ffd6436b26ac36c52ee43748bf7763f76a94d0f1",
+    "sourceBytes": 2055552,
+    "runtimeSha256": "644c046e49a7020e0760137464e09db1638dbe9c6f419de737a4b329967fcbc0",
+    "deliveryBytes": 1100451,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 825284,
+    "sha256": "644c046e49a7020e0760137464e09db1638dbe9c6f419de737a4b329967fcbc0",
+    "triangles": 4752,
+    "vertices": 4131,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 142027
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 104546
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 387453
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.5022735595703125,
+        0.0,
+        -0.37603759765625
+      ],
+      "max": [
+        0.5022735595703125,
+        0.9228516221046448,
+        0.37603759765625
+      ],
+      "size": [
+        1.004547119140625,
+        0.9228516221046448,
+        0.7520751953125
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_2eace7be-26d4-4eb5-b4dc-36d42905dcee",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "decor-lighthouse",
+    "originalPath": "/Users/kim/Downloads/lighthouse 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "a631bb0ea13e539d09dac090cb4b2ec77b9f724ea052a24d220e6b69afec1782",
+    "sourceBytes": 3250620,
+    "runtimeSha256": "5a3e304c67c474f4ec94f0cbc90b16fea8ae4b5af3559026c9178fb2ee9740db",
+    "deliveryBytes": 1667436,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 1250520,
+    "sha256": "5a3e304c67c474f4ec94f0cbc90b16fea8ae4b5af3559026c9178fb2ee9740db",
+    "triangles": 4918,
+    "vertices": 4001,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 198126
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 116257
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 747034
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.3177032470703125,
+        0.0,
+        -0.3163604736328125
+      ],
+      "max": [
+        0.3177032470703125,
+        0.99560546875,
+        0.3163604736328125
+      ],
+      "size": [
+        0.635406494140625,
+        0.99560546875,
+        0.632720947265625
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_fe6b4d20-b8dc-45b4-a494-9cc14800fd10",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "decor-flowerBoat",
+    "originalPath": "/Users/kim/Downloads/wooden boat planter 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "9d99960e46c94dbb392b435fdfefebdd146d7ab41c7b538959d9357ce6b1827d",
+    "sourceBytes": 2543500,
+    "runtimeSha256": "28fe5eae7448ec2b67168ddcf5efee53ea87342fc599420c8fb92920d262c84f",
+    "deliveryBytes": 1305284,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 978904,
+    "sha256": "28fe5eae7448ec2b67168ddcf5efee53ea87342fc599420c8fb92920d262c84f",
+    "triangles": 4460,
+    "vertices": 4830,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 196261
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 133052
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 439426
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.5009765625,
+        0.0,
+        -0.25492095947265625
+      ],
+      "max": [
+        0.5009765625,
+        0.60540771484375,
+        0.25492095947265625
+      ],
+      "size": [
+        1.001953125,
+        0.60540771484375,
+        0.5098419189453125
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_ba42f825-ff53-433e-a18b-5b4f392852e5",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  }
+]
