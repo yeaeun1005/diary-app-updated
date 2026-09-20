@@ -914,7 +914,7 @@ var EMO_MEANINGS = {
   "지루함": "재미가 없어서 시간이 안 가는 마음",
   "외로움": "혼자인 것 같아서 누가 곁에 있었으면 하는 마음",
   "실망": "기대했던 것이 안 돼서 마음이 내려앉는 마음",
-  "놀람(+)": "생각지도 못한 좋은 일에 마음이 번쩍 뛰는 마음",
+  "놀람(긍정)": "생각지도 못한 좋은 일에 마음이 번쩍 뛰는 마음",
   "경악": "너무 놀라서 숨이 멎을 것 같은 마음",
   "흥미": "더 알고 싶고 해 보고 싶어서 마음이 끌리는 마음",
   "희망": "앞으로 좋아질 거라고 믿어서 마음이 밝아지는 마음"
@@ -1815,20 +1815,20 @@ var PLAZA_MAX = 240;     // 답 한 칸 글자 수(2026-09-16, 전 120 × 세 �
 var PLAZA_MIN_PUB = 3;   // 광장에 올라간 답이 이만큼 이상일 때만 아이에게 보인다. 한둘이면 누구 것인지 짐작된다
 var PLAZA_CATS = [
   { id: "self", name: "감정 인식", nm: false, qs: [
-    "요즘 나를 가장 많이 웃게 한 건 뭐였나요?",
-    "최근에 \"이건 좀 아니다\" 싶었던 순간이 있었나요?",
+    "요즘 나를 가장 많이 웃게 한 일은 뭐였나요?",
+    "최근에 \"이건 좀 아니다\" 생각했던 순간이 있었나요?",
     "하루 중 마음이 가장 편해지는 때는 언제인가요?" ] },
   { id: "other", name: "타인 이해", nm: true, qs: [
     "친구가 어떤 행동을 했을 때 고마웠나요?",
-    "말은 안 했지만 속상했던 적이 있나요?",
+    "미처 말은 못 했지만 친구에게 속상했던 적이 있나요?",
     "우리 반에서 누군가 힘들어 보였던 적이 있나요?" ] },
   { id: "wish", name: "관계와 바람", nm: true, qs: [
-    "우리 반이 이랬으면 좋겠다고 생각한 게 있나요?",
+    "우리 반이 이랬으면 좋겠다고 생각했던 것이 있나요?",
     "친구에게 부탁하고 싶은데 말 못 한 게 있나요?",
-    "요즘 누군가에게 고맙다고 말하고 싶은 순간이 있었나요?" ] },
+    "누군가에게 고맙다고 말하고 싶었던 순간은 언제였나요?" ] },
   { id: "words", name: "어휘 확장", nm: false, qs: [
     "오늘 내 기분을 색깔로 말한다면?",
-    "\"기분이 좋다\" 말고 다른 말로 표현해본다면?" ] }
+    "\"기분이 좋다\" 를 다른 말로 표현해본다면?" ] }
 ];
 // 오늘의 질문 자동 목록 30개(2026-09-16 사용자 확정). 학급 데이터를 보고 고르지 않는다 — 순서대로 뽑는다(§9: 앱이 교사 판단을 대신하지 않는다).
 // 초등 5학년이 답할 수 있고, 감정 어휘를 쓰게 이끌며, 가벼운 것(웃음·날씨·급식·주말)과 조금 깊은 것(속상함·화·혼자·걱정)이 세 개에 하나쯤 번갈아 온다.
@@ -1836,9 +1836,9 @@ var PLAZA_CATS = [
 // 순서는 질문 노드의 ai(자동 목록 번호)로 잇는다: 다음 기본값 = (지금까지 올린 질문 중 가장 큰 ai + 1) % 길이. 한 바퀴 돌면 처음으로 돌아가고 화면에 그렇게 알린다.
 // 교사가 문구를 고쳐 올려도 ai는 그대로라 순서가 밀리지 않는다. 직접 쓴 질문(ai 없음)은 순서에 세지 않는다.
 var PLAZA_AUTO_QS = [
-  { t: "오늘 내 마음을 한 단어로 고르면 무엇인가요? 그 말을 고른 이유도 써 봐요.", cat: "words", nm: false },
-  { t: "요즘 나를 가장 많이 웃게 한 건 뭐였나요?", cat: "self", nm: false },
-  { t: "말은 안 했지만 속상했던 적이 있나요? 그때 어떤 마음이었나요?", cat: "other", nm: true },
+  { t: "오늘 내 마음을 한 단어로 표현하면 무엇인가요? 그 이유는 무엇인가요?", cat: "words", nm: false },
+  { t: "요즘 나를 가장 많이 웃게 한 일은 무엇인가요?", cat: "self", nm: false },
+  { t: "미처 말은 못했지만 친구에게 속상했던 적이 있나요? 그때 어떤 마음이었나요?", cat: "other", nm: true },
   { t: "오늘 하루 중 마음이 가장 편안했던 때는 언제였나요?", cat: "self", nm: false },
   { t: "오늘 내 기분을 날씨로 말하면 무엇인가요?", cat: "words", nm: false },
   { t: "화가 났다가 풀린 적이 있나요? 무엇이 마음을 풀어 줬나요?", cat: "self", nm: false },
@@ -3301,7 +3301,7 @@ function MindChat({
     }, "\uD0ED\uD574\uC11C \uB9C8\uC74C \uB300\uD654 \uC2DC\uC791 \u2192"));
   })), negEntries.length === 0 && completed.length === 0 && React.createElement(EmptyState, {
     icon: "",
-    text: (allowAll ? "대화를 시작할 기록을 골라 주세요. 어떤 마음이든 괜찮아요." : "\uBD80\uC815\uC801 \uAC10\uC815\uC774 \uBC1C\uACAC\uB418\uC9C0 \uC54A\uC558\uC5B4\uC694. \uAC10\uC815 \uC77C\uAE30\uB97C \uBA3C\uC800 \uC791\uC131\uD574\uBCF4\uC138\uC694."),
+    text: (allowAll ? "대화를 시작할 일기를 골라 주세요." : "\uBD80\uC815\uC801 \uAC10\uC815\uC774 \uBC1C\uACAC\uB418\uC9C0 \uC54A\uC558\uC5B4\uC694. \uAC10\uC815 \uC77C\uAE30\uB97C \uBA3C\uC800 \uC791\uC131\uD574\uBCF4\uC138\uC694."),
     action: null
   }), completed.length > 0 && React.createElement("div", {
     style: {
@@ -11680,7 +11680,7 @@ function DiaryView({
     onKeyDown: e => {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add();
     },
-    placeholder: "오늘 어떤 일을 겪었나요?\n그 때, 나는 어떤 감정을 느꼈나요?",
+    placeholder: "오늘 어떤 일이 있었나요?\n그 때, 나는 어떤 감정을 느꼈나요?",
     rows: 4,
     style: {
       ...inp,
@@ -13109,7 +13109,7 @@ function DiaryView({
     color: "#5a6c76",
     marginBottom: 11
   }
-}, "이런 마음, 누구한테 이야기하고 있어?"), React.createElement("div", {
+}, "이런 마음, 누구한테 이야기하고 있나요?"), React.createElement("div", {
   style: {
     display: "flex",
     flexWrap: "wrap",
@@ -13148,7 +13148,7 @@ function DiaryView({
     marginBottom: 8,
     color: "#33454f"
   }
-}, "혼자 다 안고 있지 않아도 돼. 주변의 어른들에게 이야기해도 되고, 언제든 이야기할 수 있는 곳도 있어."), React.createElement("a", {
+}, "혼자 다 안고 있지 않아도 돼요. 주변의 어른들에게 이야기해도 되고, 언제든 이야기할 수 있는 곳도 있어요."), React.createElement("a", {
   href: "tel:1388",
   style: {
     display: "flex",
@@ -13204,7 +13204,7 @@ function DiaryView({
     lineHeight: 1.8,
     color: "#33454f"
   }
-}, "정말 잘하고 있어. 믿을 수 있는 사람에게 이야기하면 마음이 한결 가벼워져. 오늘도 한 번 이야기해볼까?"), React.createElement("div", {
+}, "정말 잘하고 있어요. 믿을 수 있는 사람에게 이야기하면 마음이 한결 가벼워져요. 오늘도 한 번 이야기해볼까요?"), React.createElement("div", {
   style: {
     textAlign: "right",
     marginTop: 16
