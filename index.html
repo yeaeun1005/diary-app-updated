@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta name="island-world-release" content="e80ca551ac83">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/legacy/world.css">
+<meta name="island-world-release" content="61b6f13bb407">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/legacy/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -1298,6 +1298,11 @@ function safeAnalysis(a) {
   };
   return {
     status: a.status || "ready", studentSelection: a.studentSelection || [],
+    corrected: a.corrected === true,
+    ...(typeof a.entryDate === "string" ? {entryDate:a.entryDate} : {}),
+    ...(typeof a.automaticText === "string" ? {automaticText:a.automaticText} : {}),
+    ...(a.automaticAnalysis && typeof a.automaticAnalysis === "object" ? {automaticAnalysis:a.automaticAnalysis} : {}),
+    ...(Number.isFinite(a.analysisVersion) ? {analysisVersion:a.analysisVersion} : {}),
     hits: a.hits || [],
     excluded: a.excluded || [],
     matchedPos: a.matchedPos || [],
@@ -15852,7 +15857,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   React.createElement(V4RewardSettingsPanel,{key:currentUser.schoolCode,user:currentUser,students:myStudents,onSaved:setMS}),
   React.createElement("section",{className:"v4-teacher-download","aria-label":"보호자 동의서"},
     React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명·활동 기간·문의처를 작성한 뒤 보호자에게 나눠 주세요. 학생을 등록한 뒤에도 언제든 내려받을 수 있어요.")),
-    React.createElement("a",{className:"v4-consent-link",href:"island-v4/e80ca551ac83/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
+    React.createElement("a",{className:"v4-consent-link",href:"island-v4/61b6f13bb407/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
     "data-tut": "t-consent",
     style: {
       ...crd,
@@ -15869,7 +15874,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       lineHeight: 1.7,
       margin: "0 0 12px"
     }
-  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/e80ca551ac83/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
+  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/61b6f13bb407/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -16491,49 +16496,49 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 // The original App mounts after its new presentation assets are ready.
 </script>
-<script src="island-v4/e80ca551ac83/legacy/coast-water.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/board.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/explorer.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/passages.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/social.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/custom-growth.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/world.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/account-view.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/integrated-app.js"></script>
-<script src="island-v4/e80ca551ac83/legacy/landing.js"></script>
-<link rel="stylesheet" href="island-v4/e80ca551ac83/style.css">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/sea.css">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/friend.css">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/activities.css">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/decor.css">
-<script src="island-v4/e80ca551ac83/GLTFLoader.r147.js"></script>
-<script src="island-v4/e80ca551ac83/decor-model.js"></script>
-<script src="island-v4/e80ca551ac83/state.js"></script>
-<script src="island-v4/e80ca551ac83/content.js"></script>
-<script src="island-v4/e80ca551ac83/assets.js"></script>
-<script src="island-v4/e80ca551ac83/passages.js"></script>
-<script src="island-v4/e80ca551ac83/scene.js"></script>
-<script src="island-v4/e80ca551ac83/sea-scene.js"></script>
-<script src="island-v4/e80ca551ac83/sea-view.js"></script>
-<script src="island-v4/e80ca551ac83/friend-style.js"></script>
-<script src="island-v4/e80ca551ac83/friend-scene.js"></script>
-<script src="island-v4/e80ca551ac83/friend-view.js"></script>
-<script src="island-v4/e80ca551ac83/activity-model.js"></script>
-<script src="island-v4/e80ca551ac83/student-tools-model.js"></script>
-<script src="island-v4/e80ca551ac83/student-tools.js"></script>
-<script src="island-v4/e80ca551ac83/activities.js"></script>
-<script src="island-v4/e80ca551ac83/decor-scene.js"></script>
-<script src="island-v4/e80ca551ac83/decor-ui.js"></script>
-<script src="island-v4/e80ca551ac83/persistence.js"></script>
-<script src="island-v4/e80ca551ac83/app.js"></script>
-<link rel="stylesheet" href="island-v4/e80ca551ac83/student-tools.css">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/home.css">
-<script src="island-v4/e80ca551ac83/review-data.js"></script>
-<script src="island-v4/e80ca551ac83/review-generator.js"></script>
-<script src="island-v4/e80ca551ac83/review-class.js"></script>
-<link rel="stylesheet" href="island-v4/e80ca551ac83/access.css">
-<link rel="stylesheet" href="island-v4/e80ca551ac83/clarity.css">
-<script src="island-v4/e80ca551ac83/sharing.js"></script><link rel="stylesheet" href="island-v4/e80ca551ac83/social.css"><script src="island-v4/e80ca551ac83/tutorial.js"></script><link rel="stylesheet" href="island-v4/e80ca551ac83/tutorial.css"><script src="island-v4/e80ca551ac83/care-model.js"></script><script src="island-v4/e80ca551ac83/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/e80ca551ac83/classroom.css"><script src="island-v4/e80ca551ac83/daily-model.js"></script><script src="island-v4/e80ca551ac83/reward-settings.js"></script><link rel="stylesheet" href="island-v4/e80ca551ac83/exploration.css"><script>root.render(React.createElement(App));</script>
+<script src="island-v4/61b6f13bb407/legacy/coast-water.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/board.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/explorer.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/passages.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/social.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/custom-growth.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/world.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/account-view.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/integrated-app.js"></script>
+<script src="island-v4/61b6f13bb407/legacy/landing.js"></script>
+<link rel="stylesheet" href="island-v4/61b6f13bb407/style.css">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/sea.css">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/friend.css">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/activities.css">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/decor.css">
+<script src="island-v4/61b6f13bb407/GLTFLoader.r147.js"></script>
+<script src="island-v4/61b6f13bb407/decor-model.js"></script>
+<script src="island-v4/61b6f13bb407/state.js"></script>
+<script src="island-v4/61b6f13bb407/content.js"></script>
+<script src="island-v4/61b6f13bb407/assets.js"></script>
+<script src="island-v4/61b6f13bb407/passages.js"></script>
+<script src="island-v4/61b6f13bb407/scene.js"></script>
+<script src="island-v4/61b6f13bb407/sea-scene.js"></script>
+<script src="island-v4/61b6f13bb407/sea-view.js"></script>
+<script src="island-v4/61b6f13bb407/friend-style.js"></script>
+<script src="island-v4/61b6f13bb407/friend-scene.js"></script>
+<script src="island-v4/61b6f13bb407/friend-view.js"></script>
+<script src="island-v4/61b6f13bb407/activity-model.js"></script>
+<script src="island-v4/61b6f13bb407/student-tools-model.js"></script>
+<script src="island-v4/61b6f13bb407/student-tools.js"></script>
+<script src="island-v4/61b6f13bb407/activities.js"></script>
+<script src="island-v4/61b6f13bb407/decor-scene.js"></script>
+<script src="island-v4/61b6f13bb407/decor-ui.js"></script>
+<script src="island-v4/61b6f13bb407/persistence.js"></script>
+<script src="island-v4/61b6f13bb407/app.js"></script>
+<link rel="stylesheet" href="island-v4/61b6f13bb407/student-tools.css">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/home.css">
+<script src="island-v4/61b6f13bb407/review-data.js"></script>
+<script src="island-v4/61b6f13bb407/review-generator.js"></script>
+<script src="island-v4/61b6f13bb407/review-class.js"></script>
+<link rel="stylesheet" href="island-v4/61b6f13bb407/access.css">
+<link rel="stylesheet" href="island-v4/61b6f13bb407/clarity.css">
+<script src="island-v4/61b6f13bb407/sharing.js"></script><link rel="stylesheet" href="island-v4/61b6f13bb407/social.css"><script src="island-v4/61b6f13bb407/tutorial.js"></script><link rel="stylesheet" href="island-v4/61b6f13bb407/tutorial.css"><script src="island-v4/61b6f13bb407/care-model.js"></script><script src="island-v4/61b6f13bb407/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/61b6f13bb407/classroom.css"><script src="island-v4/61b6f13bb407/daily-model.js"></script><script src="island-v4/61b6f13bb407/reward-settings.js"></script><link rel="stylesheet" href="island-v4/61b6f13bb407/exploration.css"><script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>
