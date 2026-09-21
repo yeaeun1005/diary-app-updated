@@ -13,8 +13,8 @@ const raw='오늘 발표를 했다. 나는 긴장했고 끝나고 뿌듯했다.'
 ctx.raw=raw;
 const d=read('V4StudentTools.detected(raw)');assert(d.situations.some(s=>s.ctx==='발표'));assert(d.words.includes('긴장'));assert(d.words.includes('뿌듯'));
 const prepared=read("V4StudentTools.prepare(raw,['편안','편안'],['발표'],'2026-09-19',9)");
-assert.equal(prepared.text,raw);assert.deepEqual(prepared.analysis.studentSelection,['편안']);assert(prepared.analysis.hits.some(h=>h.label==='긴장'));assert(!prepared.analysis.hits.some(h=>h.token==='직접선택'));
-const selection=read("V4StudentTools.prepare('', ['행복'],['친구'],'2026-09-19',10)");assert(selection.text.includes('행복'));assert.equal(selection.analysis.hits.length,0);assert.deepEqual(selection.analysis.studentSelection,['행복']);
+assert.equal(prepared.text,raw);assert.deepEqual(prepared.analysis.studentSelection,['편안']);assert(prepared.analysis.automaticAnalysis.hits.some(h=>h.label==='긴장'));assert.deepEqual(prepared.analysis.hits.map(h=>h.label),['편안']);assert(prepared.analysis.corrected);
+const selection=read("V4StudentTools.prepare('', ['행복'],['친구'],'2026-09-19',10)");assert(selection.text.includes('행복'));assert.equal(selection.analysis.hits[0].label,'행복');assert.equal(selection.analysis.automaticAnalysis.hits.length,0);assert.deepEqual(selection.analysis.studentSelection,['행복']);
 ctx.records=[
  {ts:3,text:'친구와 학교에서 놀았다.',analysis:{hits:[{label:'행복',val9:8,valStd:.75,aroStd:0},{label:'행복',val9:8,valStd:.75,aroStd:0},{label:'슬픔',val9:2,valStd:-.75,aroStd:0}],matchedPos:[{word:'좋아'},{word:'좋아'}],posPct:60,negPct:40}},
  {ts:2,text:'발표했다.',analysis:{hits:[{label:'행복',valStd:.75,aroStd:0},{label:'직접 말',val9:2,token:'직접선택'}],posPct:100,negPct:0}},
