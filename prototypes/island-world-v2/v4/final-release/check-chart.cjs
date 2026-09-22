@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const dir='renders/releases/review-polish-20260922/',m=JSON.parse(fs.readFileSync(dir+'manifest.json')),html=fs.readFileSync(dir+'candidate/index.html','utf8');
+const ctx=vm.createContext({Map,Set,extractSituations:()=>[]});
+vm.runInContext(html.slice(html.indexOf('function normalizeKorean(t)'),html.indexOf('function safeAnalysis(a)')),ctx);
+vm.runInContext('function v4Analyze(text){return analyzeEntry(text)}',ctx);
+vm.runInContext(fs.readFileSync(dir+'candidate/'+m.assetPath+'/student-tools-model.js','utf8'),ctx);
+ctx.entries=JSON.parse(vm.runInContext("JSON.stringify(['부끄러웠다.','보람이 있었다.','보람이 있었다.'].map(text=>({text,analysis:analyzeEntry(text)})))",ctx));
+const original=JSON.stringify(ctx.entries),summary=JSON.parse(vm.runInContext('JSON.stringify(V4StudentTools.summarize(entries))',ctx));
+assert.deepEqual(summary.negative.map(x=>[x.label,x.count]),[['부끄러움',1]]);
+assert.deepEqual(summary.positive.map(x=>[x.label,x.count]),[['뿌듯',2]]);
+assert.equal(JSON.stringify(ctx.entries),original,'display normalization must not edit analysis or original entries');
+ctx.entries=[{text:'직접 고른 말',analysis:{corrected:true,hits:[{label:'내가 고른 마음',val9:7,token:'직접선택'}]}}];
+assert.equal(vm.runInContext('V4StudentTools.summarize(entries).positive[0].label',ctx),'내가 고른 마음');
+console.log(JSON.stringify({pass:true,checks:['readable emotion labels replace parser stems','one count per emotion per diary','original analysis and student wording unchanged']}));

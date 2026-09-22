@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta name="island-world-release" content="1877d3db2428">
-<link rel="stylesheet" href="island-v4/1877d3db2428/legacy/world.css">
+<meta name="island-world-release" content="1af4f73d23eb">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/legacy/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -15144,7 +15144,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     onChange: e => { var on = e.target.checked; setMsg(""); setJudge(on); setLF(judgeForm(on, loginForm.role)); }
   }), React.createElement("span", { style: { fontWeight: HOME_FONT.bw } }, "심사용"), React.createElement("span", {
     style: { fontWeight: HOME_FONT.rw, opacity: 0.85 }
-  }, judge ? "학생과 선생님 화면을 체험할 수 있어요." : "학교에서 받은 계정으로 로그인해요.")), msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-school"}, "학교 코드"), loginForm.role !== "teacher" && React.createElement("input", {id:"v2-school",
+  }, judge ? "가상 학급으로 체험해요. 예시 날짜는 오늘을 기준으로 표시되며 실제 학생 기록이 아닙니다." : "학교에서 받은 계정으로 로그인해요.")), msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-school"}, "학교 코드"), loginForm.role !== "teacher" && React.createElement("input", {id:"v2-school",
     className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role), disabled:loginBusy,
     value: loginForm.schoolCode,
     onChange: e => setLF({ ...loginForm, schoolCode: e.target.value.toUpperCase() }),
@@ -15858,8 +15858,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   }, currentUser.teacherId === MIG_OWNER && migUI(), msgBox,
   React.createElement(V4RewardSettingsPanel,{key:currentUser.schoolCode,user:currentUser,students:myStudents,onSaved:setMS}),
   React.createElement("section",{className:"v4-teacher-download","aria-label":"보호자 동의서"},
-    React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명·활동 기간·문의처를 작성한 뒤 보호자에게 나눠 주세요. 학생을 등록한 뒤에도 언제든 내려받을 수 있어요.")),
-    React.createElement("a",{className:"v4-consent-link",href:"island-v4/1877d3db2428/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
+    React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명, 활동 기간, 문의처를 적어 보호자에게 나눠 주세요.")),
+    React.createElement("a",{className:"v4-consent-link",href:"island-v4/1af4f73d23eb/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
     "data-tut": "t-consent",
     style: {
       ...crd,
@@ -15876,7 +15876,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       lineHeight: 1.7,
       margin: "0 0 12px"
     }
-  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/1877d3db2428/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
+  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/1af4f73d23eb/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -16473,7 +16473,7 @@ function CreditsPage(props) {
           React.createElement("div", { style: { fontSize: 14, color: "#1e293b", lineHeight: 1.6, display: "flex", flexWrap: "wrap", gap: "2px 10px", alignItems: "baseline" } },
             React.createElement("strong", { style: { fontWeight: 700 } }, it.name),
             React.createElement("span", { style: { color: it.by.indexOf("확인 중") >= 0 ? "#b45309" : "#0e7490", fontSize: 13 } }, it.by)),
-          React.createElement("div", { style: { fontSize: 13, color: "#475569", lineHeight: 1.7, marginTop: 2 } }, it.note));
+          React.createElement("div", { style: { fontSize: 13, color: "#475569", lineHeight: 1.7, marginTop: 2 } }, it.note), it.url && React.createElement("a", {className:"v4-credit-link",href:it.url,target:"_blank",rel:"noopener noreferrer"},"출처 및 이용 조건"));
       }));
     }),
     React.createElement("div", { style: { textAlign: "center", marginTop: 24, paddingTop: 16, borderTop: "1px solid #f1f5f9" } },
@@ -16498,49 +16498,49 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 // The original App mounts after its new presentation assets are ready.
 </script>
-<script src="island-v4/1877d3db2428/legacy/coast-water.js"></script>
-<script src="island-v4/1877d3db2428/legacy/board.js"></script>
-<script src="island-v4/1877d3db2428/legacy/explorer.js"></script>
-<script src="island-v4/1877d3db2428/legacy/passages.js"></script>
-<script src="island-v4/1877d3db2428/legacy/social.js"></script>
-<script src="island-v4/1877d3db2428/legacy/custom-growth.js"></script>
-<script src="island-v4/1877d3db2428/legacy/world.js"></script>
-<script src="island-v4/1877d3db2428/legacy/account-view.js"></script>
-<script src="island-v4/1877d3db2428/legacy/integrated-app.js"></script>
-<script src="island-v4/1877d3db2428/legacy/landing.js"></script>
-<link rel="stylesheet" href="island-v4/1877d3db2428/style.css">
-<link rel="stylesheet" href="island-v4/1877d3db2428/sea.css">
-<link rel="stylesheet" href="island-v4/1877d3db2428/friend.css">
-<link rel="stylesheet" href="island-v4/1877d3db2428/activities.css">
-<link rel="stylesheet" href="island-v4/1877d3db2428/decor.css">
-<script src="island-v4/1877d3db2428/GLTFLoader.r147.js"></script>
-<script src="island-v4/1877d3db2428/decor-model.js"></script>
-<script src="island-v4/1877d3db2428/state.js"></script>
-<script src="island-v4/1877d3db2428/content.js"></script>
-<script src="island-v4/1877d3db2428/assets.js"></script>
-<script src="island-v4/1877d3db2428/passages.js"></script>
-<script src="island-v4/1877d3db2428/scene.js"></script>
-<script src="island-v4/1877d3db2428/sea-scene.js"></script>
-<script src="island-v4/1877d3db2428/sea-view.js"></script>
-<script src="island-v4/1877d3db2428/friend-style.js"></script>
-<script src="island-v4/1877d3db2428/friend-scene.js"></script>
-<script src="island-v4/1877d3db2428/friend-view.js"></script>
-<script src="island-v4/1877d3db2428/activity-model.js"></script>
-<script src="island-v4/1877d3db2428/student-tools-model.js"></script>
-<script src="island-v4/1877d3db2428/student-tools.js"></script>
-<script src="island-v4/1877d3db2428/activities.js"></script>
-<script src="island-v4/1877d3db2428/decor-scene.js"></script>
-<script src="island-v4/1877d3db2428/decor-ui.js"></script>
-<script src="island-v4/1877d3db2428/persistence.js"></script>
-<script src="island-v4/1877d3db2428/app.js"></script>
-<link rel="stylesheet" href="island-v4/1877d3db2428/student-tools.css">
-<link rel="stylesheet" href="island-v4/1877d3db2428/home.css">
-<script src="island-v4/1877d3db2428/review-data.js"></script>
-<script src="island-v4/1877d3db2428/review-generator.js"></script>
-<script src="island-v4/1877d3db2428/review-class.js"></script>
-<link rel="stylesheet" href="island-v4/1877d3db2428/access.css">
-<link rel="stylesheet" href="island-v4/1877d3db2428/clarity.css">
-<script src="island-v4/1877d3db2428/sharing.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/social.css"><script src="island-v4/1877d3db2428/tutorial.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/tutorial.css"><script src="island-v4/1877d3db2428/care-model.js"></script><script src="island-v4/1877d3db2428/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/classroom.css"><script src="island-v4/1877d3db2428/daily-model.js"></script><script src="island-v4/1877d3db2428/reward-settings.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/exploration.css"><link rel="stylesheet" href="island-v4/1877d3db2428/polish.css"><script src="island-v4/1877d3db2428/guides.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/typography.css"><script src="island-v4/1877d3db2428/sound.js"></script><script>root.render(React.createElement(App));</script>
+<script src="island-v4/1af4f73d23eb/legacy/coast-water.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/board.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/explorer.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/passages.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/social.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/custom-growth.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/world.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/account-view.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/integrated-app.js"></script>
+<script src="island-v4/1af4f73d23eb/legacy/landing.js"></script>
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/style.css">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/sea.css">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/friend.css">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/activities.css">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/decor.css">
+<script src="island-v4/1af4f73d23eb/GLTFLoader.r147.js"></script>
+<script src="island-v4/1af4f73d23eb/decor-model.js"></script>
+<script src="island-v4/1af4f73d23eb/state.js"></script>
+<script src="island-v4/1af4f73d23eb/content.js"></script>
+<script src="island-v4/1af4f73d23eb/assets.js"></script>
+<script src="island-v4/1af4f73d23eb/passages.js"></script>
+<script src="island-v4/1af4f73d23eb/scene.js"></script>
+<script src="island-v4/1af4f73d23eb/sea-scene.js"></script>
+<script src="island-v4/1af4f73d23eb/sea-view.js"></script>
+<script src="island-v4/1af4f73d23eb/friend-style.js"></script>
+<script src="island-v4/1af4f73d23eb/friend-scene.js"></script>
+<script src="island-v4/1af4f73d23eb/friend-view.js"></script>
+<script src="island-v4/1af4f73d23eb/activity-model.js"></script>
+<script src="island-v4/1af4f73d23eb/student-tools-model.js"></script>
+<script src="island-v4/1af4f73d23eb/student-tools.js"></script>
+<script src="island-v4/1af4f73d23eb/activities.js"></script>
+<script src="island-v4/1af4f73d23eb/decor-scene.js"></script>
+<script src="island-v4/1af4f73d23eb/decor-ui.js"></script>
+<script src="island-v4/1af4f73d23eb/persistence.js"></script>
+<script src="island-v4/1af4f73d23eb/app.js"></script>
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/student-tools.css">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/home.css">
+<script src="island-v4/1af4f73d23eb/review-data.js"></script>
+<script src="island-v4/1af4f73d23eb/review-generator.js"></script>
+<script src="island-v4/1af4f73d23eb/review-class.js"></script>
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/access.css">
+<link rel="stylesheet" href="island-v4/1af4f73d23eb/clarity.css">
+<script src="island-v4/1af4f73d23eb/sharing.js"></script><link rel="stylesheet" href="island-v4/1af4f73d23eb/social.css"><script src="island-v4/1af4f73d23eb/tutorial.js"></script><link rel="stylesheet" href="island-v4/1af4f73d23eb/tutorial.css"><script src="island-v4/1af4f73d23eb/care-model.js"></script><script src="island-v4/1af4f73d23eb/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/1af4f73d23eb/classroom.css"><script src="island-v4/1af4f73d23eb/daily-model.js"></script><script src="island-v4/1af4f73d23eb/reward-settings.js"></script><link rel="stylesheet" href="island-v4/1af4f73d23eb/exploration.css"><link rel="stylesheet" href="island-v4/1af4f73d23eb/polish.css"><script src="island-v4/1af4f73d23eb/guides.js"></script><link rel="stylesheet" href="island-v4/1af4f73d23eb/typography.css"><script src="island-v4/1af4f73d23eb/sound.js"></script><link rel="stylesheet" href="island-v4/1af4f73d23eb/review-polish.css"><script src="island-v4/1af4f73d23eb/friend-guide.js"></script><script src="island-v4/1af4f73d23eb/diary-empathy.js"></script><script src="island-v4/1af4f73d23eb/credits.js"></script><script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>

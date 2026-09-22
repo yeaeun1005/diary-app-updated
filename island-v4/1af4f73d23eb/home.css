@@ -1,0 +1,113 @@
+@font-face{font-family:'Jua Home';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/jua-home.woff2') format('woff2')}
+/* One title composition, independent drifting clouds, and a floating shell. */
+.v4-voyage-home{--ink:#19576a;--stage-height:max(100svh,700px);background:linear-gradient(#66ccef 25%,#9edded 49%,#27bad1 57%,#27aec5);color:var(--ink);font-family:'Jua Home',Maplestory,sans-serif;font-weight:400;isolation:isolate;overflow:auto;overflow-x:hidden}
+.voyage-backdrop,.voyage-cloud-layer,.voyage-art-layer,.voyage-ripples{position:absolute;inset:0;height:var(--stage-height);overflow:hidden;pointer-events:none}
+.voyage-world{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%;user-select:none}
+.voyage-sea-light{position:absolute;top:52%;left:0;width:100%;height:48%;background:repeating-radial-gradient(ellipse at 48% -30%,transparent 0 22px,#f4ffff21 24px 25px,transparent 27px 70px);mask-image:linear-gradient(transparent,#000 35%,#000 78%,transparent);animation:voyage-water 10s ease-in-out infinite alternate}
+.voyage-ripples i{position:absolute;left:35%;top:85%;width:115px;height:13px;border:2px solid #e7ffff8f;border-top:0;border-radius:50%;animation:voyage-ripple 7s ease-in-out infinite}
+.voyage-ripples i:nth-child(2){left:65%;top:78%;width:70px;animation-delay:-3s}.voyage-ripples i:nth-child(3){left:79%;top:91%;width:90px;animation-delay:-5s}
+.voyage-cloud-layer{z-index:2}
+.voyage-cloud{position:absolute;display:block;user-select:none;width:clamp(180px,23vw,320px);height:auto;animation:voyage-cloud-drift 19s ease-in-out infinite alternate;opacity:.84}
+.voyage-cloud.cloud-0{left:-3%;top:12%;animation-delay:-6s}
+.voyage-cloud.cloud-1{right:-3%;top:18%;width:clamp(210px,25vw,350px);animation-duration:23s;animation-direction:alternate-reverse;opacity:.9}
+.voyage-cloud.cloud-2{left:16%;top:31%;width:clamp(125px,14vw,185px);animation-duration:27s;animation-delay:-11s;opacity:.58}
+.v4-voyage-home .v2-home-copy{position:absolute;left:50%;right:auto;top:14px;width:min(610px,49vw);transform:translateX(-50%);z-index:3;text-align:center;pointer-events:none}
+.v4-voyage-home .v2-home-copy h1{margin:0;width:100%;line-height:1;animation:voyage-title-arrive .85s cubic-bezier(.16,.8,.25,1) both}
+.voyage-lettering{display:block;position:relative}.voyage-lettering img{display:block;width:100%;height:auto;user-select:none}
+.voyage-lettering-fallback{font-family:'Jua Home',sans-serif;display:block;line-height:1.35;color:var(--ink);white-space:normal}
+.voyage-lockup-art .voyage-lettering-fallback{padding:18px;background:#fff9e4ed;border-radius:30px;font-size:clamp(27px,3vw,42px)}
+/* The original supplied PNG stays untouched; only transparent outer margins are outside this viewport. */
+.voyage-lockup-art{aspect-ratio:1448/714;overflow:hidden}
+.voyage-lockup-art img{position:absolute;left:0;top:-26.05%;width:100%;height:auto}
+.voyage-curiosity{position:absolute;right:2%;top:calc(var(--stage-height) * .38);width:clamp(220px,21vw,292px);aspect-ratio:320/180;z-index:4;pointer-events:none;transform:rotate(2deg);filter:drop-shadow(0 5px 4px #438ba72b)}
+.voyage-question-cloud{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.voyage-curiosity p{position:relative;margin:0;padding:17% 6% 12%;display:flex;flex-direction:column;gap:3px;text-align:center;font-family:'Jua Home',Maplestory,sans-serif;line-height:1.15;color:#245c73}
+.voyage-question-opening{font-size:clamp(16px,1.5vw,21px)}
+.voyage-question-emotion{font-size:clamp(23px,2.1vw,29px);color:#eb7959;text-shadow:0 1px 0 #fff}
+.voyage-question-ending{font-size:clamp(23px,2.1vw,29px);color:#227989}
+
+/* Tiny glints belong to the water plane; none intercepts a click. */
+.voyage-water-glints{position:absolute;inset:0;pointer-events:none}
+.voyage-water-glints i{position:absolute;display:block;width:13px;height:3px;border-radius:50%;background:#f4ffff;opacity:0;animation:voyage-water-glint 6.7s ease-in-out infinite}
+.voyage-water-glints i:after{content:'';position:absolute;left:5px;top:-4px;width:3px;height:11px;border-radius:50%;background:#fffbea}
+.voyage-water-glints i:nth-child(1){left:28%;top:73%;animation-delay:-1.2s}
+.voyage-water-glints i:nth-child(2){left:39%;top:68%;animation-delay:-4.6s}
+.voyage-water-glints i:nth-child(3){left:68%;top:82%;animation-delay:-3.5s}
+.voyage-water-glints i:nth-child(4){left:82%;top:72%;animation-delay:-.2s}
+.voyage-water-glints i:nth-child(5){left:91%;top:60%;animation-delay:-5.7s}
+.voyage-water-glints i:nth-child(6){left:57%;top:94%;animation-delay:-2.3s}
+.voyage-water-glints i:nth-child(7){left:76%;top:91%;animation-delay:-4.2s}
+.voyage-boat-wake{position:absolute;left:3%;right:-4%;bottom:4%;height:13%;z-index:-1;pointer-events:none}
+.voyage-boat-wake i{position:absolute;inset:0;border:2px solid #ecffffa3;border-top-color:transparent;border-left-color:transparent;border-radius:50%;opacity:0;animation:voyage-wake-spread 6.4s ease-out infinite}
+.voyage-boat-wake i:nth-child(2){inset:9% 6%;animation-delay:-3.2s;border-width:1.5px}
+.voyage-shell-sheen{pointer-events:none;opacity:0;animation:voyage-pearl-sweep 8.8s ease-in-out infinite;animation-delay:-4.4s}
+.voyage-art-layer{z-index:4}
+.voyage-crew{position:absolute;left:-14px;bottom:-10px;width:clamp(315px,33vw,470px);transform-origin:50% 86%;animation:voyage-boat 7.5s ease-in-out infinite}
+.voyage-crew img{display:block;width:100%;height:auto;user-select:none;filter:drop-shadow(0 8px 6px #1366892b)}
+.voyage-bubbles{position:absolute;left:12%;top:35%;width:75px;height:100px}
+.voyage-bubbles i{position:absolute;bottom:0;width:13px;height:13px;border:2px solid #f1ffffc7;border-radius:50%;box-shadow:inset 2px 2px 0 #fff8;background:#c5f7f530;opacity:0;animation:voyage-bubble 10s ease-out infinite}
+.voyage-bubbles i:nth-child(2){left:29px;width:8px;height:8px;animation-delay:1.4s}.voyage-bubbles i:nth-child(3){left:50px;width:6px;height:6px;animation-delay:2.3s}
+.voyage-sparkles i,.voyage-cta-star{display:block;position:absolute;width:17px;height:24px;background:linear-gradient(#fffef1,#ffe89e);clip-path:polygon(50% 0,65% 34%,100% 50%,65% 62%,50% 100%,35% 65%,0 50%,35% 35%);animation:voyage-sparkle 10s ease-in-out infinite}
+.voyage-sparkles i:nth-child(1){left:25%;top:20%;animation-delay:-2s}.voyage-sparkles i:nth-child(2){left:74%;top:28%;width:13px;height:19px;animation-delay:-6s}.voyage-sparkles i:nth-child(3){left:41%;top:64%;width:13px;height:18px;animation-delay:-4s}.voyage-sparkles i:nth-child(4){left:75%;top:73%;animation-delay:-8s}
+.v4-voyage-home .v2-home-actions{position:absolute;top:calc(var(--stage-height) - 225px);left:50%;right:auto;transform:translateX(-50%);z-index:5;display:block;margin:0}
+.voyage-cta-float{position:relative;isolation:isolate;animation:voyage-shell-float 4.2s ease-in-out infinite;transform-origin:50% 70%}
+/* Three small, staggered water doodles stay at the shell edges, clear of its label. */
+.voyage-cta-bubbles{position:absolute;inset:0;z-index:2;pointer-events:none}
+.voyage-cta-bubbles i{--drift:-6px;--rise:-62px;position:absolute;left:-16px;top:82%;box-sizing:border-box;width:22px;height:25px;border:2px solid #edffffe6;border-radius:48% 52% 46% 54%;background:linear-gradient(145deg,#f5ffff73,#80e8ee40 55%,#38b5d54d);box-shadow:inset -2px -2px 0 #76dce96b,0 1px 2px #208ba52b;opacity:0;animation:voyage-cta-bubble-rise 9s ease-in-out infinite;animation-delay:-.8s}
+.voyage-cta-bubbles i:before{content:'';position:absolute;left:3px;top:3px;width:5px;height:7px;border-left:2px solid #fff;border-radius:70%;transform:rotate(28deg)}
+.voyage-cta-bubbles i:nth-child(2){--drift:8px;--rise:-55px;left:auto;right:-16px;top:70%;width:17px;height:19px;animation-delay:-3.8s}
+.voyage-cta-bubbles i:nth-child(3){--drift:6px;--rise:-43px;left:auto;right:9px;top:23%;width:12px;height:14px;border-width:1.5px;animation-delay:-6.8s}
+.voyage-cta-bubbles i:nth-child(3):before{left:2px;top:2px;width:3px;height:4px;border-left-width:1.5px}
+.voyage-cta-aura{position:absolute;inset:-34px -45px -20px;z-index:-1;border-radius:50%;pointer-events:none;background:radial-gradient(ellipse,#fff6cbdf 8%,#ffe8a6ce 30%,#ffd87983 48%,#fff1b333 64%,transparent 75%);filter:blur(5px);animation:voyage-glow 3.2s ease-in-out infinite}
+.voyage-cta-aura:after{content:'';position:absolute;inset:19px 29px;border:3px solid #fff2b2ac;border-radius:50%;box-shadow:0 0 17px #ffedacaa;animation:voyage-glow-ring 3.2s ease-out infinite}
+.voyage-cta-star{pointer-events:none;top:43%;left:-13px;width:21px;height:31px;animation:voyage-cta-twinkle 3.2s ease-in-out infinite}.voyage-cta-star.star-right{left:auto;right:-15px;top:27%;width:16px;height:26px;animation-delay:-1.6s}
+.v4-voyage-home .v2-home-start{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0;box-sizing:border-box;width:326px;height:158px;min-width:0;padding:14px 20px 18px;border:0;border-radius:48%;background:transparent;color:#fffbed;box-shadow:none;cursor:pointer;filter:drop-shadow(0 4px 5px #ad625233);transition:transform .18s,filter .18s;animation:voyage-shell-invite 5.8s ease-in-out infinite}
+.voyage-shell{position:absolute;inset:0;width:100%;height:100%;z-index:-1;user-select:none;overflow:visible}
+.v4-voyage-home .v2-home-start .voyage-cta-copy{display:flex;flex-direction:column;align-items:center;gap:0;margin:0;padding:0}
+.v4-voyage-home .voyage-cta-copy .voyage-lettering{margin:0;padding:0}
+.voyage-login-art{width:118px;height:auto;overflow:visible}.voyage-start-art{width:164px;height:auto;overflow:visible}.voyage-login-art img,.voyage-start-art img{position:static;display:block;width:100%;height:auto;transform:none}
+.v4-voyage-home .v4-start-arrow{display:grid;place-items:center;width:24px;height:24px;flex-shrink:0;border-radius:50%;background:#fff9e6;color:#cf6053;margin:1px 0 0;box-shadow:0 2px 0 #ce695b4d}.v4-start-arrow svg{width:20px;height:20px}
+.v4-voyage-home .v2-home-start:hover{background:transparent;animation:none;transform:translateY(-4px) scale(1.05);filter:drop-shadow(0 0 13px #fff5cce6) drop-shadow(0 10px 7px #ad625233)}
+.v4-voyage-home .v2-home-start:active{animation:none;transform:translateY(3px) scale(.96);filter:drop-shadow(0 0 9px #fff3b8cd)}
+.v4-voyage-home .v2-home-footer{inset:auto 26px auto auto;top:calc(var(--stage-height) - 70px);z-index:6;display:flex;align-items:center;justify-content:center;padding-bottom:22px}
+.v4-voyage-home .v2-home-footer nav{display:flex;align-items:center;gap:8px;padding:0;border:0;background:none;box-shadow:none}
+.v4-voyage-home .v2-home-footer button{position:static!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px;min-width:69px;margin:0!important;padding:0 13px!important;border:2px solid #fffef3!important;border-radius:25px!important;background:#f5fcf0ed!important;color:#235e70!important;font:400 14px 'Jua Home',Maplestory,sans-serif!important;white-space:nowrap;box-shadow:0 3px 0 #2883a02b;cursor:pointer;transition:transform .18s,background .18s,box-shadow .18s}
+.v4-voyage-home .v2-home-footer button:hover{background:#fffdef!important;transform:translateY(-2px);box-shadow:0 5px 0 #498c982e}.v4-voyage-home .v2-home-footer button:active{transform:translateY(2px);box-shadow:0 1px 0 #498c982e}
+.v4-voyage-home button:focus-visible{outline:3px solid #175e92;outline-offset:5px}.v4-voyage-home .v2-home-start:focus-visible{outline-color:#fff5ca;outline-offset:4px}
+.v4-voyage-home .v2-home-fallback{position:absolute;top:47%;left:50%;right:auto;transform:translateX(-50%);width:min(350px,84%);box-sizing:border-box;padding:20px;background:#fffdf0f2;border:2px solid #fff;border-radius:22px;text-align:center;color:#205f6d;font-size:16px;line-height:1.7;z-index:4}
+@keyframes voyage-water-glint{0%,48%,84%,100%{opacity:0;transform:translateX(-3px) scale(.55)}60%{opacity:.8;transform:translateX(0) scale(1)}72%{opacity:0;transform:translateX(4px) scale(.6)}}
+@keyframes voyage-cta-bubble-rise{0%,8%{opacity:0;transform:translate(0,0) scale(.72)}20%{opacity:.8}42%{opacity:.68}60%,100%{opacity:0;transform:translate(var(--drift),var(--rise)) scale(1.06)}}
+@keyframes voyage-wake-spread{0%{opacity:0;transform:scale(.8,.8)}20%{opacity:.65}100%{opacity:0;transform:scale(1.12,1.3)}}
+@keyframes voyage-pearl-sweep{0%,62%{opacity:0;transform:translateX(0) skewX(-18deg)}66%{opacity:.62}86%{opacity:.62;transform:translateX(555px) skewX(-18deg)}89%,100%{opacity:0;transform:translateX(555px) skewX(-18deg)}}
+@keyframes voyage-title-arrive{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes voyage-cloud-drift{from{transform:translate(-22px,0)}to{transform:translate(28px,-7px)}}
+@keyframes voyage-boat{0%,100%{transform:translateY(2px) rotate(-.6deg)}50%{transform:translateY(-4px) rotate(.6deg)}}
+@keyframes voyage-water{from{transform:translateY(0);opacity:.45}to{transform:translateY(8px);opacity:.8}}
+@keyframes voyage-ripple{0%,100%{transform:translateX(-4px) scaleX(.95);opacity:.35}50%{transform:translateX(5px) scaleX(1.07);opacity:.8}}
+@keyframes voyage-bubble{0%,10%{opacity:0;transform:translateY(0) scale(.8)}22%{opacity:.65}57%{opacity:0;transform:translate(10px,-65px) scale(1.1)}100%{opacity:0;transform:translate(10px,-65px)}}
+@keyframes voyage-sparkle{0%,55%,100%{opacity:.25;transform:translateY(0) scale(.75)}72%{opacity:.9;transform:translateY(-7px) scale(1.12) rotate(10deg)}86%{opacity:.25;transform:translateY(0) scale(.75)}}
+@keyframes voyage-shell-float{0%,100%{transform:translateY(1px)}50%{transform:translateY(-7px)}}
+@keyframes voyage-shell-invite{0%,67%,100%{transform:scale(1)}77%{transform:scale(1.035)}86%{transform:scale(1)}92%{transform:scale(1.015)}}
+@keyframes voyage-glow{0%,100%{opacity:.42;transform:scale(.88)}50%{opacity:1;transform:scale(1.12)}}
+@keyframes voyage-glow-ring{0%{opacity:0;transform:scale(.76)}20%{opacity:.65}82%,100%{opacity:0;transform:scale(1.18)}}
+@keyframes voyage-cta-twinkle{0%,100%{opacity:.4;transform:scale(.7) rotate(-8deg)}50%{opacity:1;transform:scale(1.15) rotate(8deg)}}
+.v4-voyage-home[data-motion=paused] *,.v4-voyage-home[data-motion=paused] *:before,.v4-voyage-home[data-motion=paused] *:after{animation-play-state:paused!important}
+@media(min-width:1600px){.v4-voyage-home .v2-home-copy{top:19px;width:min(760px,46vw)}.voyage-crew{width:34vw;max-width:610px}.v4-voyage-home .v2-home-actions{top:calc(var(--stage-height) - 263px)}.v4-voyage-home .v2-home-start{width:360px;height:174px}}
+@media(min-width:701px) and (max-width:1050px){.voyage-curiosity{right:1%;top:calc(var(--stage-height) * .43);width:205px}.voyage-curiosity p{gap:3px}.voyage-question-opening{font-size:16px}.voyage-question-emotion,.voyage-question-ending{font-size:22px}.v4-voyage-home .v2-home-copy{width:550px;max-width:70%;top:17px}.voyage-crew{left:-25px;width:310px;bottom:-10px}.v4-voyage-home .v2-home-actions{left:54%;top:calc(var(--stage-height) - 256px)}.v4-voyage-home .v2-home-footer{left:0;right:0;top:calc(var(--stage-height) - 65px);padding-bottom:17px}.v4-voyage-home .v2-home-footer button{padding:0 10px!important}.voyage-cloud.cloud-2{left:2%;top:34%;width:145px}}
+@media(max-width:700px){
+ .v4-voyage-home{--stage-height:max(100svh,800px)}
+ .v4-voyage-home .v2-home-copy{top:27px;width:calc(100% - 24px);max-width:440px}
+ .voyage-world{inset:auto;left:50%;top:105px;width:850px;height:478px;max-width:none;transform:translateX(-50%);object-fit:cover;mask-image:linear-gradient(180deg,transparent,#000 13%,#000 85%,transparent)}
+ .voyage-cloud.cloud-0{left:-70px;top:8%;width:180px;opacity:.7}.voyage-cloud.cloud-1{right:-85px;top:25%;width:210px;opacity:.76}.voyage-cloud.cloud-2{left:-38px;top:34%;width:135px;opacity:.5}
+ .voyage-crew{left:-26px;bottom:auto;top:calc(var(--stage-height) - 470px);width:238px;max-width:72%}
+ .voyage-curiosity{right:8px;top:calc(var(--stage-height) - 427px);width:168px}.voyage-curiosity p{padding:16% 4% 10%;gap:3px}.voyage-question-opening{font-size:14px}.voyage-question-emotion,.voyage-question-ending{font-size:19px}
+ .voyage-bubbles{left:auto;right:10%;top:calc(var(--stage-height) - 365px)}
+ .v4-voyage-home .v2-home-actions{top:calc(var(--stage-height) - 246px)}.v4-voyage-home .v2-home-start{width:302px;height:166px}
+ .voyage-cta-aura{inset:-19px -19px -12px}.voyage-login-art{width:110px;height:auto}.voyage-start-art{width:154px;height:auto}
+ .voyage-cta-bubbles i:first-child{left:-8px}.voyage-cta-bubbles i:nth-child(2){right:-8px}
+ .v4-voyage-home .v2-home-footer{top:calc(var(--stage-height) - 62px);inset-inline:0;padding-bottom:14px}.v4-voyage-home .v2-home-footer nav{gap:5px}.v4-voyage-home .v2-home-footer button{padding:0 8px!important;gap:5px;min-width:63px}.v4-voyage-home .v2-home-footer svg{width:16px;height:16px}
+ .voyage-ripples i{left:6%;top:73%;width:60px}.voyage-ripples i:nth-child(2){left:75%;top:72%;width:60px}.voyage-ripples i:nth-child(3){display:none}
+ .voyage-sparkles i:nth-child(1){left:8%;top:28%}.voyage-sparkles i:nth-child(2){left:89%;top:33%}.voyage-sparkles i:nth-child(3){left:81%;top:60%}.voyage-sparkles i:nth-child(4){left:79%;top:68%}
+}
+@media(max-width:360px){.v4-voyage-home{--stage-height:max(100svh,780px)}.v4-voyage-home .v2-home-copy{top:29px;width:calc(100% - 17px)}.voyage-world{width:740px;height:416px;top:112px}.voyage-crew{top:calc(var(--stage-height) - 442px);width:198px;left:-22px}.voyage-curiosity{right:4px;top:calc(var(--stage-height) - 435px);width:149px}.voyage-question-opening{font-size:13px}.voyage-question-emotion,.voyage-question-ending{font-size:17px}.v4-voyage-home .v2-home-start{width:264px;height:157px}.voyage-cta-aura{inset:-20px -2px -10px}.voyage-cta-star{left:-8px}.voyage-cta-star.star-right{right:-8px}.v4-voyage-home .v2-home-footer button{padding:0 7px!important;gap:4px}}
+@media(prefers-reduced-motion:reduce){.v4-voyage-home *,.v4-voyage-home *:before,.v4-voyage-home *:after{animation:none!important;transition:none!important}.voyage-cta-aura{opacity:.8}.voyage-cta-aura:after{opacity:0}.voyage-bubbles i,.voyage-cta-bubbles i,.voyage-water-glints i,.voyage-shell-sheen,.voyage-boat-wake i{opacity:0}}
