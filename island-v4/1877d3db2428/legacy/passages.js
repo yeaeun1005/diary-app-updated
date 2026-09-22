@@ -1,5 +1,5 @@
 /* Local world transitions. Completion invokes the existing activity/sea handler once. */
-function v4CreatePassages({scene,actor,boat,host,walkY,walkable,findPath,snapshot,onState,onComplete,reduced}){
+function v2CreatePassages({scene,actor,boat,host,walkY,walkable,findPath,snapshot,onState,onComplete,reduced}){
   const T=THREE,clamp=n=>Math.max(0,Math.min(1,n)),smooth=n=>{n=clamp(n);return n*n*(3-2*n);};
   const splash=buildSplash();splash.visible=false;splash.scale.setScalar(1.7);scene.add(splash);
   const wake=new T.Group(),wm=new T.MeshBasicMaterial({color:'#e8fff1',transparent:true,opacity:.55,depthWrite:false});wake.visible=false;scene.add(wake);
@@ -8,15 +8,15 @@ function v4CreatePassages({scene,actor,boat,host,walkY,walkable,findPath,snapsho
   let active=null,phase='',completionCount=0,focus=null,zoom=1;
   const shell=host.parentElement;
   function wash(n){shell.style.setProperty('--v2-wash',String(clamp(n)));}
-  function announce(p){if(p===phase)return;phase=p;if(p==='sailing')SND.play('boat');host.dataset.v2Passage=JSON.stringify({action:active?.action||null,phase:p,completions:completionCount});onState(active?{action:active.action,phase:p}:null);}
+  function announce(p){if(p===phase)return;phase=p;host.dataset.v2Passage=JSON.stringify({action:active?.action||null,phase:p,completions:completionCount});onState(active?{action:active.action,phase:p}:null);}
   function restore(){if(!active)return;actor.position.copy(active.origin);actor.visible=true;actor.userData.step(0,false,active.face);actor.userData.face?.(active.face);boat.position.copy(active.boatHome);boat.rotation.copy(active.boatRotation);splash.visible=false;wake.visible=false;focus=null;zoom=1;}
   function finish(){if(!active)return;const action=active.action;restore();active=null;completionCount++;announce('complete');wash(1);onComplete(action);}
   function cancel(){if(!active)return;restore();active=null;announce('cancelled');wash(0);}
   function begin(action){
     if(active)return false;
     if(action!=='sea'&&action!=='diary'){onComplete(action);return true;}
-    if(reduced){if(action==='sea')SND.play('boat');onComplete(action);return true;}
-    const goal=action==='sea'?{x:6.5,z:20.5}:{x:17,z:5.65};
+    if(reduced){onComplete(action);return true;}
+    const goal=action==='sea'?{x:-6.4,z:29}:{x:17,z:5.65};
     const route=findPath(goal.x,goal.z),points=[actor.position.clone(),...route.map(p=>new T.Vector3(p.x,walkY(p.x,p.z),p.z))];
     if(!route.length&&Math.hypot(actor.position.x-goal.x,actor.position.z-goal.z)>1.2)return false;
     const end=new T.Vector3(goal.x,walkY(goal.x,goal.z),goal.z);

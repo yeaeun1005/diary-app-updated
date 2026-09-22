@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta name="island-world-release" content="db4aca2e5a1b">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/legacy/world.css">
+<meta name="island-world-release" content="1877d3db2428">
+<link rel="stylesheet" href="island-v4/1877d3db2428/legacy/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -8704,7 +8704,7 @@ var CHAR_LAST = {};
 // 새로고침하면 마운트 때의 play()가 거부되므로, 다음 키·포인터 입력 때 한 번 다시 튼다(armRetry).
 // 음량(2026-09-14 실측): 배경음 가장 큰 0.1초 −19 dB·중앙값 −39 dB, 발걸음 가장 큰 0.1초 −39 dB(파일이 작다), 전환음 피크 0 dB.
 //  배경 0.30(−10.5 dB → 큰 구간 −29)·전환 0.10(−20 dB → 큰 구간 −27, 배경의 큰 구간과 같은 높이라 덮지 않는다)·발걸음 1.0(−39, 배경 중앙값과 큰 구간 사이).
-// CC0만 쓰고 출처는 CREDITS.md에 적는다.
+// 기존 소리와 사용자가 선택한 Pixabay 효과음. 출처와 라이선스는 CREDITS.md에 기록한다.
 var SND = {
   cfg: { bgm:   { src: "sounds/piano_loop.mp3", loop: true, vol: 0.30 },
          steps: { src: "sounds/step.mp3",       loop: true, vol: 1.0 },
@@ -14763,6 +14763,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   };
   const handleLogin = async () => {
     if(loginLock.current)return;
+    SND.play("login");
     const teacher=loginForm.role==="teacher";
     if(!loginForm.loginId.trim()||!loginForm.password.trim()||(!teacher&&!loginForm.schoolCode.trim())){
       setMsg(teacher?"아이디와 비밀번호를 입력해 주세요.":"학교 코드, 아이디, 비밀번호를 모두 입력해 주세요.");return;
@@ -15209,7 +15210,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     style: { fontSize: 13 * HOME_FONT.kb, fontWeight: HOME_FONT.rw, margin: "14px 0 0", opacity: 0.9, lineHeight: 1.5 }
   }, "탐험대 생성 후 고유 코드가 발급됩니다. 이 코드를 학생들에게 공유하세요.")))));
   if (page === "privacy") return React.createElement("div", {
-    style: shell
+    className:"v4-readable-page", style: shell
   }, React.createElement("div", {
     style: {
       maxWidth: 680,
@@ -15858,7 +15859,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   React.createElement(V4RewardSettingsPanel,{key:currentUser.schoolCode,user:currentUser,students:myStudents,onSaved:setMS}),
   React.createElement("section",{className:"v4-teacher-download","aria-label":"보호자 동의서"},
     React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명·활동 기간·문의처를 작성한 뒤 보호자에게 나눠 주세요. 학생을 등록한 뒤에도 언제든 내려받을 수 있어요.")),
-    React.createElement("a",{className:"v4-consent-link",href:"island-v4/db4aca2e5a1b/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
+    React.createElement("a",{className:"v4-consent-link",href:"island-v4/1877d3db2428/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
     "data-tut": "t-consent",
     style: {
       ...crd,
@@ -15875,7 +15876,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       lineHeight: 1.7,
       margin: "0 0 12px"
     }
-  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/db4aca2e5a1b/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
+  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/1877d3db2428/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -16458,7 +16459,7 @@ var CREDITS = {
   outro: "© 2026 마음 바다 탐험대"
 };
 function CreditsPage(props) {
-  return React.createElement("div", { style: shell }, React.createElement("div", {
+  return React.createElement("div", { className:"v4-readable-page", style: shell }, React.createElement("div", {
     style: { maxWidth: 680, margin: "0 auto", padding: "clamp(20px, 5vw, 40px) clamp(12px, 3.5vw, 24px)" }
   }, React.createElement("button", { onClick: props.onHome, style: { ...bSoft, marginBottom: 20, fontSize: 14 } }, "\u2190 \uD648\uC73C\uB85C"),
   React.createElement("div", { style: { ...crd, padding: "clamp(22px, 4.5vw, 32px) clamp(16px, 4vw, 28px)" } },
@@ -16497,49 +16498,49 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 // The original App mounts after its new presentation assets are ready.
 </script>
-<script src="island-v4/db4aca2e5a1b/legacy/coast-water.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/board.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/explorer.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/passages.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/social.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/custom-growth.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/world.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/account-view.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/integrated-app.js"></script>
-<script src="island-v4/db4aca2e5a1b/legacy/landing.js"></script>
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/style.css">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/sea.css">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/friend.css">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/activities.css">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/decor.css">
-<script src="island-v4/db4aca2e5a1b/GLTFLoader.r147.js"></script>
-<script src="island-v4/db4aca2e5a1b/decor-model.js"></script>
-<script src="island-v4/db4aca2e5a1b/state.js"></script>
-<script src="island-v4/db4aca2e5a1b/content.js"></script>
-<script src="island-v4/db4aca2e5a1b/assets.js"></script>
-<script src="island-v4/db4aca2e5a1b/passages.js"></script>
-<script src="island-v4/db4aca2e5a1b/scene.js"></script>
-<script src="island-v4/db4aca2e5a1b/sea-scene.js"></script>
-<script src="island-v4/db4aca2e5a1b/sea-view.js"></script>
-<script src="island-v4/db4aca2e5a1b/friend-style.js"></script>
-<script src="island-v4/db4aca2e5a1b/friend-scene.js"></script>
-<script src="island-v4/db4aca2e5a1b/friend-view.js"></script>
-<script src="island-v4/db4aca2e5a1b/activity-model.js"></script>
-<script src="island-v4/db4aca2e5a1b/student-tools-model.js"></script>
-<script src="island-v4/db4aca2e5a1b/student-tools.js"></script>
-<script src="island-v4/db4aca2e5a1b/activities.js"></script>
-<script src="island-v4/db4aca2e5a1b/decor-scene.js"></script>
-<script src="island-v4/db4aca2e5a1b/decor-ui.js"></script>
-<script src="island-v4/db4aca2e5a1b/persistence.js"></script>
-<script src="island-v4/db4aca2e5a1b/app.js"></script>
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/student-tools.css">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/home.css">
-<script src="island-v4/db4aca2e5a1b/review-data.js"></script>
-<script src="island-v4/db4aca2e5a1b/review-generator.js"></script>
-<script src="island-v4/db4aca2e5a1b/review-class.js"></script>
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/access.css">
-<link rel="stylesheet" href="island-v4/db4aca2e5a1b/clarity.css">
-<script src="island-v4/db4aca2e5a1b/sharing.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/social.css"><script src="island-v4/db4aca2e5a1b/tutorial.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/tutorial.css"><script src="island-v4/db4aca2e5a1b/care-model.js"></script><script src="island-v4/db4aca2e5a1b/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/classroom.css"><script src="island-v4/db4aca2e5a1b/daily-model.js"></script><script src="island-v4/db4aca2e5a1b/reward-settings.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/exploration.css"><link rel="stylesheet" href="island-v4/db4aca2e5a1b/polish.css"><script src="island-v4/db4aca2e5a1b/guides.js"></script><script>root.render(React.createElement(App));</script>
+<script src="island-v4/1877d3db2428/legacy/coast-water.js"></script>
+<script src="island-v4/1877d3db2428/legacy/board.js"></script>
+<script src="island-v4/1877d3db2428/legacy/explorer.js"></script>
+<script src="island-v4/1877d3db2428/legacy/passages.js"></script>
+<script src="island-v4/1877d3db2428/legacy/social.js"></script>
+<script src="island-v4/1877d3db2428/legacy/custom-growth.js"></script>
+<script src="island-v4/1877d3db2428/legacy/world.js"></script>
+<script src="island-v4/1877d3db2428/legacy/account-view.js"></script>
+<script src="island-v4/1877d3db2428/legacy/integrated-app.js"></script>
+<script src="island-v4/1877d3db2428/legacy/landing.js"></script>
+<link rel="stylesheet" href="island-v4/1877d3db2428/style.css">
+<link rel="stylesheet" href="island-v4/1877d3db2428/sea.css">
+<link rel="stylesheet" href="island-v4/1877d3db2428/friend.css">
+<link rel="stylesheet" href="island-v4/1877d3db2428/activities.css">
+<link rel="stylesheet" href="island-v4/1877d3db2428/decor.css">
+<script src="island-v4/1877d3db2428/GLTFLoader.r147.js"></script>
+<script src="island-v4/1877d3db2428/decor-model.js"></script>
+<script src="island-v4/1877d3db2428/state.js"></script>
+<script src="island-v4/1877d3db2428/content.js"></script>
+<script src="island-v4/1877d3db2428/assets.js"></script>
+<script src="island-v4/1877d3db2428/passages.js"></script>
+<script src="island-v4/1877d3db2428/scene.js"></script>
+<script src="island-v4/1877d3db2428/sea-scene.js"></script>
+<script src="island-v4/1877d3db2428/sea-view.js"></script>
+<script src="island-v4/1877d3db2428/friend-style.js"></script>
+<script src="island-v4/1877d3db2428/friend-scene.js"></script>
+<script src="island-v4/1877d3db2428/friend-view.js"></script>
+<script src="island-v4/1877d3db2428/activity-model.js"></script>
+<script src="island-v4/1877d3db2428/student-tools-model.js"></script>
+<script src="island-v4/1877d3db2428/student-tools.js"></script>
+<script src="island-v4/1877d3db2428/activities.js"></script>
+<script src="island-v4/1877d3db2428/decor-scene.js"></script>
+<script src="island-v4/1877d3db2428/decor-ui.js"></script>
+<script src="island-v4/1877d3db2428/persistence.js"></script>
+<script src="island-v4/1877d3db2428/app.js"></script>
+<link rel="stylesheet" href="island-v4/1877d3db2428/student-tools.css">
+<link rel="stylesheet" href="island-v4/1877d3db2428/home.css">
+<script src="island-v4/1877d3db2428/review-data.js"></script>
+<script src="island-v4/1877d3db2428/review-generator.js"></script>
+<script src="island-v4/1877d3db2428/review-class.js"></script>
+<link rel="stylesheet" href="island-v4/1877d3db2428/access.css">
+<link rel="stylesheet" href="island-v4/1877d3db2428/clarity.css">
+<script src="island-v4/1877d3db2428/sharing.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/social.css"><script src="island-v4/1877d3db2428/tutorial.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/tutorial.css"><script src="island-v4/1877d3db2428/care-model.js"></script><script src="island-v4/1877d3db2428/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/classroom.css"><script src="island-v4/1877d3db2428/daily-model.js"></script><script src="island-v4/1877d3db2428/reward-settings.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/exploration.css"><link rel="stylesheet" href="island-v4/1877d3db2428/polish.css"><script src="island-v4/1877d3db2428/guides.js"></script><link rel="stylesheet" href="island-v4/1877d3db2428/typography.css"><script src="island-v4/1877d3db2428/sound.js"></script><script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>

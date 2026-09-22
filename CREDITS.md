@@ -56,3 +56,17 @@ ChatGPT로 만든 그림: OpenAI 이용약관상 결과물의 권리는 만든 �
 - Radloff, L. S. (1977). The CES-D Scale: A self-report depression scale for research in the general population. *Applied Psychological Measurement, 1*(3), 385–401. — 「살펴봐주세요」 키워드(`CESD_KEYWORDS`)의 근거. 척도를 시행하는 것이 아니라 낱말 고르기의 참고.
 - Russell, J. A. (1980). A circumplex model of affect. *Journal of Personality and Social Psychology, 39*(6), 1161–1178. — 마음 말 28가지(`EMOTIONS_28`)의 기운·긴장 좌표.
 - Rosenberg, M. B. (2003). *Nonviolent Communication: A Language of Life* (2nd ed.). PuddleDancer Press. 한국어판 『비폭력대화』(캐서린 한 옮김, 한국NVC센터). — 교사 대화 문구(`PHRASES.md`).
+
+## 2026-09-22 추가 자산
+
+사용자가 제공한 효과음 원본을 변경 없이 사용한다. 원본 파일 해시는 `prototypes/island-world-v2/v4/audio-type/ASSETS.json`에 기록했다.
+
+| 자산 | 제작자 | 사용 위치 | 원본 | 라이선스 |
+|---|---|---|---|---|
+| Magic Button Click | humordome | 첫 화면 시작 | https://pixabay.com/sound-effects/technology-magic-button-click-453255/ | Pixabay Content License |
+| Computer Mouse Click | Universfield | 로그인 버튼 | https://pixabay.com/sound-effects/film-special-effects-computer-mouse-click-352734/ | Pixabay Content License |
+| Turn a Page | CreatorsHome | 튜토리얼 다음 | https://pixabay.com/sound-effects/film-special-effects-turn-a-page-336933/ | Pixabay Content License |
+| Water Splash | Universfield | 배 출발 | https://pixabay.com/sound-effects/film-special-effects-water-splash-199583/ | Pixabay Content License |
+| Pretendard Variable 1.3.9 | 길형진 | 긴 본문·입력칸·튜토리얼 본문·개인정보/저작권 안내 | https://github.com/orioncactus/pretendard | SIL OFL 1.1, 저작권·라이선스 원문 동봉 |
+
+기존 메이플스토리 제목과 주요 게임 버튼은 유지한다. 추가 음원과 글꼴은 배포 버전의 sounds/ 및 fonts/에서 자체 제공한다.
