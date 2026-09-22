@@ -1,0 +1,25 @@
+/* Final hierarchy and guide polish, with existing game typefaces. */
+.v4-world .tut-bubble,.v4-activity-tour .tut-bubble{width:360px;max-width:calc(100vw - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;padding:20px 22px 18px;border-radius:22px;font-family:Maplestory,sans-serif;font-size:16px;font-weight:400;line-height:1.8;white-space:pre-line;box-shadow:0 14px 44px #071b2540}
+.v4-world .tut-title,.v4-activity-tour .tut-title{font-size:22px;line-height:1.35;margin-bottom:13px;font-weight:700}
+.v4-world .tut-do.nl,.v4-activity-tour .tut-do.nl{margin-top:8px}
+.v4-activity-tour .tut-mask{z-index:1100}.v4-activity-tour .tut-ring,.v4-activity-tour .tut-cover{z-index:1101}.v4-activity-tour .tut-bubble{z-index:1102}
+.v4-activity-tour .tut-row{white-space:normal;gap:10px;flex-wrap:wrap}.v4-activity-tour .tut-row button{min-height:44px;font-family:inherit;font-size:15px}
+.v4-activity-tour .tut-next{border-radius:12px;padding:10px 18px;background:#397967!important;color:white!important;border-color:#2c6958!important}
+html.tut-walk .v4-world .v2-joystick{z-index:91}
+.v4-guide-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 20px;padding:13px 16px;background:#eaf3ec;border:1px solid #c3d8c8;border-radius:14px;color:#355e4b;font:700 15px/1.6 Maplestory,sans-serif;word-break:keep-all}
+.v4-guide-bar button{flex-shrink:0;border:1px solid #b4caba!important;background:#fffdf4!important;min-height:40px;padding:8px 12px;border-radius:10px;color:#355e4b;font:inherit}
+.v4-world .v4-quest.is-inviting{border:2px solid #ffe59a;background:linear-gradient(135deg,#fffce8,#fff7ce);box-shadow:0 0 0 5px #fff0ab40,0 0 32px 10px #ffe6a260,0 9px 26px #31564425;animation:v4-quest-breathe 3.6s ease-in-out infinite}
+.v4-world .v4-quest.is-inviting .v4-primary{box-shadow:0 0 0 3px #fff4b7,0 0 18px #e8bd6170,0 4px 0 #285e4e;min-height:48px}
+@keyframes v4-quest-breathe{50%{box-shadow:0 0 0 7px #fff0ab50,0 0 46px 16px #ffe6a28c,0 9px 26px #31564425}}
+.v4-world.is-touring .v4-quest{animation:none}
+.v4-activity-dialog[data-activity=write] .v4-label{display:block;font-size:19px;color:#315d4a;margin:19px 0 10px}
+.v4-activity-dialog #v4-diary{background:#fffefa;border:2px solid #9db9a3;box-shadow:0 3px 0 #e2ebdf;font-size:18px;line-height:1.85;padding:18px}
+.v4-activity-dialog .v4-recent{border-top:2px solid #d7e1d1;margin-top:32px;padding-top:24px}
+.v2-board [data-tut=plz-q]{background:#edf4e9;border:1px solid #c6d8be;border-left:5px solid #79a586;border-radius:12px;padding:18px!important;margin:8px 0 18px!important;line-height:1.7!important;color:#315d4a!important;font-family:Maplestory,sans-serif!important;font-size:22px!important}
+.v2-board [data-tut=plz-answer]{background:#fffdf4;border:2px solid #9db9a3!important;min-height:150px;padding:16px!important;font-size:18px!important;line-height:1.8}
+.v2-board [data-tut=plz-save],.v2-board [data-tut=plz-how] button{min-height:48px;font-size:17px!important;padding:12px 24px!important;background:#397967!important;border-color:#397967!important;border-radius:12px!important}
+.v2-board [data-tut=plz-wait]{white-space:pre-line;line-height:1.8!important}
+.v2-board [data-tut=plz-how]>span{flex-basis:100%}
+.v2-auth .v2-auth-judge-hint{display:block}
+@media(max-width:700px){.v4-guide-bar{align-items:flex-start;font-size:13px;gap:10px}.v4-guide-bar button{font-size:13px}.v4-world .tut-bubble,.v4-activity-tour .tut-bubble{font-size:14px;padding:16px 18px}.v4-world .tut-title,.v4-activity-tour .tut-title{font-size:20px}.v2-board [data-tut=plz-q]{font-size:19px!important}.v4-world .v4-quest.is-inviting{box-shadow:0 0 20px 5px #ffe6a260}}
+@media(prefers-reduced-motion:reduce){.v4-world .v4-quest.is-inviting{animation:none;box-shadow:0 0 0 5px #fff0ab55,0 0 32px 8px #ffe6a270}}

@@ -1,0 +1,290 @@
+[
+  {
+    "assetId": "talk-mailbox",
+    "originalPath": "/Users/kim/Downloads/cartoon mailbox 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "c208abc543e68e1f30b1295156cad9b648fd4ebde6af2671f08b231c13bfc351",
+    "sourceBytes": 2479428,
+    "runtimeSha256": "4ad016d4e64703a2be7ec4a552bc9d54c78d955f0075b0f090745c5d4f788314",
+    "deliveryBytes": 1287488,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 965560,
+    "sha256": "4ad016d4e64703a2be7ec4a552bc9d54c78d955f0075b0f090745c5d4f788314",
+    "triangles": 4652,
+    "vertices": 3297,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 126303
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 121526
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 554366
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.308929443359375,
+        0.0,
+        -0.3093109130859375
+      ],
+      "max": [
+        0.308929443359375,
+        1.0,
+        0.3093109130859375
+      ],
+      "size": [
+        0.61785888671875,
+        1.0,
+        0.618621826171875
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_edfed441-2916-40c0-8f6b-fb57f430a298",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "tree-willow",
+    "originalPath": "/Users/kim/Downloads/willow tree 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "469e64b54109a765cf5ce8249bc32c0bbd3a85fbb93d96781b39884321af8dde",
+    "sourceBytes": 2308620,
+    "runtimeSha256": "fd6e306dd7928b262c86851a8705bf85487dcd56687879d65863b77cf7681747",
+    "deliveryBytes": 1158083,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 868508,
+    "sha256": "fd6e306dd7928b262c86851a8705bf85487dcd56687879d65863b77cf7681747",
+    "triangles": 3782,
+    "vertices": 5119,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 137751
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 133344
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 386172
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.4921112060546875,
+        0.0,
+        -0.3387298583984375
+      ],
+      "max": [
+        0.4921112060546875,
+        0.93487548828125,
+        0.3387298583984375
+      ],
+      "size": [
+        0.984222412109375,
+        0.93487548828125,
+        0.677459716796875
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_af4ada26-4bbe-42da-9059-ce91305bbc4e",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  },
+  {
+    "assetId": "tree-bonsai",
+    "originalPath": "/Users/kim/Downloads/stylized bonsai tree 3d model.glb",
+    "receivedDate": "2026-09-20",
+    "sourceSha256": "6b02cdd97c8a96ea9cd42284d20eeeb7cfdedb73e03fda0067d2cf21d801dde9",
+    "sourceBytes": 2659372,
+    "runtimeSha256": "9f456646471bc62fb5a16b869f3b68127c5a4f0161c2cc1ef82205ca4f9589fd",
+    "deliveryBytes": 1348663,
+    "changes": "Embedded texture resize to 1024 only; all geometry/accessor values, nodes and materials preserved",
+    "maximumInstances": 1,
+    "bytes": 1011444,
+    "sha256": "9f456646471bc62fb5a16b869f3b68127c5a4f0161c2cc1ef82205ca4f9589fd",
+    "triangles": 4574,
+    "vertices": 5498,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 3,
+    "images": [
+      {
+        "index": 0,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 173320
+      },
+      {
+        "index": 1,
+        "mimeType": "image/jpeg",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 168613
+      },
+      {
+        "index": 2,
+        "mimeType": "image/png",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 436591
+      }
+    ],
+    "meshLocalBounds": {
+      "min": [
+        -0.4930877685546875,
+        0.0,
+        -0.21486663818359375
+      ],
+      "max": [
+        0.4930877685546875,
+        0.9052734375,
+        0.21486663818359375
+      ],
+      "size": [
+        0.986175537109375,
+        0.9052734375,
+        0.4297332763671875
+      ]
+    },
+    "nodes": [
+      {
+        "mesh": 0
+      }
+    ],
+    "materialSettings": [
+      {
+        "name": "tripo_material_421bc062-23fc-4ddb-bd90-e009b032ffd9",
+        "pbrMetallicRoughness": {
+          "baseColorTexture": {
+            "index": 0
+          },
+          "metallicRoughnessTexture": {
+            "index": 1
+          }
+        },
+        "normalTexture": {
+          "index": 2
+        }
+      }
+    ],
+    "animations": 0,
+    "skins": 0,
+    "externalURIs": [],
+    "checks": [
+      "GLB chunk bounds",
+      "embedded images",
+      "finite accessor values",
+      "index range",
+      "normals and UVs present"
+    ]
+  }
+]

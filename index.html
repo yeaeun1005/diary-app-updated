@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta name="island-world-release" content="7a8468f313e6">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/legacy/world.css">
+<meta name="island-world-release" content="db4aca2e5a1b">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/legacy/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -1461,7 +1461,7 @@ var MEM_NOTES = { band: "시연 학급 · 실제 학생이 아닙니다 · 새�
                   // 학생 화면(2026-09-14). 체험 간판으로 들어온 사람이 그 학생이 되어 있으므로 "실제 학생이 아닙니다"는 본인을 가리키는 말이 된다.
                   // 2026-09-15 저녁 문구 확정: "둘러보기 중 · ○○은/는 가상 학생이에요 · 쓴 것은 저장되지 않아요"(전: "시연 학급 · 가상의 학생 ○○이/가 되어 둘러보는 중 · 새로고침하면 처음으로 돌아가요"). 이름은 로그인한 학생을 따라간다
                   studentBand: function (name) { var t = String(name || ""), c = t.charCodeAt(t.length - 1), bat = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0;
-                    return "둘러보기 중 · " + t + (bat ? "은" : "는") + " 가상 학생이에요 · 쓴 것은 저장되지 않아요"; },
+                    return "가상 학급 체험 중. 새로고침하면 기록이 초기화돼요."; },
                   trialBand: "체험 모드 · 새로고침하면 처음으로 돌아가요",
                   msg: " · 새로고침하면 되돌아와요" };   // 순서대로 { p: [경로 조각], v: 값 | null(삭제) }. 다중 경로 update는 키마다 하나씩
 function memSegs(p) { return String(p).split("/").filter(Boolean); }
@@ -13909,7 +13909,7 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
     if (side === "bottom" || side === "top") { a.style.left = clamp(rect[0] + rect[2] / 2 - x, 20, bw - 20) + "px"; a.style.top = (side === "bottom" ? 0 : bh) + "px"; }
     else { a.style.top = clamp(rect[1] + rect[3] / 2 - y, 20, bh - 20) + "px"; a.style.left = (side === "right" ? 0 : bw) + "px"; }
   });
-  var h = React.createElement, mask = function (k, st) { return h("div", { key: k, className: "tut-mask", ref: function (el) { maskRefs.current[k] = el; }, style: { ...st, background: TUT.mask } }); };
+  var h = React.createElement, mask = function (k, st) { return h("div", { key: k, className: "tut-mask", ref: function (el) { maskRefs.current[k] = el; }, style: { ...st, background: TUT.mask, pointerEvents:step.walkMask?"none":undefined } }); };
   var masks = step.free ? [] : rect ? [
     mask("t", { left: 0, top: 0, right: 0, height: Math.max(0, rect[1]) }),
     mask("b", { left: 0, top: Math.max(0, rect[1] + rect[3]), right: 0, bottom: 0 }),
@@ -13923,8 +13923,8 @@ function TutorialOverlay({ steps, i, tone, onNext, onSkip }) {
   return h(React.Fragment, null, masks,
     rect && step.inert && !step.free ? h("div", { className: "tut-cover", ref: coverRef, style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3] } }) : null,
     rect && h("div", { className: "tut-ring", ref: ringRef, style: { left: rect[0], top: rect[1], width: rect[2], height: rect[3], borderRadius: R, "--tut-shine": TUT.shine, "--tut-shine-w": TUT.shineWidth + "px", "--tut-glow-lo": TUT.glowLo, "--tut-glow-hi": TUT.glowHi, "--tut-glow-still": TUT.glowStill } },
-      corner("tl", "100% 100%", { left: 0, top: 0 }), corner("tr", "0% 100%", { right: 0, top: 0 }),
-      corner("bl", "100% 0%", { left: 0, bottom: 0 }), corner("br", "0% 0%", { right: 0, bottom: 0 }),
+      !step.free && [corner("tl", "100% 100%", { left: 0, top: 0 }), corner("tr", "0% 100%", { right: 0, top: 0 }),
+      corner("bl", "100% 0%", { left: 0, bottom: 0 }), corner("br", "0% 0%", { right: 0, bottom: 0 })],
       h("div", { className: "tut-shine" })),
     h("div", { ref: bubRef, className: "tut-bubble " + (tone || "wood"), role: "dialog", "aria-label": "활동 안내" },
       h("div", { ref: arrowRef, className: "tut-arrow" }),
@@ -15123,8 +15123,8 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     className: "auth-knob", onClick: () => setAuthOpen(false), "aria-label": "닫기"
   }, "\u2715")), React.createElement("div",{className:"v4-login-welcome"},
     React.createElement("span",{className:"v4-login-star","aria-hidden":true},"✦"),
-    React.createElement("h2",null,loginForm.role==="teacher"?"우리 반 마음을 만나 볼까요?":"마음 바다로 출발해 볼까요?"),
-    React.createElement("p",null,loginForm.role==="teacher"?"아이들의 마음 탐험을 함께해 주세요.":"선생님이 알려주신 정보로 들어와요.")), authView === "login" ? React.createElement(React.Fragment, null, React.createElement("div", {
+    React.createElement("h2",null,loginForm.role==="teacher"?"선생님 로그인":"내 마음섬으로 들어가기"),
+    React.createElement("p",null,loginForm.role==="teacher"?"아이들의 마음 탐험을 함께해 주세요.":"학교에서 받은 계정을 입력해 주세요.")), authView === "login" ? React.createElement(React.Fragment, null, React.createElement("div", {
     style: { display: "flex", gap: 10, marginBottom: 16 }
   }, ["student", "teacher"].map((r, i) => React.createElement("button", {
     key: r,
@@ -15143,7 +15143,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
     onChange: e => { var on = e.target.checked; setMsg(""); setJudge(on); setLF(judgeForm(on, loginForm.role)); }
   }), React.createElement("span", { style: { fontWeight: HOME_FONT.bw } }, "심사용"), React.createElement("span", {
     style: { fontWeight: HOME_FONT.rw, opacity: 0.85 }
-  }, judge ? " · 학생과 선생님이 같은 가상 학급으로 들어가요" : " · 내 계정으로 들어가요")), msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-school"}, "학교 코드"), loginForm.role !== "teacher" && React.createElement("input", {id:"v2-school",
+  }, judge ? "학생과 선생님 화면을 체험할 수 있어요." : "학교에서 받은 계정으로 로그인해요.")), msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:"v2-auth-label",htmlFor:"v2-school"}, "학교 코드"), loginForm.role !== "teacher" && React.createElement("input", {id:"v2-school",
     className: "auth-inp" + (judgeOn(loginForm.role) ? " ro" : ""), readOnly: judgeOn(loginForm.role), disabled:loginBusy,
     value: loginForm.schoolCode,
     onChange: e => setLF({ ...loginForm, schoolCode: e.target.value.toUpperCase() }),
@@ -15858,7 +15858,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   React.createElement(V4RewardSettingsPanel,{key:currentUser.schoolCode,user:currentUser,students:myStudents,onSaved:setMS}),
   React.createElement("section",{className:"v4-teacher-download","aria-label":"보호자 동의서"},
     React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명·활동 기간·문의처를 작성한 뒤 보호자에게 나눠 주세요. 학생을 등록한 뒤에도 언제든 내려받을 수 있어요.")),
-    React.createElement("a",{className:"v4-consent-link",href:"island-v4/7a8468f313e6/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
+    React.createElement("a",{className:"v4-consent-link",href:"island-v4/db4aca2e5a1b/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
     "data-tut": "t-consent",
     style: {
       ...crd,
@@ -15875,7 +15875,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
       lineHeight: 1.7,
       margin: "0 0 12px"
     }
-  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/7a8468f313e6/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
+  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/db4aca2e5a1b/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -16497,49 +16497,49 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 // The original App mounts after its new presentation assets are ready.
 </script>
-<script src="island-v4/7a8468f313e6/legacy/coast-water.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/board.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/explorer.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/passages.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/social.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/custom-growth.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/world.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/account-view.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/integrated-app.js"></script>
-<script src="island-v4/7a8468f313e6/legacy/landing.js"></script>
-<link rel="stylesheet" href="island-v4/7a8468f313e6/style.css">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/sea.css">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/friend.css">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/activities.css">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/decor.css">
-<script src="island-v4/7a8468f313e6/GLTFLoader.r147.js"></script>
-<script src="island-v4/7a8468f313e6/decor-model.js"></script>
-<script src="island-v4/7a8468f313e6/state.js"></script>
-<script src="island-v4/7a8468f313e6/content.js"></script>
-<script src="island-v4/7a8468f313e6/assets.js"></script>
-<script src="island-v4/7a8468f313e6/passages.js"></script>
-<script src="island-v4/7a8468f313e6/scene.js"></script>
-<script src="island-v4/7a8468f313e6/sea-scene.js"></script>
-<script src="island-v4/7a8468f313e6/sea-view.js"></script>
-<script src="island-v4/7a8468f313e6/friend-style.js"></script>
-<script src="island-v4/7a8468f313e6/friend-scene.js"></script>
-<script src="island-v4/7a8468f313e6/friend-view.js"></script>
-<script src="island-v4/7a8468f313e6/activity-model.js"></script>
-<script src="island-v4/7a8468f313e6/student-tools-model.js"></script>
-<script src="island-v4/7a8468f313e6/student-tools.js"></script>
-<script src="island-v4/7a8468f313e6/activities.js"></script>
-<script src="island-v4/7a8468f313e6/decor-scene.js"></script>
-<script src="island-v4/7a8468f313e6/decor-ui.js"></script>
-<script src="island-v4/7a8468f313e6/persistence.js"></script>
-<script src="island-v4/7a8468f313e6/app.js"></script>
-<link rel="stylesheet" href="island-v4/7a8468f313e6/student-tools.css">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/home.css">
-<script src="island-v4/7a8468f313e6/review-data.js"></script>
-<script src="island-v4/7a8468f313e6/review-generator.js"></script>
-<script src="island-v4/7a8468f313e6/review-class.js"></script>
-<link rel="stylesheet" href="island-v4/7a8468f313e6/access.css">
-<link rel="stylesheet" href="island-v4/7a8468f313e6/clarity.css">
-<script src="island-v4/7a8468f313e6/sharing.js"></script><link rel="stylesheet" href="island-v4/7a8468f313e6/social.css"><script src="island-v4/7a8468f313e6/tutorial.js"></script><link rel="stylesheet" href="island-v4/7a8468f313e6/tutorial.css"><script src="island-v4/7a8468f313e6/care-model.js"></script><script src="island-v4/7a8468f313e6/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/7a8468f313e6/classroom.css"><script src="island-v4/7a8468f313e6/daily-model.js"></script><script src="island-v4/7a8468f313e6/reward-settings.js"></script><link rel="stylesheet" href="island-v4/7a8468f313e6/exploration.css"><script>root.render(React.createElement(App));</script>
+<script src="island-v4/db4aca2e5a1b/legacy/coast-water.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/board.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/explorer.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/passages.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/social.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/custom-growth.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/world.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/account-view.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/integrated-app.js"></script>
+<script src="island-v4/db4aca2e5a1b/legacy/landing.js"></script>
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/style.css">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/sea.css">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/friend.css">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/activities.css">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/decor.css">
+<script src="island-v4/db4aca2e5a1b/GLTFLoader.r147.js"></script>
+<script src="island-v4/db4aca2e5a1b/decor-model.js"></script>
+<script src="island-v4/db4aca2e5a1b/state.js"></script>
+<script src="island-v4/db4aca2e5a1b/content.js"></script>
+<script src="island-v4/db4aca2e5a1b/assets.js"></script>
+<script src="island-v4/db4aca2e5a1b/passages.js"></script>
+<script src="island-v4/db4aca2e5a1b/scene.js"></script>
+<script src="island-v4/db4aca2e5a1b/sea-scene.js"></script>
+<script src="island-v4/db4aca2e5a1b/sea-view.js"></script>
+<script src="island-v4/db4aca2e5a1b/friend-style.js"></script>
+<script src="island-v4/db4aca2e5a1b/friend-scene.js"></script>
+<script src="island-v4/db4aca2e5a1b/friend-view.js"></script>
+<script src="island-v4/db4aca2e5a1b/activity-model.js"></script>
+<script src="island-v4/db4aca2e5a1b/student-tools-model.js"></script>
+<script src="island-v4/db4aca2e5a1b/student-tools.js"></script>
+<script src="island-v4/db4aca2e5a1b/activities.js"></script>
+<script src="island-v4/db4aca2e5a1b/decor-scene.js"></script>
+<script src="island-v4/db4aca2e5a1b/decor-ui.js"></script>
+<script src="island-v4/db4aca2e5a1b/persistence.js"></script>
+<script src="island-v4/db4aca2e5a1b/app.js"></script>
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/student-tools.css">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/home.css">
+<script src="island-v4/db4aca2e5a1b/review-data.js"></script>
+<script src="island-v4/db4aca2e5a1b/review-generator.js"></script>
+<script src="island-v4/db4aca2e5a1b/review-class.js"></script>
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/access.css">
+<link rel="stylesheet" href="island-v4/db4aca2e5a1b/clarity.css">
+<script src="island-v4/db4aca2e5a1b/sharing.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/social.css"><script src="island-v4/db4aca2e5a1b/tutorial.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/tutorial.css"><script src="island-v4/db4aca2e5a1b/care-model.js"></script><script src="island-v4/db4aca2e5a1b/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/classroom.css"><script src="island-v4/db4aca2e5a1b/daily-model.js"></script><script src="island-v4/db4aca2e5a1b/reward-settings.js"></script><link rel="stylesheet" href="island-v4/db4aca2e5a1b/exploration.css"><link rel="stylesheet" href="island-v4/db4aca2e5a1b/polish.css"><script src="island-v4/db4aca2e5a1b/guides.js"></script><script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>
