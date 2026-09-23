@@ -1,0 +1,32 @@
+.v4-restored-card{background:#fffdf7;border:1px solid #dae5d9;border-radius:18px;padding:22px;margin:18px 0;min-width:0}
+.v4-restored-card h3,.v4-restored-card h4{margin:0 0 12px;color:#315f53}.v4-restored-card h3{font-size:24px}.v4-restored-card h4{font-size:19px}.v4-restored-card h5,.v4-action-suggestions h5{font-size:15px;margin:20px 0 10px}
+.v4-restored-card p,.v4-talk-detection p{font-size:14px;line-height:1.8;overflow-wrap:anywhere}
+.v4-restored-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.v4-restored-grid>.v4-restored-card{margin:0}
+.v4-restored-analysis canvas{max-width:100%;height:auto}.v4-restored-analysis .v4-restored-card{overflow:hidden}
+.v4-detection,.v4-talk-detection{padding:15px 18px;border-radius:13px;background:#eaf2eb;margin:18px 0;border:1px solid #d1e3d6}
+.v4-talk-detection h4{margin:0 0 8px;font-size:15px}.v4-talk-detection .v4-chips{margin:8px 0}.v4-talk-detection .v4-chips button{background:#fffdf7}
+.v4-suggestion-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 22px}.v4-suggestion-list button{text-align:left;line-height:1.65;padding:12px 14px;white-space:normal;overflow-wrap:anywhere}
+.v4-suggestion-list button[aria-pressed=true]{background:#dcebdc;border-color:#7eaa92}.v4-date-range{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}.v4-date-range label{display:flex;flex-direction:column;gap:5px;font-size:13px}.v4-date-range input,.v4-write-date input{font:inherit;color:#315f53;padding:9px;border:1px solid #c8d9cc;border-radius:9px;background:#fffdf7;max-width:100%;box-sizing:border-box}
+.v4-write-date{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}.v4-write-date button{font-size:13px}.v4-study-details>summary{font-size:16px;font-weight:650}
+.v4-custom-emotion{display:flex;align-items:end;flex-wrap:wrap;gap:9px;margin:16px 0}.v4-custom-emotion label{display:flex;flex-direction:column;gap:6px;font-size:13px;flex:1;min-width:180px}.v4-custom-emotion input{font:inherit;padding:12px;border-radius:10px;border:1px solid #c8d9cc;background:#fff;min-width:0;color:#315f53}
+@media(max-width:700px){.v4-restored-grid,.v4-suggestion-list{grid-template-columns:1fr}.v4-restored-card{padding:16px;margin:14px 0}.v4-restored-card h3{font-size:21px}.v4-restored-card h4{font-size:17px}.v4-detection,.v4-talk-detection{padding:12px}.v4-restored-analysis .v4-segment{flex-wrap:wrap}}
+.v4-activity-dialog .v4-five-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;scroll-margin-top:105px}
+.v4-activity-dialog .v4-five-steps button{flex-direction:column;justify-content:center;gap:7px;text-align:center;font-size:14px;padding:8px 2px;min-height:70px;border-radius:12px}
+.v4-activity-dialog .v4-five-steps button[aria-current]{background:#eaf3eb}
+.v4-five-steps button span{width:29px;height:29px;font-size:12px}
+.v4-talk-question>h4{font-size:25px;line-height:1.55;margin:12px 0;word-break:keep-all;overflow-wrap:anywhere}
+.v4-talk-question>h4:focus-visible{outline:2px solid #39816c;outline-offset:5px;border-radius:5px}
+.v4-prefill-note{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;background:#edf4ec;border:1px solid #d6e5d6;padding:12px 15px;border-radius:13px;font-size:14px;line-height:1.7;margin-top:18px}
+.v4-prefill-note .v4-text{font-size:13px;padding:7px 0;text-decoration:underline;text-underline-offset:4px}
+.v4-talk-work .v4-field textarea{min-height:116px;font-size:17px;line-height:1.8}
+.v4-feeling-options>summary{cursor:pointer;padding:10px 0;color:#326d5e;font-weight:700}
+.v4-reflection-recap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:20px 0}
+.v4-reflection-recap>div{background:#f6f3e9;border:1px solid #e7e0ca;border-radius:13px;padding:15px}
+.v4-reflection-recap small{color:#6c755c;font-weight:700}.v4-reflection-recap p{margin:7px 0 0;overflow-wrap:anywhere}
+.v4-reflection-options{display:grid;gap:10px}
+.v4-activity-dialog .v4-reflection-options button{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;padding:16px 18px;white-space:normal;border:1px solid #d5dfd2;border-radius:14px;background:#fffdf7;color:#315f53}
+.v4-reflection-options strong{font-size:18px}.v4-reflection-options span{font-size:14px;line-height:1.65;color:#647560}
+.v4-activity-dialog .v4-reflection-options button[aria-pressed=true]{background:#e2f0e5;border-color:#4c8b71;box-shadow:inset 0 0 0 1px #4c8b71}
+@media(max-width:600px){.v4-talk-question>h4{font-size:22px}.v4-reflection-recap{grid-template-columns:1fr}.v4-activity-dialog .v4-five-steps button{font-size:12px}.v4-talk-work .v4-field textarea{font-size:16px}.v4-reflection-options span{font-size:13px}}
+.v4-recent{margin-top:36px;padding-top:25px;border-top:1px solid #cedbcd}.v4-recent-heading,.v4-recent-entry>header{display:flex;align-items:center;justify-content:space-between;gap:12px}.v4-recent-heading h3{font-size:24px;margin:0}.v4-recent-heading>span,.v4-recent-entry small{font-size:12px;color:#6b8274}.v4-recent-entry{background:#fffef8;border:1px solid #dce4d5;border-radius:18px;padding:22px;margin-top:15px}.v4-recent-entry .v4-journal-text{margin:14px 0;font-size:16px}.v4-emotion-ratio{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}.v4-emotion-ratio span{font-size:14px;font-weight:700;padding:7px 13px;background:#e5f2e9;color:#34705c;border-radius:9px}.v4-emotion-ratio span+span{background:#f5e9ee;color:#955970}.v4-correction{border-top:1px solid #dce4d5;margin-top:18px;padding-top:18px}.v4-correction h4{font-size:20px;margin:0}.v4-correction p{font-size:14px}.v4-correction fieldset{border:0;margin:12px 0;padding:0}.v4-correction legend{font-size:13px;font-weight:700}.v4-custom-correction{background:#f1f5ea;border-radius:12px;padding:16px;margin:10px 0}.v4-custom-correction input{font:inherit;width:100%;box-sizing:border-box;border:1px solid #c8d9cc;padding:10px;border-radius:8px;background:#fffef9}.v4-own-shared{margin:24px 0;padding:22px;border:1px solid #c9dec8;border-radius:18px;background:#eaf3e5}.v4-own-shared h3{margin:0;font-size:21px}.v4-emotion-guide{padding:15px 18px;border-left:3px solid #8eb6a0;background:#edf4eb;border-radius:0 12px 12px 0}.v4-reflection-options button{min-height:66px}
+@media(max-width:600px){.v4-recent-entry{padding:16px}.v4-recent-heading h3{font-size:21px}.v4-recent-entry>header{align-items:flex-start}.v4-correction .v4-actions{flex-wrap:wrap}}

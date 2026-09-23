@@ -1,0 +1,11 @@
+.v4-activity-dialog select.v4-analysis-scope.is-all{font-weight:700!important;color:#235e50;border:2px solid #74a18e;background:#edf7ef}
+.tut-do.nl{display:inline!important;margin:0!important}.tut-do{font-weight:750!important}
+.v4-world .v4-quest.is-inviting .v4-primary{box-shadow:0 4px 12px #285e4e24!important}
+.voyage-resume-copy{position:relative;left:-9px;text-align:center}
+.v4-care-conversation{margin:16px 0;padding:16px 18px;border-radius:14px;background:#edf5ef;border-left:4px solid #79a18b;font-family:var(--v4-body-font);font-weight:500;line-height:1.8}
+.v4-care-conversation h4{margin:0 0 8px;font-size:16px;color:#315f4d}.v4-care-conversation p{margin:7px 0}.v4-care-conversation small{color:#546c5e}
+.v4-diary-empathy{position:relative;margin-top:16px;padding-top:14px;border-top:1px solid #d8e3d4;font-family:var(--v4-body-font);font-weight:500}
+.v4-diary-empathy small{display:block;color:#526953}.v4-diary-empathy button:disabled{opacity:.65;cursor:default}.v4-diary-compose{margin-top:14px}.v4-diary-star{position:absolute;right:20px;bottom:15px;color:#bd8b20;font-size:36px;animation:v4-diary-star 1.1s ease-out both;pointer-events:none}
+@keyframes v4-diary-star{0%{opacity:0;transform:translateY(15px) scale(.6)}30%{opacity:1;transform:translateY(0) scale(1.2)}100%{opacity:0;transform:translateY(-40px) scale(.9)}}
+@media(prefers-reduced-motion:reduce){.v4-diary-star{animation:none;display:none}}
+.v4-readable-page .v4-credit-link{display:inline-block;margin-top:4px;color:#176c6e;text-underline-offset:3px}
