@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta name="island-world-release" content="dba851648de6">
-<link rel="stylesheet" href="island-v4/dba851648de6/legacy/world.css">
+<meta name="island-world-release" content="e9a823d21c19">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/legacy/world.css">
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>마음 바다 탐험대</title>
@@ -781,7 +781,7 @@ body { font-family: 'Gowun Dodum', 'Jua', -apple-system, system-ui, sans-serif; 
 @media (max-width: 1099px) { .diary-head .diary-btns { grid-column: 1 / -1; justify-self: start; justify-content: flex-start; } }
 /* 광장(2026-09-15 저녁): 560px 이상은 질문 카드가 오른쪽 세로 패널(--plz-w). 제목 띠는 3D 영역(왼쪽)에만, 시연 띠는 3D 영역 왼쪽 아래(오른쪽 위에 두면 패널의 질문을 가린다) */
 :root { --plz-w: clamp(380px, 32vw, 420px); }
-@media (min-width: 560px) { .plz-title { display: none; } #demo-ribbon[data-page="plaza"] { top: auto; bottom: 12px; right: auto; left: 10px; } }   /* 제목은 패널 머리에(3D 영역 가운데 두면 800 폭에서 투어 팻말과 겹친다) */
+@media (min-width: 560px) { .plz-title { display: none; }  }   /* 제목은 패널 머리에(3D 영역 가운데 두면 800 폭에서 투어 팻말과 겹친다) */
 @media (max-width: 767px) {
   .diary-tab { padding: 10px 16px; font-size: 14px; }
   .diary-tab-ico { width: 16px; height: 16px; margin-right: 4px; }
@@ -830,12 +830,12 @@ html.tut-on.tut-walk .isle-pad{visibility:visible}   /* 숨긴 상자 안의 대
 .tut-bubble.plain .tut-next{background:#0ea5e9;color:#fff;border:1px solid #0284c7}
 .tut-next:hover{filter:brightness(1.08)}
 .tut-skip:focus-visible,.tut-next:focus-visible{outline:2px solid #ffd77a;outline-offset:2px}
-#demo-ribbon{position:fixed;right:10px;top:96px;z-index:9999;background:#f59e0b;color:#1f2937;font:600 12px/1 'Gowun Dodum',sans-serif;padding:7px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;white-space:nowrap}
+
 /* 900px 아래서는 띠를 두 줄로 접는다(폭 44vw까지, 2026-09-15 저녁) — 한 줄 띠가 800 폭 일기 화면의 둘째 줄 버튼(로그아웃)에 얹혔다 */
-@media (max-width: 899px){#demo-ribbon{white-space:normal;max-width:46vw;text-align:center;line-height:1.3;padding:5px 12px}}   /* 46vw(2026-09-16, 전 44vw): 시연 학생 이름이 "탐험이"로 한 글자 늘자 800 폭에서 두 줄이 됐다. 500 아래 규칙과 같은 값 */
+@media (max-width: 899px){}   /* 46vw(2026-09-16, 전 44vw): 시연 학생 이름이 "탐험이"로 한 글자 늘자 800 폭에서 두 줄이 됐다. 500 아래 규칙과 같은 값 */
 /* 500px 아래(2026-09-15 저녁): 3D 화면은 바다의 친구 찾기 칸(66~104px) 밑(112px)으로. 일기 화면은 위에 두면 버튼 줄에 얹히므로 아래 가운데 한 줄(스크롤되는 기록 위 footer처럼).
    넓은 화면의 일기 화면은 그대로 위 96px — 탭 상자("탐험일지 보기") 위 7px과 겹치지만 탭 글자(131px~)와는 9px 떨어져 가리는 것이 없다 */
-@media (max-width: 500px){#demo-ribbon{top:112px;max-width:46vw}#demo-ribbon[data-page="studentDiary"]{top:auto;bottom:10px;left:10px;right:10px;max-width:none}}
+@media (max-width: 500px){}
 </style>
 <script>
 var firebaseConfig = {
@@ -1597,7 +1597,7 @@ function setAccountStorage(user) {
   if (user && isRetiredReviewSchool(user.schoolCode)) throw Error('review-account-retired');
 }
 function isRetiredReviewSchool(code) { return String(code || '').trim().toUpperCase() === 'DEMO01'; }
-const RETIRED_REVIEW_MESSAGE = '체험 계정은 이용이 종료되었어요. 학교에서 받은 계정으로 로그인해 주세요.';
+const RETIRED_REVIEW_MESSAGE = '사용할 수 없는 계정이에요. 학교 코드와 계정 정보를 확인해 주세요.';
 function nowTs() { return Date.now(); }
 function dayStamp(ts) {
   var d = ts == null ? new Date(nowTs()) : new Date(ts);
@@ -14955,7 +14955,7 @@ function AppMain({ tutStart, tutOn }) {   // 화면들. tutStart(steps, opts)로
   if (page === "home") return React.createElement(React.Fragment, null,
     React.createElement(V2Landing, {authOpen:authOpen,signedIn:!!currentUser&&!currentUser.teacherId,
       onLogin:function(){if(currentUser&&!currentUser.teacherId){setPage("island");return;}setMsg("");setLF(emptyLoginForm(loginForm.role));setAuthOpen(true);},
-      onPrivacy:function(){setPage("privacy");},onCredits:function(){setPage("credits");}}), authOpen && React.createElement("div", {
+      onPrivacy:function(){setPage("privacy");}}), authOpen && React.createElement("div", {
     onClick: () => setAuthOpen(false), className: "auth-wrap",
     style: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(8,17,30,0.45)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
       display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "7vh 16px 40px", overflowY: "auto" }
@@ -15155,7 +15155,7 @@ msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:
       marginBottom: 16,
       paddingLeft: 12
     }
-  }, "- \uD559\uAE09 \uB370\uC774\uD130: \uAD50\uC0AC\uAC00 \uC9C1\uC811 \uC0AD\uC81C\uD558\uAC70\uB098, \uD559\uAE30 \uC885\uB8CC \uC2DC \uC0AD\uC81C \uAD8C\uC7A5", React.createElement("br", null), "- \uAD50\uC0AC\uAC00 \"\uD559\uC0DD \uC0AD\uC81C\" \uB610\uB294 \"\uAE30\uB85D \uBE44\uC6B0\uAE30\" \uC2DC \uD574\uB2F9 \uB370\uC774\uD130 \uC989\uC2DC \uC0AD\uC81C", React.createElement("br", null), "- \uCCB4\uD5D8 \uBAA8\uB4DC: \uB370\uC774\uD130\uAC00 \uC800\uC7A5\uB418\uC9C0 \uC54A\uC73C\uBA70, \uD398\uC774\uC9C0 \uC885\uB8CC \uC2DC \uC790\uB3D9 \uC0AD\uC81C"), React.createElement("h3", {
+  }, "- \uD559\uAE09 \uB370\uC774\uD130: \uAD50\uC0AC\uAC00 \uC9C1\uC811 \uC0AD\uC81C\uD558\uAC70\uB098, \uD559\uAE30 \uC885\uB8CC \uC2DC \uC0AD\uC81C \uAD8C\uC7A5", React.createElement("br", null), "- \uAD50\uC0AC\uAC00 \"\uD559\uC0DD \uC0AD\uC81C\" \uB610\uB294 \"\uAE30\uB85D \uBE44\uC6B0\uAE30\" \uC2DC \uD574\uB2F9 \uB370\uC774\uD130 \uC989\uC2DC \uC0AD\uC81C"), React.createElement("h3", {
     style: {
       fontSize: 15,
       color: "#0c4a6e",
@@ -15238,7 +15238,7 @@ msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:
       marginBottom: 16,
       paddingLeft: 12
     }
-  }, "개인정보 보호책임자: 본 서비스 개발·운영 연구진", React.createElement("br", null), "문의: 소속 기관을 통해 접수"), React.createElement("p", {
+  }, "개인정보 보호책임자: 본 서비스 개발·운영자", React.createElement("br", null), "문의: 소속 기관을 통해 접수"), React.createElement("p", {
     style: {
       fontSize: 14,
       color: "#475569",
@@ -15271,9 +15271,6 @@ msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:
       color: "#475569"
     }
   }, "\uC2DC\uD589\uC77C: 2026\uB144 4\uC6D4 28\uC77C")))));
-  // 출처와 저작권(2026-09-17). 개인정보 처리방침과 같은 구조(← 홈으로 · 카드 하나). 내용은 CREDITS.md와 같아야 한다 — 한쪽을 고치면 다른 쪽도.
-  // 문구는 초안. 표(table)는 400폭에서 깨져서 항목마다 이름 한 줄 + 설명 한 줄로 둔다.
-  if (page === "credits") return React.createElement(CreditsPage, { onHome: function () { setPage("home"); } });
   // 섬은 화면을 꽉 채운다. 상자 안에 넣으면 캔버스만 작아지고 아래가 여백이 된다.
   // 제목은 캔버스 위에 겹쳐 얹는다. 자리를 차지하면 그만큼 섬이 줄어든다.
   // ⑥-1 바다 화면. 부두 출항이 여기로 이어진다. #sea 해시로 바로 열 수도 있다(측정용).
@@ -15631,7 +15628,7 @@ msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:
   React.createElement(V4RewardSettingsPanel,{key:currentUser.schoolCode,user:currentUser,students:myStudents,onSaved:setMS}),
   React.createElement("section",{className:"v4-teacher-download","aria-label":"보호자 동의서"},
     React.createElement("div",null,React.createElement("h2",null,"보호자 동의서"),React.createElement("p",null,"학교명, 활동 기간, 문의처를 적어 보호자에게 나눠 주세요.")),
-    React.createElement("a",{className:"v4-consent-link",href:"island-v4/dba851648de6/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
+    React.createElement("a",{className:"v4-consent-link",href:"island-v4/e9a823d21c19/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf"},"동의서 PDF 내려받기")), myStudents.length === 0 && React.createElement("div", {
     "data-tut": "t-consent",
     style: {
       ...crd,
@@ -15648,7 +15645,7 @@ msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:
       lineHeight: 1.7,
       margin: "0 0 12px"
     }
-  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/dba851648de6/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
+  }, "\uB9CC 14\uC138 \uBBF8\uB9CC \uD559\uC0DD\uC758 \uAC1C\uC778\uC815\uBCF4\uB97C \uC218\uC9D1\uD558\uB824\uBA74 \uBC95\uC815\uB300\uB9AC\uC778(\uBCF4\uD638\uC790)\uC758 \uB3D9\uC758\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.", React.createElement("br", null), "\uC544\uB798 \uB3D9\uC758\uC11C \uC591\uC2DD\uC744 \uBC30\uD3EC\uD558\uACE0, \uB3D9\uC758\uC11C\uB97C \uC218\uD569\uD55C \uD6C4 \uD559\uC0DD\uC744 \uB4F1\uB85D\uD574\uC8FC\uC138\uC694."), React.createElement("a",{className:"v4-consent-link",href:"island-v4/e9a823d21c19/guardian-consent.pdf",download:"마음바다탐험대_보호자동의서.pdf",style:{marginBottom:14}},"동의서 PDF 내려받기"), React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -16198,39 +16195,6 @@ msgBox, loginForm.role !== "teacher" && React.createElement("label", {className:
   return null;
 }
 // 튜토리얼 상태는 여기(App)에 둔다(2026-09-15). 화면이 바뀌면 각 뷰는 언마운트되지만 투어는 이어진다. AppMain은 tutStart로 투어를 켠다(다음 단계에서 내 섬·교사 대시보드가 쓴다)
-// 출처와 저작권 페이지(2026-09-17). 첫 화면 꼬리 "출처와 저작권"에서 연다. 개인정보 처리방침(page === "privacy")과 같은 틀.
-// 항목은 CREDITS.md와 같은 내용이어야 한다. "확인 중"은 아직 출처를 못 적은 것 — 숨기지 않고 그대로 보인다.
-var CREDITS = {
-  intro: "마음 바다 탐험대의 출처와 기반을 둔 이론을 소개합니다.",
-  sections: [
-    { title: "글꼴", items: [
-      { name: "메이플스토리 서체", by: "㈜넥슨코리아", note: "첫 화면 제목과 표지판, 로그인 창, 섬의 팻말에 사용" },
-      { name: "주아", by: "우아한형제들", note: "제목 글자. SIL Open Font License 1.1, 출처: Google Fonts" },
-      { name: "고운돋움", by: "류양희", note: "본문 글자. SIL Open Font License 1.1, 출처: Google Fonts" }
-    ] },
-    { title: "그림", items: [
-      { name: "첫 화면 배경 · 제목 · 나무 표지판 둘 · 로그인 창 나무판", by: "ChatGPT(OpenAI) 생성", note: "생성형 AI도구로 만든 그림입니다." },
-      { name: "일기 화면의 감정 얼굴", by: "Twemoji — Twitter, Inc. and other contributors", note: "CC BY 4.0 (creativecommons.org/licenses/by/4.0)." },
-      { name: "바다 생물 · 잠수함 · 잠수부 아이콘", by: "ChatGPT(OpenAI) 생성", note: "생성형 AI도구로 만든 그림입니다." },
-      { name: "섬 · 바다 · 광장", by: "이 앱이 직접 그려요", note: "3D 장면은 코드로 매번 생성됩니다" }
-    ] },
-    { title: "소리", items: [
-      { name: "배경 피아노 · 발걸음 · 화면 전환 소리", by: "Pixabay", note: "Musical Peaceful Piano Loop · Nature Footstep Grass Leaf · Film Special Effects Soft Luxury Air Whoosh 5. Pixabay Content License(pixabay.com/service/license-summary)" }
-    ] },
-    { title: "함께 사용된 도구", items: [
-      { name: "React 18.3.1", by: "Meta Platforms, Inc.", note: "MIT License. 화면을 만드는 도구" },
-      { name: "Three.js r147", by: "Three.js Authors", note: "MIT License. 섬과 바다를 3D로 생성" },
-      { name: "Firebase JavaScript SDK 10.12.2", by: "Google LLC", note: "Apache License 2.0. 일기와 명단 저장" },
-      { name: "Google Fonts", by: "Google LLC", note: "주아·고운돋움 글꼴 출처." }
-    ] },
-    { title: "배경이 된 이론 및 연구", items: [
-      { name: "정서 원형 모형", by: "Russell, J. A. (1980)", note: "A circumplex model of affect. Journal of Personality and Social Psychology, 39(6), 1161–1178." },
-      { name: "비폭력대화", by: "Rosenberg, M. B. (2003)", note: "Nonviolent Communication: A Language of Life. PuddleDancer Press. 한국어판 『비폭력대화』(캐서린 한 옮김, 한국NVC센터)." }
-    ] }
-  ],
-  outro: "© 2026 마음 바다 탐험대"
-};
-// The revised CreditsPage is loaded before the app mounts.
 function App() {
   const [tut, setTut] = useState(null);   // { steps, i, tone, onDone } | null
   const tutRef = useRef(null); tutRef.current = tut;
@@ -16250,46 +16214,46 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 // The original App mounts after its new presentation assets are ready.
 </script>
-<script src="island-v4/dba851648de6/legacy/coast-water.js"></script>
-<script src="island-v4/dba851648de6/legacy/board.js"></script>
-<script src="island-v4/dba851648de6/legacy/explorer.js"></script>
-<script src="island-v4/dba851648de6/legacy/passages.js"></script>
-<script src="island-v4/dba851648de6/legacy/social.js"></script>
-<script src="island-v4/dba851648de6/legacy/custom-growth.js"></script>
-<script src="island-v4/dba851648de6/legacy/world.js"></script>
-<script src="island-v4/dba851648de6/legacy/account-view.js"></script>
-<script src="island-v4/dba851648de6/legacy/integrated-app.js"></script>
-<script src="island-v4/dba851648de6/legacy/landing.js"></script>
-<link rel="stylesheet" href="island-v4/dba851648de6/style.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/sea.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/friend.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/activities.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/decor.css">
-<script src="island-v4/dba851648de6/GLTFLoader.r147.js"></script>
-<script src="island-v4/dba851648de6/decor-model.js"></script>
-<script src="island-v4/dba851648de6/state.js"></script>
-<script src="island-v4/dba851648de6/content.js"></script>
-<script src="island-v4/dba851648de6/assets.js"></script>
-<script src="island-v4/dba851648de6/passages.js"></script>
-<script src="island-v4/dba851648de6/scene.js"></script>
-<script src="island-v4/dba851648de6/sea-scene.js"></script>
-<script src="island-v4/dba851648de6/sea-view.js"></script>
-<script src="island-v4/dba851648de6/friend-style.js"></script>
-<script src="island-v4/dba851648de6/friend-scene.js"></script>
-<script src="island-v4/dba851648de6/friend-view.js"></script>
-<script src="island-v4/dba851648de6/activity-model.js"></script>
-<script src="island-v4/dba851648de6/student-tools-model.js"></script>
-<script src="island-v4/dba851648de6/student-tools.js"></script>
-<script src="island-v4/dba851648de6/activities.js"></script>
-<script src="island-v4/dba851648de6/decor-scene.js"></script>
-<script src="island-v4/dba851648de6/decor-ui.js"></script>
-<script src="island-v4/dba851648de6/persistence.js"></script>
-<script src="island-v4/dba851648de6/app.js"></script>
-<link rel="stylesheet" href="island-v4/dba851648de6/student-tools.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/home.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/access.css">
-<link rel="stylesheet" href="island-v4/dba851648de6/clarity.css">
-<script src="island-v4/dba851648de6/sharing.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/social.css"><script src="island-v4/dba851648de6/tutorial.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/tutorial.css"><script src="island-v4/dba851648de6/care-model.js"></script><script src="island-v4/dba851648de6/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/classroom.css"><script src="island-v4/dba851648de6/daily-model.js"></script><script src="island-v4/dba851648de6/reward-settings.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/exploration.css"><link rel="stylesheet" href="island-v4/dba851648de6/polish.css"><script src="island-v4/dba851648de6/guides.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/typography.css"><script src="island-v4/dba851648de6/sound.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/review-polish.css"><script src="island-v4/dba851648de6/friend-guide.js"></script><script src="island-v4/dba851648de6/diary-empathy.js"></script><link rel="stylesheet" href="island-v4/dba851648de6/credits.css"><script src="island-v4/dba851648de6/credits.js"></script><script>root.render(React.createElement(App));</script>
+<script src="island-v4/e9a823d21c19/legacy/coast-water.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/board.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/explorer.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/passages.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/social.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/custom-growth.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/world.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/account-view.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/integrated-app.js"></script>
+<script src="island-v4/e9a823d21c19/legacy/landing.js"></script>
+<link rel="stylesheet" href="island-v4/e9a823d21c19/style.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/sea.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/friend.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/activities.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/decor.css">
+<script src="island-v4/e9a823d21c19/GLTFLoader.r147.js"></script>
+<script src="island-v4/e9a823d21c19/decor-model.js"></script>
+<script src="island-v4/e9a823d21c19/state.js"></script>
+<script src="island-v4/e9a823d21c19/content.js"></script>
+<script src="island-v4/e9a823d21c19/assets.js"></script>
+<script src="island-v4/e9a823d21c19/passages.js"></script>
+<script src="island-v4/e9a823d21c19/scene.js"></script>
+<script src="island-v4/e9a823d21c19/sea-scene.js"></script>
+<script src="island-v4/e9a823d21c19/sea-view.js"></script>
+<script src="island-v4/e9a823d21c19/friend-style.js"></script>
+<script src="island-v4/e9a823d21c19/friend-scene.js"></script>
+<script src="island-v4/e9a823d21c19/friend-view.js"></script>
+<script src="island-v4/e9a823d21c19/activity-model.js"></script>
+<script src="island-v4/e9a823d21c19/student-tools-model.js"></script>
+<script src="island-v4/e9a823d21c19/student-tools.js"></script>
+<script src="island-v4/e9a823d21c19/activities.js"></script>
+<script src="island-v4/e9a823d21c19/decor-scene.js"></script>
+<script src="island-v4/e9a823d21c19/decor-ui.js"></script>
+<script src="island-v4/e9a823d21c19/persistence.js"></script>
+<script src="island-v4/e9a823d21c19/app.js"></script>
+<link rel="stylesheet" href="island-v4/e9a823d21c19/student-tools.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/home.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/access.css">
+<link rel="stylesheet" href="island-v4/e9a823d21c19/clarity.css">
+<script src="island-v4/e9a823d21c19/sharing.js"></script><link rel="stylesheet" href="island-v4/e9a823d21c19/social.css"><script src="island-v4/e9a823d21c19/tutorial.js"></script><link rel="stylesheet" href="island-v4/e9a823d21c19/tutorial.css"><script src="island-v4/e9a823d21c19/care-model.js"></script><script src="island-v4/e9a823d21c19/teacher-tools.js"></script><link rel="stylesheet" href="island-v4/e9a823d21c19/classroom.css"><script src="island-v4/e9a823d21c19/daily-model.js"></script><script src="island-v4/e9a823d21c19/reward-settings.js"></script><link rel="stylesheet" href="island-v4/e9a823d21c19/exploration.css"><link rel="stylesheet" href="island-v4/e9a823d21c19/polish.css"><script src="island-v4/e9a823d21c19/guides.js"></script><link rel="stylesheet" href="island-v4/e9a823d21c19/typography.css"><script src="island-v4/e9a823d21c19/sound.js"></script><link rel="stylesheet" href="island-v4/e9a823d21c19/review-polish.css"><script src="island-v4/e9a823d21c19/friend-guide.js"></script><script src="island-v4/e9a823d21c19/diary-empathy.js"></script><script>root.render(React.createElement(App));</script>
 </body>
 <!-- Emotion emoji graphics: Twemoji (Twitter, Inc. and other contributors), licensed CC-BY 4.0, https://github.com/jdecked/twemoji -->
 </html>
