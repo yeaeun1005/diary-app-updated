@@ -1,0 +1,723 @@
+/* Attribution based on the user-provided material list. */
+CREDITS={
+  "intro": "프로그램에 사용한 자료의 형태, 설명과 출처를 안내합니다.",
+  "sections": [
+    {
+      "title": "그림",
+      "items": [
+        {
+          "id": "material-1",
+          "kind": "그림",
+          "description": "바다 배경 그림",
+          "keywords": "바다, 섬, 수중 풍경",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-2",
+          "kind": "그림",
+          "description": "흰동가리 그림",
+          "keywords": "흰동가리, 물고기, 바다 생물",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-3",
+          "kind": "그림",
+          "description": "소라 그림",
+          "keywords": "소라, 바다",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-4",
+          "kind": "그림",
+          "description": "잠수 헬멧 그림",
+          "keywords": "잠수, 헬멧, 탐험",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-5",
+          "kind": "그림",
+          "description": "잠수부 캐릭터",
+          "keywords": "잠수부, 캐릭터, 탐험",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-6",
+          "kind": "그림",
+          "description": "두려움 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-7",
+          "kind": "그림",
+          "description": "화남 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-8",
+          "kind": "그림",
+          "description": "짜증 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-9",
+          "kind": "그림",
+          "description": "불안 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-10",
+          "kind": "그림",
+          "description": "편안함 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-11",
+          "kind": "그림",
+          "description": "신남 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-12",
+          "kind": "그림",
+          "description": "감사 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-13",
+          "kind": "그림",
+          "description": "행복 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-14",
+          "kind": "그림",
+          "description": "희망 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-15",
+          "kind": "그림",
+          "description": "즐거움 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-16",
+          "kind": "그림",
+          "description": "외로움 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-17",
+          "kind": "그림",
+          "description": "뿌듯함 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-18",
+          "kind": "그림",
+          "description": "슬픔 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-19",
+          "kind": "그림",
+          "description": "피곤함 감정 얼굴",
+          "keywords": "",
+          "by": "Twemoji",
+          "note": "Twitter, Inc. and other contributors · CC BY 4.0"
+        },
+        {
+          "id": "material-20",
+          "kind": "그림",
+          "description": "감정 분석 아이콘",
+          "keywords": "그래프",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-21",
+          "kind": "그림",
+          "description": "마음 대화 아이콘",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-22",
+          "kind": "그림",
+          "description": "마음섬 예시 화면",
+          "keywords": "섬, 감정 구역, 식물",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-23",
+          "kind": "그림",
+          "description": "마음섬 예시 화면",
+          "keywords": "섬, 감정 구역, 식물",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-24",
+          "kind": "그림",
+          "description": "마음섬 예시 화면",
+          "keywords": "섬, 감정 구역, 식물",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-25",
+          "kind": "그림",
+          "description": "꽃과 열매나무 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-26",
+          "kind": "그림",
+          "description": "물결과 바위 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-27",
+          "kind": "그림",
+          "description": "물웅덩이와 나무 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-28",
+          "kind": "그림",
+          "description": "갈대와 등불 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-29",
+          "kind": "그림",
+          "description": "친구 마음섬 제목",
+          "keywords": "친구, 섬, 제목",
+          "by": "ChatGPT(OpenAI)",
+          "note": "글자: 주아 서체(우아한형제들) · SIL Open Font License 1.1"
+        },
+        {
+          "id": "material-30",
+          "kind": "그림",
+          "description": "로그인 버튼 글자",
+          "keywords": "로그인, 버튼, 글자",
+          "by": "ChatGPT(OpenAI)",
+          "note": "글자: 주아 서체(우아한형제들) · SIL Open Font License 1.1"
+        },
+        {
+          "id": "material-31",
+          "kind": "그림",
+          "description": "탐험 시작 버튼 글자",
+          "keywords": "탐험, 시작, 버튼",
+          "by": "ChatGPT(OpenAI)",
+          "note": "글자: 주아 서체(우아한형제들) · SIL Open Font License 1.1"
+        },
+        {
+          "id": "material-32",
+          "kind": "그림",
+          "description": "구름 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-33",
+          "kind": "그림",
+          "description": "바다와 섬 배경",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-34",
+          "kind": "그림",
+          "description": "마음 바다 탐험대 제목",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-35",
+          "kind": "그림",
+          "description": "탐험대 배 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-36",
+          "kind": "그림",
+          "description": "내 마음섬 제목",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": "글자: 주아 서체(우아한형제들) · SIL Open Font License 1.1"
+        },
+        {
+          "id": "material-37",
+          "kind": "그림",
+          "description": "E키 조작 아이콘",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-38",
+          "kind": "그림",
+          "description": "우리 반 바다 제목",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": "글자: 주아 서체(우아한형제들) · SIL Open Font License 1.1"
+        },
+        {
+          "id": "material-39",
+          "kind": "그림",
+          "description": "해파리 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-40",
+          "kind": "그림",
+          "description": "가오리 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-41",
+          "kind": "그림",
+          "description": "문어 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-42",
+          "kind": "그림",
+          "description": "나무 안내판 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-43",
+          "kind": "그림",
+          "description": "감정 일기 아이콘",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-44",
+          "kind": "그림",
+          "description": "잠망경 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-45",
+          "kind": "그림",
+          "description": "상어 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-46",
+          "kind": "그림",
+          "description": "체험 시작 표지판",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-47",
+          "kind": "그림",
+          "description": "로그인 표지판",
+          "keywords": "로그인, 표지판, 안내",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-48",
+          "kind": "그림",
+          "description": "불가사리 그림",
+          "keywords": "불가사리, 수중, 바다 생물",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-49",
+          "kind": "그림",
+          "description": "탐험 연습 아이콘",
+          "keywords": "잠수함, 탐험",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-50",
+          "kind": "그림",
+          "description": "프로그램 제목1",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-51",
+          "kind": "그림",
+          "description": "프로그램 제목2",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-52",
+          "kind": "그림",
+          "description": "탐험일지 아이콘",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        },
+        {
+          "id": "material-53",
+          "kind": "그림",
+          "description": "고래 그림",
+          "keywords": "",
+          "by": "ChatGPT(OpenAI)",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "title": "그림(3D)",
+      "items": [
+        {
+          "id": "material-54",
+          "kind": "그림(3D)",
+          "description": "우리 반 게시판 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-55",
+          "kind": "그림(3D)",
+          "description": "일기 책상 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-56",
+          "kind": "그림(3D)",
+          "description": "나무 벤치 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-57",
+          "kind": "그림(3D)",
+          "description": "꽃배 화분 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-58",
+          "kind": "그림(3D)",
+          "description": "작은 등대 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-59",
+          "kind": "그림(3D)",
+          "description": "이끼 바위 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-60",
+          "kind": "그림(3D)",
+          "description": "갈대 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-61",
+          "kind": "그림(3D)",
+          "description": "돌 등불 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-62",
+          "kind": "그림(3D)",
+          "description": "꽃 화분 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-63",
+          "kind": "그림(3D)",
+          "description": "별빛 그네 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-64",
+          "kind": "그림(3D)",
+          "description": "흰 들꽃 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-65",
+          "kind": "그림(3D)",
+          "description": "탐험일지 상자 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-66",
+          "kind": "그림(3D)",
+          "description": "탐험 나침반 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-67",
+          "kind": "그림(3D)",
+          "description": "마음 우체통 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-68",
+          "kind": "그림(3D)",
+          "description": "마음 조개 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-69",
+          "kind": "그림(3D)",
+          "description": "망원경 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-70",
+          "kind": "그림(3D)",
+          "description": "분재 나무 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-71",
+          "kind": "그림(3D)",
+          "description": "버드나무 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        },
+        {
+          "id": "material-72",
+          "kind": "그림(3D)",
+          "description": "둥근 나무 3D 모델",
+          "keywords": "",
+          "by": "Tripo",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "title": "소리",
+      "items": [
+        {
+          "id": "material-73",
+          "kind": "소리",
+          "description": "책장 넘김 효과음",
+          "keywords": "",
+          "by": "Pixabay · CreatorsHome",
+          "note": "Turn a Page · Pixabay Content License"
+        },
+        {
+          "id": "material-74",
+          "kind": "소리",
+          "description": "탐험 시작 효과음",
+          "keywords": "",
+          "by": "Pixabay · humordome",
+          "note": "Magic Button Click · Pixabay Content License"
+        },
+        {
+          "id": "material-75",
+          "kind": "소리",
+          "description": "마음 보내기 효과음",
+          "keywords": "",
+          "by": "Pixabay · ShidenBeatsMusic",
+          "note": "Sound Effect: Twinkle/Sparkle · Pixabay Content License"
+        },
+        {
+          "id": "material-76",
+          "kind": "소리",
+          "description": "로그인 클릭 효과음",
+          "keywords": "",
+          "by": "Pixabay · Universfield",
+          "note": "Computer Mouse Click · Pixabay Content License"
+        },
+        {
+          "id": "material-77",
+          "kind": "소리",
+          "description": "배 출발 효과음",
+          "keywords": "",
+          "by": "Pixabay · Universfield",
+          "note": "Water Splash · Pixabay Content License"
+        },
+        {
+          "id": "material-78",
+          "kind": "소리",
+          "description": "피아노 배경음악",
+          "keywords": "",
+          "by": "Pixabay · archtects (Freesound)",
+          "note": "Musical Peaceful Piano Loop · Pixabay Content License"
+        },
+        {
+          "id": "material-79",
+          "kind": "소리",
+          "description": "풀밭 발걸음 효과음",
+          "keywords": "",
+          "by": "Pixabay · EminYILDIRIM (Freesound)",
+          "note": "Nature Footstep Grass Leaf · Pixabay Content License"
+        },
+        {
+          "id": "material-80",
+          "kind": "소리",
+          "description": "바람 효과음",
+          "keywords": "",
+          "by": "Pixabay · Sdanezis",
+          "note": "Soft Luxury Air Whoosh 5 · Pixabay Content License"
+        }
+      ]
+    },
+    {
+      "title": "폰트",
+      "items": [
+        {
+          "id": "material-81",
+          "kind": "폰트",
+          "description": "메이플스토리 서체",
+          "keywords": "",
+          "by": "넥슨코리아",
+          "note": "메이플스토리 서체 이용 조건"
+        },
+        {
+          "id": "material-82",
+          "kind": "폰트",
+          "description": "프리텐다드 가변 서체",
+          "keywords": "",
+          "by": "길형진",
+          "note": "SIL Open Font License 1.1"
+        },
+        {
+          "id": "material-83",
+          "kind": "폰트",
+          "description": "주아 서체",
+          "keywords": "",
+          "by": "우아한형제들",
+          "note": "SIL Open Font License 1.1"
+        }
+      ]
+    }
+  ],
+  "outro": "© 2026 마음 바다 탐험대"
+};
+/* Material descriptions and attribution, without external link controls. */
+function CreditsPage(props) {
+  const h = React.createElement;
+  const row = item => h('tr', {key:item.id},
+    h('td', {className:'v4-credit-kind'}, item.kind),
+    h('td', {className:'v4-credit-description'}, item.description,
+      item.keywords && h('small', null, item.keywords)),
+    h('td', {className:'v4-credit-source'},
+      h('span', {className:'v4-credit-source-label', 'aria-hidden':true}, '출처 '),
+      h('span', null, item.by),
+      item.note && h('small', null, item.note)));
+  const section = (entry, index) => h('section', {
+    key:entry.title, className:'v4-credits-section', 'aria-labelledby':'credits-section-'+index
+  },
+    h('h2', {id:'credits-section-'+index}, entry.title),
+    h('table', {'aria-label':entry.title+' 자료와 출처'},
+      h('colgroup', null, h('col', {className:'v4-credit-kind-col'}), h('col'), h('col', {className:'v4-credit-source-col'})),
+      h('thead', null, h('tr', null,
+        h('th', {scope:'col'}, '자료 형태'),
+        h('th', {scope:'col'}, '자료 설명'),
+        h('th', {scope:'col'}, '출처'))),
+      h('tbody', null, entry.items.map(row))));
+  return h('main', {className:'v4-readable-page v4-credits-page'},
+    h('div', {className:'v4-credits-wrap'},
+      h('button', {className:'v4-credits-back', onClick:props.onHome}, '← 홈으로'),
+      h('article', {className:'v4-credits-card'},
+        h('header', {className:'v4-credits-heading'},
+          h('h1', null, '출처와 저작권'),
+          h('p', null, CREDITS.intro)),
+        CREDITS.sections.map(section),
+        h('footer', null, CREDITS.outro))));
+}
